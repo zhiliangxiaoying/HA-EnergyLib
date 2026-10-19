@@ -1,2 +1,76 @@
 # HA-EnergyLib
-Home Assistant integration for EnergyLIB inverters and residential energy systems. Local discovery via mDNS; device protocol adapters under development.
+
+面向 EnergyLIB（LIB）逆变器及家庭能源设备的 Home Assistant 集成项目。
+
+目标：通过统一的设备发现入口和可扩展的型号适配器，逐步支持不同系列的 LIB 逆变器、储能及相关能源设备。每个型号都需要依据实际协议和实机验证后声明支持。
+
+> 当前为项目初始化和协议设计阶段，尚未提供可安装、可控制设备的 HA 集成。以下发现约定是拟定的接口合同，不代表现有设备固件已经实现。请勿将本项目直接部署到生产设备。
+
+## 已确定的方向
+
+- GitHub：`zhiliangxiaoying/HA-EnergyLib`，私有仓库。
+- 计划使用的 HA 集成域：`energylib`。
+- mDNS / DNS-SD 服务类型：`_energylib._tcp.local.`。
+- 优先考虑局域网设备接入；业务协议、端口、认证与接口路径待固件团队确认。
+- 通过型号和协议版本选择适配器，不假设所有型号共享寄存器表。
+- 默认先实现只读数据，控制功能在文档完整并完成实机验证后再开放。
+
+## 用户体验目标
+
+1. 安装集成，HA 在允许 mDNS 通信的网络中发现设备。
+2. 用户确认设备，并完成设备要求的本地认证或配对。
+3. 验证稳定设备 ID、型号和协议版本，创建设备及支持的实体。
+4. 为能源面板提供光伏、电网和电池的有效统计数据。
+5. 对已完成验证的型号提供可选控制，命令执行后读取设备真实状态。
+
+自动发现依赖设备发布服务、HA 安装匹配的集成，以及网络允许多播。单纯的 `.local` 主机名解析不足以枚举未知设备。
+
+## 项目结构
+
+```text
+HA-EnergyLib/
+├── README.md
+├── AGENTS.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── docs/
+│   ├── DISCOVERY.md
+│   ├── PROTOCOL_CHECKLIST.md
+│   ├── ARCHITECTURE.md
+│   └── ROADMAP.md
+└── custom_components/
+    └── energylib/
+        └── README.md
+```
+
+实际集成代码将在设备接口确认后加入 `custom_components/energylib/`。目前没有 `manifest.json`，不会被误识别为已完成的 HA 集成。
+
+## 开发与对接文档
+
+- [发现服务约定](docs/DISCOVERY.md)：固件应发布的服务信息、唯一 ID 和网络行为。
+- [协议资料清单](docs/PROTOCOL_CHECKLIST.md)：业务接口、读写点表、认证和实机资料。
+- [架构计划](docs/ARCHITECTURE.md)：发现、协议库、型号适配器和 HA 实体的分工。
+- [开发路线](docs/ROADMAP.md)：按设备发现、只读接入、能源统计、可选控制推进。
+
+## 参考项目
+
+本项目参考 [Pylontech-Research/HA-pylontech-force-H3X](https://github.com/Pylontech-Research/HA-pylontech-force-H3X) 的项目组织和设计思路：统一刷新、原生实体、能源统计、可选控制、写入后的回读以及实机验证清单。
+
+本次初始化未复制其实现代码、设备寄存器或协议参数，也未把 Force H3X 的 Modbus ID、默认端口、功率符号规则作为 LIB 设备的假设。
+
+## 开发状态与兼容性
+
+| 项目 | 状态 |
+| --- | --- |
+| 项目与设计文档 | 已初始化 |
+| mDNS 服务类型 | 已约定，等待固件实现及联调 |
+| HA 自动发现处理 | 待开发 |
+| 本地业务协议和认证 | 待确认 |
+| 支持型号与固件矩阵 | 待建立 |
+| 数据采集、能源统计 | 待开发及验证 |
+| 设备控制 | 默认不提供，等待协议和实机验证 |
+| HACS 安装与发布 | 后续版本完成后配置 |
+
+## 安全和发布
+
+不要提交真实密码、访问令牌、设备序列号清单、受限协议文档或未经脱敏的抓包。商业发布、开源许可和协议文档的分发权限应由项目所有者另行确定。本仓库目前不额外授予开源使用许可；如后续引用其他项目代码，必须保留其许可和署名要求。
