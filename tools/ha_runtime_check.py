@@ -117,7 +117,9 @@ async def check():
         enabled = [e for e in entities if e.disabled_by is None]
         assert len(enabled) == 14, [(e.entity_id, e.disabled_by) for e in entities]
         assert not any(e.domain in ("number", "switch", "select") for e in entities)
-        lab_device = devices.async_get_device(identifiers={("energylib", lab.unique_id)})
+        lab_device = devices.async_get_device_by_identifier(
+            ("energylib", lab.unique_id), lab.entry_id
+        )
         try:
             await hass.services.async_call(
                 "energylib",

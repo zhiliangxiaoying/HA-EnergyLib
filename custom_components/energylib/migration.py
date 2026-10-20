@@ -33,8 +33,10 @@ async def async_migrate_entry(hass, entry):
         if (DOMAIN, serial) not in device.identifiers:
             return False
         identifiers = (device.identifiers - {(DOMAIN, serial)}) | {(DOMAIN, uid)}
-        conflict = devices.async_get_device(identifiers={(DOMAIN, uid)})
-        if conflict is not None and conflict.id != device.id:
+        # Identifiers are no longer unique across config entries (HA 2026.x):
+        # any other device already holding the new identifier is a conflict.
+        conflicts = devices.async_get_devices(identifiers={(DOMAIN, uid)})
+        if any(other.id != device.id for other in conflicts):
             return False
         device_updates.append((device, identifiers))
     applied_entities, applied_devices = [], []
