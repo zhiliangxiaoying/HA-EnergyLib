@@ -381,10 +381,10 @@ def mdns_properties(serial):
 def mdns_service_info(serial, bind, port):
     import socket
 
-    from zeroconf import ServiceInfo
-
     if bind.startswith("127.") or bind in ("0.0.0.0", "localhost"):
         raise ValueError("--mdns needs a concrete LAN address in --bind")
+    from zeroconf import ServiceInfo
+
     return ServiceInfo(
         SERVICE,
         f"EnergyLIB-{serial}.{SERVICE}",

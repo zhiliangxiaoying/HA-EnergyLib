@@ -13,7 +13,7 @@ tested yet; nothing here is evidence of hardware compatibility.
 | Ruff lint / format | passed |
 | Official **hassfest** container (`ghcr.io/home-assistant/hassfest`) | 1 integration, 0 invalid |
 | HACS action | not run yet (needs the public repository) |
-| `python -m tools.ha_runtime_check` (inside a HA image) | configured in CI, not run for this revision |
+| `python -m tools.ha_runtime_check` (HA 2026.8.2 image, no network) | 10 checks passed |
 
 ## Home Assistant 2026.8.2 (HA Container) with simulators
 

@@ -30,11 +30,18 @@ async def check():
     shutil.copytree(
         root / "custom_components" / "energylib", config / "custom_components" / "energylib"
     )
+    # Two independent simulators: one for the v1 migration entry, one (with a
+    # different serial) for the control entry, so they never share a device.
     model = BenchModel(BenchConfig(writes=True))
     model.tick(datetime.now(timezone.utc), 0)
     peer = BenchServer(model, {"127.0.0.1"})
     server = await asyncio.start_server(peer.handle, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
+    lab_model = BenchModel(BenchConfig(serial="ELIB-RUNTIME-CTRL", writes=True))
+    lab_model.tick(datetime.now(timezone.utc), 0)
+    lab_peer = BenchServer(lab_model, {"127.0.0.1"})
+    lab_server = await asyncio.start_server(lab_peer.handle, "127.0.0.1", 0)
+    lab_port = lab_server.sockets[0].getsockname()[1]
     hass = HomeAssistant(str(config))
     loader.async_setup(hass)
     hass.config_entries = ConfigEntries(hass, {})
@@ -44,9 +51,14 @@ async def check():
     hass.config.components.add("zeroconf")
     results = []
 
-    def entry(*, version=2, lab=True, enabled=False, serial=None):
+    def entry(*, version=2, lab=True, enabled=False, serial=None, peer_port=None):
         serial = serial or model.config.serial
-        data = {"host": "127.0.0.1", "port": port, "unit_id": 1, "profile": "v001b031_single"}
+        data = {
+            "host": "127.0.0.1",
+            "port": peer_port or port,
+            "unit_id": 1,
+            "profile": "v001b031_single",
+        }
         uid = serial
         if version == 2:
             # One Sinexcel profile for real and simulated devices; "lab" only
@@ -97,7 +109,7 @@ async def check():
         results.append("v1 migration preserves entity_id, device_id and energy metadata")
         assert await hass.config_entries.async_unload(legacy.entry_id)
 
-        lab = entry(enabled=False)
+        lab = entry(enabled=False, serial=lab_model.config.serial, peer_port=lab_port)
         await hass.config_entries.async_add(lab)
         await hass.async_block_till_done()
         assert lab.state is ConfigEntryState.LOADED
@@ -156,11 +168,11 @@ async def check():
             },
             blocking=True,
         )
-        assert model.get_float(0x300C) == 1
+        assert lab_model.get_float(0x300C) == 1
         await hass.services.async_call(
             "energylib", "clear_tou_schedule", {"device_id": lab_device.id}, blocking=True
         )
-        assert not model.schedule().periods and model.get_float(0x300C) == 1
+        assert not lab_model.schedule().periods and lab_model.get_float(0x300C) == 1
         results.append("TOU action roundtrip, clear preserves work mode")
         await lab.runtime_data.async_command("work_mode", "self_consumption")
         await hass.services.async_call(
@@ -169,9 +181,9 @@ async def check():
             {"device_id": lab_device.id, "power_kw": -1, "duration": 30},
             blocking=True,
         )
-        assert model.get_float(0xC646) == 1
+        assert lab_model.get_float(0xC646) == 1
         assert await hass.config_entries.async_unload(lab.entry_id)
-        assert model.get_float(0xC646) == 0
+        assert lab_model.get_float(0xC646) == 0
         assert await hass.config_entries.async_setup(lab.entry_id)
         assert lab.runtime_data.device.remote_deadline is None
         results.append("remote action, unload exit, reload never resumes lease")
@@ -183,17 +195,17 @@ async def check():
         flow = await hass.config_entries.options.async_configure(
             flow["flow_id"], {"next_step_id": "add"}
         )
-        count = peer.write_count
+        count = lab_peer.write_count
         flow = await hass.config_entries.options.async_configure(
             flow["flow_id"], {"type": "charge", "start": "02:00:00", "end": "03:00:00", "power": 2}
         )
-        assert flow["type"] == "menu" and count == peer.write_count
+        assert flow["type"] == "menu" and count == lab_peer.write_count
         flow = await hass.config_entries.options.async_configure(
             flow["flow_id"], {"next_step_id": "save"}
         )
         assert "02:00" in flow["description_placeholders"]["preview"]
         await hass.config_entries.options.async_configure(flow["flow_id"], {"activate": False})
-        assert len(model.schedule().periods) == 1
+        assert len(lab_model.schedule().periods) == 1
         results.append("native TOU forms edit draft without writes until explicit Save")
 
         await lab.runtime_data.async_command("backup_soc", 30)
@@ -201,7 +213,7 @@ async def check():
 
         diagnostic = await async_get_config_entry_diagnostics(hass, lab)
         encoded = json.dumps(diagnostic)
-        assert model.config.serial not in encoded and "127.0.0.1" not in encoded
+        assert lab_model.config.serial not in encoded and "127.0.0.1" not in encoded
         assert "registers" not in encoded
         results.append("diagnostics omit serial, network address and raw registers")
         assert await hass.config_entries.async_unload(lab.entry_id)
@@ -271,9 +283,10 @@ async def check():
             if e.state is ConfigEntryState.LOADED:
                 await hass.config_entries.async_unload(e.entry_id)
         await hass.async_stop(force=True)
-        server.close()
-        await server.wait_closed()
-        await peer.close()
+        for srv, simulator in ((server, peer), (lab_server, lab_peer)):
+            srv.close()
+            await srv.wait_closed()
+            await simulator.close()
         # HA delayed stores must finish before TemporaryDirectory is removed.
         tmp.cleanup()
 

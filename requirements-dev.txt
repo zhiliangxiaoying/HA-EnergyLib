@@ -1,2 +1,4 @@
 ruff==0.14.1
 voluptuous==0.15.2
+# Simulator mDNS tests (same pin as requirements-simulator.txt).
+zeroconf==0.148.0
