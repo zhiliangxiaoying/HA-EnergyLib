@@ -236,7 +236,14 @@
         "name": "Inverter temperature"
       },
       "tou_schedule": {
-        "name": "Time-of-use schedule"
+        "name": "Time-of-use schedule",
+        "state": {
+          "charge": "charge period",
+          "discharge": "discharge period",
+          "outside_period": "outside periods",
+          "inactive": "inactive",
+          "remote": "remote control"
+        }
       }
     },
     "binary_sensor": {

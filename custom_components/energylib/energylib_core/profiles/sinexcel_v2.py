@@ -89,7 +89,15 @@ def encode_schedule(schedule, today: date):
             powers[i * 2 + offset // 2] = p.power
     # Bit 0 = Sunday ... bit 6 = Saturday.
     mask = sum(1 << ((WEEKDAYS.index(day) + 1) % 7) for day in schedule.weekdays)
-    meta = u32_words(mask) + u32_words(local_date_stamp(today)) + u32_words(FAR_FUTURE)
+    start = (
+        int(schedule.valid_from.timestamp())
+        if schedule.valid_from is not None
+        else local_date_stamp(today)
+    )
+    end = int(schedule.valid_until.timestamp()) if schedule.valid_until is not None else FAR_FUTURE
+    if not 0 <= start <= end <= 0xFFFFFFFF:
+        raise ValueError("Invalid device validity range")
+    meta = u32_words(mask) + u32_words(start) + u32_words(end)
     return floats(times), meta, floats(powers)
 
 
@@ -119,7 +127,13 @@ def decode_schedule(blocks, outside_mode, limits):
     if outside_mode is None or not outside_mode.is_integer() or not 0 <= outside_mode < 4:
         raise ValueError("Invalid outside mode")
     return TouSchedule.parse(
-        {"periods": periods, "weekdays": days, "outside_mode": OUTSIDE_MODES[int(outside_mode)]},
+        {
+            "periods": periods,
+            "weekdays": days,
+            "outside_mode": OUTSIDE_MODES[int(outside_mode)],
+            "valid_from": datetime.fromtimestamp(meta[2] << 16 | meta[3], timezone.utc),
+            "valid_until": datetime.fromtimestamp(meta[4] << 16 | meta[5], timezone.utc),
+        },
         limits,
     )
 
@@ -332,11 +346,11 @@ class SinexcelProfile:
             await self.write_float(client, address, value)
 
     async def write_schedule(self, client, schedule):
+        blocks = encode_schedule(schedule, datetime.now().date())
         # Assumption (Q5): no TOU master switch; leave TOU mode while writing so a
         # half-written table is never executed. The caller restores the mode.
         await self.write_float(client, CONTROL_ADDRESSES["work_mode"], 0.0)
-        today = datetime.now().date()
-        for (address, _), words in zip(SCHEDULE_BLOCKS, encode_schedule(schedule, today)):
+        for (address, _), words in zip(SCHEDULE_BLOCKS, blocks):
             await client.write_registers(address, words)
             if await client.read_holding_registers(address, len(words)) != words:
                 raise InvalidResponse("TOU block read-back mismatch")
@@ -347,6 +361,8 @@ class SinexcelProfile:
         return (
             first.weekdays == second.weekdays
             and first.outside_mode == second.outside_mode
+            and first.valid_from == second.valid_from
+            and first.valid_until == second.valid_until
             and len(first.periods) == len(second.periods)
             and all(
                 a.type == b.type

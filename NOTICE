@@ -7,3 +7,44 @@ The vendor protocol document (Sinexcel V001B031) is not part of this work and is
 not distributed with it. "Sinexcel" and other product names are trademarks of their
 respective owners and are used only to describe compatibility. The license does not
 grant rights to brand images or trademarks (Apache-2.0, section 6).
+
+Digital twin page (custom_components/energylib/twin)
+----------------------------------------------------
+The house, garden, PV roof, inverter, battery and charging station in the twin are
+original models made for this project.
+
+The sports car (twin/models/sports-car.glb) is adapted from "Chevrolet Corvette (C7)"
+by Martin Trafas, https://sketchfab.com/3d-models/chevrolet-corvette-c7-2b509d1bce104224b147c81757f6f43a
+licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+Changes: emblems, licence plate and shadow plane removed; geometry simplified;
+textures reduced; meshopt-compressed. Chevrolet and Corvette are trademarks of
+General Motors; this project is not affiliated with or endorsed by General Motors.
+
+The page bundles these unmodified third-party files, each under the MIT License:
+
+- three.js r128 (twin/vendor/three.min.js and the example scripts GLTFLoader.js,
+  OrbitControls.js, EffectComposer.js, Pass.js, RenderPass.js, ShaderPass.js,
+  MaskPass.js, SSAOPass.js, SMAAPass.js, CopyShader.js, SSAOShader.js,
+  SMAAShader.js, GammaCorrectionShader.js, SimplexNoise.js)
+  Copyright © 2010-2021 three.js authors. https://github.com/mrdoob/three.js
+- meshoptimizer 1.3 decoder (twin/vendor/meshopt_decoder.js)
+  Copyright (c) 2016-2026 Arseny Kapoulkine. https://github.com/zeux/meshoptimizer
+
+MIT License text:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

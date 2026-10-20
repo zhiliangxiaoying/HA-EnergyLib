@@ -4,14 +4,18 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
+from .const import DOMAIN
 from .coordinator import EnergyLibCoordinator
+from .dashboard import async_register_dashboard
 from .energylib_core.legacy import IdentityMismatch, UnsupportedDevice
 from .energylib_core.runtime import DeviceRuntime
 from .energylib_core.transport.modbus_tcp import EnergyLibError, ModbusTcpClient
 from .migration import async_migrate_entry  # noqa: F401
 from .services import async_register_services
+from .twin_panel import async_register_twin_panel
 
 PLATFORMS = [
     Platform.SENSOR,
@@ -20,6 +24,13 @@ PLATFORMS = [
     Platform.NUMBER,
     Platform.SWITCH,
 ]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config) -> bool:
+    await async_register_dashboard(hass)
+    await async_register_twin_panel(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

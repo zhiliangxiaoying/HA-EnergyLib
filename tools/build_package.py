@@ -18,7 +18,7 @@ def build(output=None):
         for path in sorted(component.rglob("*")):
             if not path.is_file() or path.is_symlink() or "__pycache__" in path.parts:
                 continue
-            if path.suffix not in (".py", ".json", ".yaml", ".png", ".md"):
+            if path.suffix not in (".py", ".json", ".yaml", ".png", ".md", ".html", ".js", ".glb"):
                 continue
             name = "energylib/" + path.relative_to(component).as_posix()
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))

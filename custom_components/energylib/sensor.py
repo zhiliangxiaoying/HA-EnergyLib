@@ -16,6 +16,7 @@ CLASSES = {
     "frequency": SensorDeviceClass.FREQUENCY,
     "temperature": SensorDeviceClass.TEMPERATURE,
     "enum": SensorDeviceClass.ENUM,
+    "schedule": SensorDeviceClass.ENUM,
 }
 
 

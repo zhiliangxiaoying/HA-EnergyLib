@@ -3,6 +3,7 @@
 import asyncio
 import math
 import time
+from dataclasses import replace
 from datetime import datetime
 
 from .legacy import IdentityMismatch, decode_float
@@ -43,6 +44,7 @@ class DeviceRuntime:
         self.remote_deadline = None
         self._heartbeat = 0
         self._generation = -1
+        self._closed = False
         self.last_frame_count = 0
 
     @property
@@ -60,13 +62,29 @@ class DeviceRuntime:
             await self.profile.configure(self.client, self.identity)
             self._generation = self.client.generation
 
-    async def _identity(self, expected=None):
+    def _ensure_open(self):
+        if self._closed:
+            raise ControlError("Device runtime is closed")
+
+    async def _identity(self, expected=None, *, allow_closed=False):
+        if not allow_closed:
+            self._ensure_open()
         identity = await self.profile.identify(self.client)
         if expected is None and self.identity is not None:
             expected = self.identity.serial
         if expected is not None and identity.serial != expected:
             raise IdentityMismatch("Endpoint identity changed")
         self.identity = identity
+
+    async def _prepare_locked(self):
+        """Verify identity and refresh capabilities before using a new connection."""
+        await self._identity()
+        if self._generation == self.client.generation:
+            return False
+        await self.profile.configure(self.client, self.identity)
+        self._generation = self.client.generation
+        self._timestamps.clear()
+        return True
 
     def points(self):
         return [
@@ -92,10 +110,7 @@ class DeviceRuntime:
         async with self._lock:
             count = self.client.requests
             try:
-                await self._identity()
-                if self._generation != self.client.generation:
-                    await self.profile.configure(self.client, self.identity)
-                    self._generation = self.client.generation
+                if await self._prepare_locked():
                     force = True
                 now = self._clock()
                 supported = {p.key for p in self.points()}
@@ -200,6 +215,7 @@ class DeviceRuntime:
         return tuple(o for o in definition.options if o in known)
 
     def _gate(self):
+        self._ensure_open()
         if not self.allow_control or not self.profile.controls_supported:
             raise ControlError("Control is not enabled for this verified profile")
 
@@ -216,24 +232,26 @@ class DeviceRuntime:
             if value:
                 return await self.set_battery_power(0, 300)
             return await self.stop_remote()
-        definition = next(c for c in CONTROLS if c.key == key)
-        if definition.options:
-            if value not in self.control_options(definition):
-                raise ControlError("Unsupported mode")
-        elif (isinstance(value, bool) and definition.platform != "switch") or not isinstance(
-            value, (int, float)
-        ):
-            raise ControlError("Numeric value required")
-        else:
-            try:
-                low, high = definition.limits(self.profile.max_power_kw)
-            except ValueError as err:
-                raise ControlError("Profile does not declare a rated power") from err
-            if not math.isfinite(value) or not low <= value <= high:
-                raise ControlError("Value outside limits")
         async with self._lock:
+            await self._prepare_locked()
             self._gate()
-            await self._identity()
+            if key not in self.profile.control_keys:
+                raise ControlError("Unsupported control")
+            definition = next(c for c in CONTROLS if c.key == key)
+            if definition.options:
+                if value not in self.control_options(definition):
+                    raise ControlError("Unsupported mode")
+            elif (isinstance(value, bool) and definition.platform != "switch") or not isinstance(
+                value, (int, float)
+            ):
+                raise ControlError("Numeric value required")
+            else:
+                try:
+                    low, high = definition.limits(self.profile.max_power_kw)
+                except ValueError as err:
+                    raise ControlError("Profile does not declare a rated power") from err
+                if not math.isfinite(value) or not low <= value <= high:
+                    raise ControlError("Value outside limits")
             actual = await self.profile.read_controls(self.client)
             if actual["remote_control"] and key == "work_mode":
                 raise ControlError("Stop remote control first")
@@ -269,12 +287,12 @@ class DeviceRuntime:
         self._gate()
         if type(activate) is not bool:
             raise ControlError("activate must be boolean")
-        if "ctrl_tou" not in self.profile.capabilities or self.profile.tou_limits is None:
-            raise ControlError("Device does not expose the TOU registers")
-        schedule = TouSchedule.parse(data, self.profile.tou_limits)
         async with self._lock:
+            await self._prepare_locked()
             self._gate()
-            await self._identity()
+            if "ctrl_tou" not in self.profile.capabilities or self.profile.tou_limits is None:
+                raise ControlError("Device does not expose the TOU registers")
+            schedule = TouSchedule.parse(data, self.profile.tou_limits)
             actual = await self.profile.read_controls(self.client)
             if actual["remote_control"]:
                 raise ControlError("Stop remote control before editing TOU")
@@ -282,10 +300,17 @@ class DeviceRuntime:
             mode = next(c for c in CONTROLS if c.key == "work_mode")
             if previous not in self.control_options(mode):
                 raise ControlError("Cannot safely restore current mode")
-            if schedule.outside_mode is None:
-                current = await self.profile.read_schedule(self.client)
-                data = {**schedule.as_dict(), "outside_mode": current.outside_mode}
-                schedule = TouSchedule.parse(data, self.profile.tou_limits)
+            current = await self.profile.read_schedule(self.client)
+            # Validity is not editable through this API or the native forms.
+            # Always retain the device's current bounds, even for a stale draft.
+            schedule = replace(
+                schedule,
+                outside_mode=(
+                    current.outside_mode if schedule.outside_mode is None else schedule.outside_mode
+                ),
+                valid_from=current.valid_from,
+                valid_until=current.valid_until,
+            )
             try:
                 await self.profile.write_schedule(self.client, schedule)
                 readback = await self.profile.read_schedule(self.client)
@@ -313,15 +338,13 @@ class DeviceRuntime:
             for v in (power_kw, duration)
         ):
             raise ControlError("Finite numeric power and duration required")
-        if (
-            not self.profile.max_power_kw
-            or abs(power_kw) > self.profile.max_power_kw
-            or not 1 <= duration <= 86400
-        ):
+        if not 1 <= duration <= 86400:
             raise ControlError("Power or duration outside device limits")
         async with self._lock:
+            await self._prepare_locked()
             self._gate()
-            await self._identity()
+            if not self.profile.max_power_kw or abs(power_kw) > self.profile.max_power_kw:
+                raise ControlError("Power or duration outside device limits")
             actual = await self.profile.read_controls(self.client)
             if actual["work_mode"] == "time_of_use":
                 raise ControlError("Leave TOU before starting remote control")
@@ -395,6 +418,7 @@ class DeviceRuntime:
         task = None
         try:
             async with self._lock:
+                await self._prepare_locked()
                 self._gate()
                 task = self._cancel_lease_locked()
                 try:
@@ -414,11 +438,12 @@ class DeviceRuntime:
         task = None
         try:
             async with self._lock:
+                self._closed = True
                 owned_remote = self.remote_deadline is not None
                 task = self._cancel_lease_locked()
                 if owned_remote and self.profile.controls_supported:
                     try:
-                        await self._identity()
+                        await self._identity(allow_closed=True)
                         await self.profile.leave_remote(self.client)
                     except EnergyLibError:
                         self.last_command = "uncertain"

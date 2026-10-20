@@ -8,10 +8,24 @@ import asyncio
 import json
 import shutil
 import tempfile
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .sinexcel_simulator import BenchConfig, BenchModel, BenchServer
+
+
+class StaticPaths:
+    """Records static routes like HA's HTTP server would, without binding a port."""
+
+    def __init__(self):
+        self.paths = []
+
+    async def async_register_static_paths(self, configs):
+        for config in configs:
+            if any(p.url_path == config.url_path for p in self.paths):
+                raise RuntimeError(f"Duplicate static route {config.url_path}")
+            self.paths.append(config)
 
 
 async def check():
@@ -49,6 +63,13 @@ async def check():
     # Discovery contracts have separate tests. Do not bind a second HTTP/mDNS
     # service on the running host merely to exercise HA registries/entities.
     hass.config.components.add("zeroconf")
+    # The twin panel and dashboard need http/frontend; record their routes and
+    # extra modules instead of serving them.
+    from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
+
+    hass.http = StaticPaths()
+    hass.data[DATA_EXTRA_MODULE_URL] = UrlManager(lambda *args: None, [])
+    hass.config.components.update({"http", "frontend"})
     results = []
 
     def entry(*, version=2, lab=True, enabled=False, serial=None, peer_port=None):
@@ -107,6 +128,29 @@ async def check():
         assert hass.states.get(before_id).attributes["state_class"] == "total_increasing"
         assert hass.states.get(before_id).state not in ("unknown", "unavailable")
         results.append("v1 migration preserves entity_id, device_id and energy metadata")
+        from homeassistant.components.frontend import DATA_PANELS
+
+        from custom_components.energylib.dashboard import async_register_dashboard
+        from custom_components.energylib.twin_panel import (
+            PANEL_URL_PATH,
+            async_register_twin_panel,
+        )
+
+        panel = hass.data[DATA_PANELS][PANEL_URL_PATH]
+        assert panel.component_name == "iframe" and not panel.require_admin
+        assert panel.config["url"].startswith("/energylib_twin/index.html?v=")
+        await async_register_twin_panel(hass)
+        await async_register_dashboard(hass)
+        routes = sorted(p.url_path for p in hass.http.paths)
+        assert routes == ["/energylib_static", "/energylib_twin"], routes
+        for route in hass.http.paths:
+            index = (
+                "index.html" if route.url_path == "/energylib_twin" else "energylib-dashboard.js"
+            )
+            assert (Path(route.path) / index).is_file()
+        modules = hass.data[DATA_EXTRA_MODULE_URL].urls
+        assert [u.split("?")[0] for u in modules] == ["/energylib_static/energylib-dashboard.js"]
+        results.append("twin panel and dashboard strategy register once, visible to all users")
         assert await hass.config_entries.async_unload(legacy.entry_id)
 
         lab = entry(enabled=False, serial=lab_model.config.serial, peer_port=lab_port)
@@ -171,12 +215,57 @@ async def check():
             blocking=True,
         )
         assert lab_model.get_float(0x300C) == 1
+        from .sinexcel_simulator import _sx
+
+        previous_dates = [lab_model.registers[0xC0B6 + i] for i in range(4)]
+        future_dates = _sx.u32_words(4039372800) + _sx.u32_words(4102358400)
+        lab_model.registers.update({0xC0B6 + i: w for i, w in enumerate(future_dates)})
+        await hass.services.async_call(
+            "energylib",
+            "set_tou_schedule",
+            {
+                "device_id": lab_device.id,
+                "periods": [{"type": "charge", "start": "01:00", "end": "06:00", "power": 1}],
+                "outside_mode": "backup",
+            },
+            blocking=True,
+        )
+        assert [lab_model.registers[0xC0B6 + i] for i in range(4)] == future_dates
+        assert (
+            lab.runtime_data.device.schedule_status(datetime(2026, 10, 20, 2)) == "outside_period"
+        )
+        results.append("native TOU save preserves future validity and reports the plan inactive")
         await hass.services.async_call(
             "energylib", "clear_tou_schedule", {"device_id": lab_device.id}, blocking=True
         )
         assert not lab_model.schedule().periods and lab_model.get_float(0x300C) == 1
+        assert [lab_model.registers[0xC0B6 + i] for i in range(4)] == future_dates
+        lab_model.registers.update({0xC0B6 + i: w for i, w in enumerate(previous_dates)})
         results.append("TOU action roundtrip, clear preserves work mode")
         await lab.runtime_data.async_command("work_mode", "self_consumption")
+        lab_model.config = replace(lab_model.config, rated_kw=3)
+        lab_model.tick(datetime.now(timezone.utc), 0)
+        await lab.runtime_data.device.client.close()
+        writes = lab_peer.write_count
+        try:
+            await hass.services.async_call(
+                "energylib",
+                "set_battery_power",
+                {"device_id": lab_device.id, "power_kw": 4, "duration": 10},
+                blocking=True,
+            )
+        except HomeAssistantError:
+            pass
+        else:
+            raise AssertionError("Reconnected device accepted stale power limits")
+        assert lab_peer.write_count == writes
+        assert lab.runtime_data.device.profile.max_power_kw == 3
+        lab_model.config = replace(lab_model.config, rated_kw=5)
+        lab_model.tick(datetime.now(timezone.utc), 0)
+        await lab.runtime_data.device.client.close()
+        results.append(
+            "native service re-probes rating after reconnect and rejects an oversized write"
+        )
         await hass.services.async_call(
             "energylib",
             "set_battery_power",
@@ -184,8 +273,20 @@ async def check():
             blocking=True,
         )
         assert lab_model.get_float(0xC646) == 1
+        old_runtime = lab.runtime_data.device
         assert await hass.config_entries.async_unload(lab.entry_id)
         assert lab_model.get_float(0xC646) == 0
+        from custom_components.energylib.energylib_core.runtime import ControlError
+
+        requests = old_runtime.client.requests
+        try:
+            await old_runtime.set_battery_power(1, 10)
+        except ControlError:
+            pass
+        else:
+            raise AssertionError("Unloaded runtime reconnected and started a lease")
+        assert old_runtime.client.requests == requests
+        results.append("unloaded runtime rejects retained command references without reconnecting")
         assert await hass.config_entries.async_setup(lab.entry_id)
         assert lab.runtime_data.device.remote_deadline is None
         results.append("remote action, unload exit, reload never resumes lease")

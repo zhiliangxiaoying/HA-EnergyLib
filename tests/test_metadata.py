@@ -39,6 +39,35 @@ class MetadataTests(unittest.TestCase):
             {"set_battery_power", "set_tou_schedule", "clear_tou_schedule"},
         )
 
+    def test_every_enum_state_is_translated(self):
+        files = [COMPONENT / "strings.json", *(COMPONENT / "translations").glob("*.json")]
+        enums = [p for p in MEASUREMENTS.values() if p.options]
+        self.assertIn("tou_schedule", {p.key for p in enums})
+        for path in files:
+            sensors = json.loads(path.read_text(encoding="utf-8"))["entity"]["sensor"]
+            for point in enums:
+                with self.subTest(file=path.name, sensor=point.key):
+                    states = sensors[point.key].get("state", {})
+                    self.assertEqual(set(states), set(point.options))
+                    self.assertTrue(all(states.values()))
+
+    def test_schedule_sensor_declares_every_status(self):
+        self.assertEqual(
+            set(MEASUREMENTS["tou_schedule"].options),
+            {"charge", "discharge", "outside_period", "inactive", "remote"},
+        )
+        # HA translates sensor states only for the ENUM device class.
+        tree = ast.parse((COMPONENT / "sensor.py").read_text(encoding="utf-8"))
+        classes = next(
+            n.value
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Assign)
+            and isinstance(n.targets[0], ast.Name)
+            and n.targets[0].id == "CLASSES"
+        )
+        mapping = {k.value: v.attr for k, v in zip(classes.keys, classes.values)}
+        self.assertEqual(mapping["schedule"], "ENUM")
+
     def test_display_precision_by_kind(self):
         self.assertEqual(MEASUREMENTS["active_alarms"].precision, 0)
         self.assertEqual(MEASUREMENTS["battery_total_soc"].precision, 1)

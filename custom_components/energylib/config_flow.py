@@ -5,9 +5,18 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .const import CONF_PROFILE, CONF_PROFILE_ID, CONF_UNIT_ID, DEFAULT_UNIT_ID, DOMAIN, PROFILE
+from .const import (
+    CONF_PROFILE,
+    CONF_PROFILE_ID,
+    CONF_UNIT_ID,
+    DEFAULT_PORT,
+    DEFAULT_UNIT_ID,
+    DOMAIN,
+    PROFILE,
+)
 from .energylib_core.profiles import get_profile
 from .protocol.device import (
     DeviceIdentity,
@@ -49,9 +58,21 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_HOST): vol.All(str, vol.Length(min=1)),
-                vol.Required(CONF_PORT): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-                vol.Required(CONF_UNIT_ID, default=DEFAULT_UNIT_ID): vol.All(
-                    vol.Coerce(int), vol.Range(min=1, max=255)
+                # A form convenience, not a guarantee about the device endpoint.
+                # Discovery and failed submissions keep their actual/chosen port.
+                vol.Required(CONF_PORT, default=suggested.get(CONF_PORT, DEFAULT_PORT)): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=65535)
+                ),
+                vol.Required(
+                    CONF_UNIT_ID, default=suggested.get(CONF_UNIT_ID, DEFAULT_UNIT_ID)
+                ): vol.All(
+                    selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=1, max=255, step=1, mode="box")
+                    ),
+                    # The selector returns float even with step=1. Reject fractional
+                    # addresses before converting to the integer required by Modbus.
+                    vol.In(range(1, 256)),
+                    vol.Coerce(int),
                 ),
             }
         )

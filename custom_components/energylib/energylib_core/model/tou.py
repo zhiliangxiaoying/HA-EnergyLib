@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 OUTSIDE_MODES = ("self_consumption", "backup", "pv_charge_priority", "feed_in_priority")
@@ -43,6 +44,10 @@ class TouSchedule:
     periods: tuple[TouPeriod, ...] = ()
     weekdays: tuple[str, ...] = WEEKDAYS
     outside_mode: str | None = None
+    # Device calendar dates are encoded as UTC timestamps. Retain the complete
+    # bounds so reading/editing a plan never rounds or replaces its device data.
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
 
     @classmethod
     def parse(cls, data, limits):
@@ -56,6 +61,20 @@ class TouSchedule:
         outside = data.get("outside_mode")
         if outside is not None and outside not in OUTSIDE_MODES:
             raise ValueError("Invalid outside mode")
+
+        def bound(key):
+            value = data.get(key)
+            if value is None:
+                return None
+            if isinstance(value, str):
+                value = datetime.fromisoformat(value)
+            if not isinstance(value, datetime) or value.tzinfo is None:
+                raise ValueError("Validity bounds require timezone-aware ISO timestamps")
+            return value.astimezone(timezone.utc)
+
+        valid_from, valid_until = bound("valid_from"), bound("valid_until")
+        if valid_from is not None and valid_until is not None and valid_from > valid_until:
+            raise ValueError("Validity start must not exceed validity end")
         periods, occupied = [], {day: [] for day in range(7)}
         for item in data["periods"]:
             if not isinstance(item, dict) or set(item) != {"type", "start", "end", "power"}:
@@ -95,15 +114,28 @@ class TouSchedule:
             tuple(sorted(periods, key=lambda p: (p.start, p.type))),
             tuple(d for d in WEEKDAYS if d in days),
             outside,
+            valid_from,
+            valid_until,
         )
 
     def as_dict(self):
         result = {"periods": [p.as_dict() for p in self.periods], "weekdays": list(self.weekdays)}
         if self.outside_mode is not None:
             result["outside_mode"] = self.outside_mode
+        if self.valid_from is not None:
+            result["valid_from"] = self.valid_from.isoformat()
+        if self.valid_until is not None:
+            result["valid_until"] = self.valid_until.isoformat()
         return result
 
     def active(self, now):
+        # Compare the device's local-calendar-as-UTC day, exactly as encoded;
+        # do not round stored bounds or apply the HA host's UTC offset to them.
+        calendar_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        if (self.valid_from is not None and calendar_day < self.valid_from) or (
+            self.valid_until is not None and calendar_day > self.valid_until
+        ):
+            return None
         day, current = now.weekday(), now.hour * 60 + now.minute
         for p in self.periods:
             a, b = minute(p.start), minute(p.end)

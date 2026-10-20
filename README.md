@@ -49,13 +49,32 @@ directory and restart Home Assistant.
 - **Discovered device:** *Settings → Devices & services* shows **EnergyLIB** under
   *Discovered*. Select **Add**, check the address and confirm.
 - **Manual:** *Add integration → EnergyLIB*, then enter host, Modbus TCP port and
-  unit ID (default 1).
+  unit ID (default 1). The manual form pre-fills port **502**; change it if the device
+  uses another port. Discovery pre-fills the advertised port instead.
 
 ### Energy dashboard
 
 Use the cumulative counters: *grid import energy*, *grid export energy*, *solar energy*,
 *battery charge energy* and *battery discharge energy*. Check their meaning against the
 inverter display before relying on them.
+
+### EnergyLIB dashboard
+
+*Settings → Dashboards → Add dashboard → EnergyLIB* creates a ready-made page from your
+devices: energy flow, battery, today's and lifetime energy, a 7-day chart, status,
+time-of-use schedule and activity. Control tiles appear only after you enable
+**Allow control**. The page follows renamed entities and shows one tab per device.
+The flow diagram appears when the
+[Power Flow Card Plus](https://github.com/flixlix/power-flow-card-plus) frontend card
+is installed (HACS); it is not bundled. Without it the page shows the power tiles.
+To use it in YAML: `strategy: {type: custom:energylib}`.
+
+### Digital twin
+
+The sidebar entry **EnergyLIB 数字孪生** shows a 3D home with live solar, battery, grid
+and load flows from your EnergyLIB device (a selector appears with several devices).
+It is bundled with the integration and needs no setup. The page text is currently
+Chinese only.
 
 ### Sign convention
 
@@ -90,6 +109,8 @@ self-consumption after the timeout.
 set *Weekdays and outside mode*, then **Preview and save** (optionally switching the work
 mode to time of use). Limits: 6 charge + 6 discharge periods, one weekday set for the
 whole table, no overlaps, no periods crossing midnight, no `24:00`.
+Saving or clearing a plan preserves the device's effective-date bounds; the status
+sensor respects that window. Effective dates are read-only in the current editor.
 
 ### Services
 

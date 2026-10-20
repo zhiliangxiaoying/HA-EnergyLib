@@ -236,7 +236,14 @@
         "name": "逆变器温度"
       },
       "tou_schedule": {
-        "name": "定时充放电计划"
+        "name": "定时充放电计划",
+        "state": {
+          "charge": "充电时段",
+          "discharge": "放电时段",
+          "outside_period": "不在时段内",
+          "inactive": "未启用",
+          "remote": "远程调度中"
+        }
       }
     },
     "binary_sensor": {

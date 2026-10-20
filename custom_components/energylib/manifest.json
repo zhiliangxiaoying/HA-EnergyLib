@@ -3,12 +3,12 @@
   "name": "EnergyLIB",
   "codeowners": ["@zhiliangxiaoying"],
   "config_flow": true,
-  "dependencies": ["zeroconf"],
+  "dependencies": ["frontend", "http", "zeroconf"],
   "documentation": "https://github.com/zhiliangxiaoying/HA-EnergyLib",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/zhiliangxiaoying/HA-EnergyLib/issues",
   "requirements": [],
-  "version": "0.5.0",
+  "version": "0.5.3",
   "zeroconf": ["_energylib._tcp.local."]
 }

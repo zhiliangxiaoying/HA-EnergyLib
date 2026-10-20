@@ -9,11 +9,11 @@ tested yet; nothing here is evidence of hardware compatibility.
 
 | Check | Result |
 |---|---|
-| Unit + loopback TCP tests (`python -m unittest discover`) | 88 passed |
+| Unit + loopback TCP tests (`python -m unittest discover`; dashboard tests run the strategy under Node) | 119 passed |
 | Ruff lint / format | passed |
 | Official **hassfest** container (`ghcr.io/home-assistant/hassfest`) | 1 integration, 0 invalid |
-| HACS action | not run yet (needs the public repository) |
-| `python -m tools.ha_runtime_check` (HA 2026.8.2 image, no network) | 10 checks passed |
+| HACS action (release-readiness workflow, v0.5.0) | passed |
+| `python -m tools.ha_runtime_check` (HA 2026.8.2 isolated temporary config) | 14 checks passed |
 
 ## Home Assistant 2026.8.2 (HA Container) with simulators
 
@@ -35,6 +35,14 @@ Simulator: `tools/sinexcel_simulator.py` (V001B031 registers, writes enabled) an
 | Remote | Finite remote charge (−1 kW / 5 s) ends automatically; heartbeat loss → device falls back | pass |
 | TOU | Edit draft in options, save, read back; schedule status sensor | pass |
 | Config | Form has only host / port / unit ID; no profile choice | pass |
+| Config defaults (0.5.2) | Real HA manual form serializes port default 502; discovery and failed-submission port preservation covered by flow unit tests | pass |
+| Unit ID input (0.5.3) | Real HA form serializes a number box defaulting to 1; native selector validation returns an integer for Modbus; fractional/out-of-range addresses rejected | pass |
+| TOU validity (0.5.1) | Future/expired bounds preserved on save/clear; bounds included in read-back; inactive plan does not report charging | pass |
+| Reconnect (0.5.1) | Rating drops 5 → 3 kW before the next poll; power/export/TOU requests of 4 kW rejected without writes | pass |
+| Closure (0.5.1) | Close followed by queued writes or retained runtime calls cannot reconnect or start a new lease | pass |
+| TOU status | Schedule sensor states show translated text (enum sensor) | pass |
+| Dashboard | *Add dashboard → EnergyLIB* generates the page from the device; controls shown only when enabled; flow card used when installed | pass |
+| Digital twin | Sidebar panel loads without setup; binds the EnergyLIB device's 5 values; numbers match the entities; car parked in the bay | pass |
 
 ## Not covered yet / 尚未覆盖
 

@@ -3,7 +3,7 @@
 import asyncio
 import unittest
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from energylib_under_test.energylib_core.legacy import IdentityMismatch
 from energylib_under_test.energylib_core.model.points import CONTROLS, CORE
@@ -24,6 +24,38 @@ def period(kind="charge", start="01:00", end="06:00", power=2):
 
 
 class TouTests(unittest.TestCase):
+    def test_validity_roundtrip_and_calendar_boundaries(self):
+        data = {
+            "periods": [period(start="10:00", end="12:00")],
+            "valid_from": "2098-01-01T12:34:56+00:00",
+            "valid_until": "2098-01-03T23:45:00+00:00",
+        }
+        schedule = TouSchedule.parse(data, TouLimits(max_power_kw=5))
+        self.assertEqual(schedule.as_dict()["valid_from"], data["valid_from"])
+        self.assertEqual(schedule.as_dict()["valid_until"], data["valid_until"])
+        self.assertEqual(TouSchedule.parse(schedule.as_dict(), TouLimits(max_power_kw=5)), schedule)
+        for day, active in (
+            (date(2097, 12, 31), False),
+            (date(2098, 1, 1), False),
+            (date(2098, 1, 2), True),
+            (date(2098, 1, 3), True),
+            (date(2098, 1, 4), False),
+        ):
+            self.assertEqual(
+                schedule.active(datetime.combine(day, datetime.min.time()).replace(hour=11))
+                is not None,
+                active,
+            )
+
+    def test_invalid_validity_is_rejected(self):
+        for bounds in (
+            {"valid_from": "2098-01-01"},
+            {"valid_from": 42},
+            {"valid_from": "2098-01-03T00:00:00+00:00", "valid_until": "2098-01-01T00:00:00+00:00"},
+        ):
+            with self.subTest(bounds=bounds), self.assertRaises(ValueError):
+                TouSchedule.parse({"periods": [], **bounds}, TouLimits(max_power_kw=5))
+
     def test_roundtrip_sort_and_preserve_defaults(self):
         parsed = TouSchedule.parse(
             {"periods": [period("discharge", "18:00", "22:00"), period()]},
@@ -125,6 +157,124 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("pv4_power", keys)
         self.assertIn("battery_2_soc", keys)
         self.assertLess(self.runtime.last_frame_count, 18)
+
+    async def test_reconnect_limits_are_checked_before_every_command(self):
+        self.runtime.allow_control = True
+        self.model.config = replace(self.model.config, rated_kw=3)
+        self.model.tick(datetime(2026, 10, 20, 11), 0)
+        for action in (
+            lambda: self.runtime.set_battery_power(4, 30),
+            lambda: self.runtime.set_control("export_limit", 4),
+            lambda: self.runtime.set_schedule({"periods": [period(power=4)]}),
+        ):
+            self.runtime.profile.max_power_kw = 5
+            await self.client.close()
+            before = self.peer.write_count
+            with self.assertRaises((ControlError, ValueError)):
+                await action()
+            self.assertEqual(self.runtime.profile.max_power_kw, 3)
+            self.assertEqual(self.peer.write_count, before)
+
+    async def test_reconnect_can_revoke_control_capabilities_before_writing(self):
+        self.runtime.allow_control = True
+        self.model.registers.pop(0xC646)
+        self.model.registers.pop(0xC647)
+        await self.client.close()
+        before = self.peer.write_count
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("grid_charge", True)
+        self.assertFalse(self.runtime.profile.controls_supported)
+        self.assertEqual(self.peer.write_count, before)
+
+    async def test_queued_control_uses_limits_at_lock_acquisition(self):
+        self.runtime.allow_control = True
+        await self.runtime._lock.acquire()
+        try:
+            command = asyncio.create_task(self.runtime.set_control("export_limit", 4))
+            await asyncio.sleep(0)
+            self.runtime.profile.max_power_kw = 3
+        finally:
+            self.runtime._lock.release()
+        with self.assertRaises(ControlError):
+            await command
+        self.assertEqual(self.peer.write_count, 0)
+
+    async def test_close_rejects_queued_commands_and_future_reads(self):
+        self.runtime.allow_control = True
+        await self.runtime.set_battery_power(1, 300)
+        await asyncio.sleep(0)
+        await self.runtime._lock.acquire()
+        try:
+            closing = asyncio.create_task(self.runtime.close())
+            await asyncio.sleep(0)
+            command = asyncio.create_task(self.runtime.set_battery_power(2, 300))
+            await asyncio.sleep(0)
+        finally:
+            self.runtime._lock.release()
+        await closing
+        with self.assertRaises(ControlError):
+            await command
+        self.assertEqual(self.model.get_float(0xC646), 0)
+        self.assertIsNone(self.runtime._lease_task)
+        self.assertIsNone(self.runtime.remote_deadline)
+        requests = self.client.requests
+        for action in (
+            lambda: self.runtime.refresh({"solar_power"}),
+            lambda: self.runtime.initialize(),
+            lambda: self.runtime.set_control("grid_charge", True),
+            lambda: self.runtime.set_schedule({"periods": []}),
+        ):
+            with self.assertRaises(ControlError):
+                await action()
+        await self.runtime.close()  # Closing again is harmless.
+        self.assertEqual(self.client.requests, requests)
+
+    async def test_future_expired_and_non_midnight_validity_are_preserved(self):
+        from energylib_under_test.energylib_core.profiles.sinexcel_v2 import u32_words
+
+        self.runtime.allow_control = True
+        await self.runtime.set_schedule(
+            {"periods": [period(start="10:00", end="12:00")]}, activate=True
+        )
+        for first, last in (
+            (
+                datetime(2098, 1, 1, 12, 34, 56, tzinfo=timezone.utc),
+                datetime(2098, 12, 31, tzinfo=timezone.utc),
+            ),
+            (datetime(2000, 1, 1, tzinfo=timezone.utc), datetime(2001, 1, 1, tzinfo=timezone.utc)),
+        ):
+            expected = u32_words(int(first.timestamp())) + u32_words(int(last.timestamp()))
+            self.model.registers.update({0xC0B6 + i: word for i, word in enumerate(expected)})
+            await self.runtime.refresh({"tou_schedule"}, force=True)
+            self.assertEqual(
+                self.runtime.schedule_status(datetime(2026, 10, 20, 11)), "outside_period"
+            )
+            self.assertEqual(self.runtime.schedule.valid_from, first)
+            self.assertEqual(self.runtime.schedule.valid_until, last)
+            # An old form draft must not overwrite bounds changed from the App.
+            data = {
+                "periods": [period(start="10:00", end="12:00")],
+                "outside_mode": "backup",
+                "valid_from": "2020-01-01T00:00:00+00:00",
+            }
+            await self.runtime.set_schedule(data)
+            self.assertEqual([self.model.registers[0xC0B6 + i] for i in range(4)], expected)
+            await self.runtime.set_schedule({"periods": []})
+            self.assertEqual([self.model.registers[0xC0B6 + i] for i in range(4)], expected)
+
+    async def test_schedule_readback_checks_validity_as_well_as_periods(self):
+        self.runtime.allow_control = True
+        original = self.runtime.profile.write_schedule
+
+        async def changed_dates(client, schedule):
+            await original(client, schedule)
+            self.model.registers[0xC0B7] += 1
+
+        self.runtime.profile.write_schedule = changed_dates
+        with self.assertRaises(PartialWrite):
+            await self.runtime.set_schedule({"periods": [period()]}, activate=True)
+        self.assertEqual(self.model.get_float(0x300C), 0)
+        self.assertEqual(self.runtime.last_command, "uncertain")
 
     async def test_disabled_points_are_not_polled_and_slow_tier_is_cached(self):
         await self.runtime.refresh({"solar_energy", "solar_power"})

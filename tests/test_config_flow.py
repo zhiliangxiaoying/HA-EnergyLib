@@ -66,12 +66,25 @@ class SectionDouble:
         return self.schema(value)
 
 
+class NumberSelectorDouble:
+    """Match HA's float-returning number selector; actual UI is checked in HA."""
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, value):
+        return vol.All(
+            vol.Coerce(float), vol.Range(min=self.config["min"], max=self.config["max"])
+        )(value)
+
+
 def load_flow_module():
     modules = {
         name: ModuleType(name)
         for name in [
             "homeassistant",
             "homeassistant.helpers",
+            "homeassistant.helpers.selector",
             "homeassistant.helpers.service_info",
             "homeassistant.helpers.service_info.zeroconf",
             "homeassistant.config_entries",
@@ -85,6 +98,8 @@ def load_flow_module():
     modules["homeassistant.config_entries"].ConfigFlowResult = dict
     modules["homeassistant.const"].CONF_HOST = "host"
     modules["homeassistant.const"].CONF_PORT = "port"
+    modules["homeassistant.helpers.selector"].NumberSelector = NumberSelectorDouble
+    modules["homeassistant.helpers.selector"].NumberSelectorConfig = dict
     with patch.dict(sys.modules, modules):
         return importlib.import_module("energylib_under_test.config_flow")
 
@@ -218,11 +233,47 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["reason"], "unsupported_discovery")
         self.probe.assert_not_awaited()
 
-    async def test_manual_input_requires_port_and_forbids_broadcast(self):
+    async def test_manual_input_defaults_to_502_and_forbids_broadcast(self):
         result = await self.flow.async_step_user()
         schema = result["data_schema"]
-        for data in [{"host": "192.0.2.1"}, {"host": "192.0.2.1", "port": 1502, "unit_id": 0}]:
+        data = schema({"host": "192.0.2.1"})
+        self.assertEqual(data["port"], 502)
+        self.assertEqual(data["unit_id"], 1)
+        for data in [
+            {"host": "192.0.2.1", "port": 1502, "unit_id": 0},
+            {"host": "192.0.2.1", "port": 0},
+            {"host": "192.0.2.1", "port": 65536},
+        ]:
             with self.assertRaises(vol.Invalid):
                 schema(data)
         data = schema({"host": "192.0.2.1", "port": 1502})
+        self.assertEqual(data["port"], 1502)
         self.assertEqual(data["unit_id"], 1)
+
+    async def test_discovery_form_defaults_to_advertised_port(self):
+        result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        data = result["data_schema"]({"host": "192.0.2.2"})
+        self.assertEqual(data["port"], 1502)
+
+    async def test_failed_submission_keeps_custom_port(self):
+        self.probe.side_effect = CannotConnect("Test")
+        result = await self.flow.async_step_user({"host": "192.0.2.1", "port": 15021, "unit_id": 1})
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+        data = result["data_schema"]({"host": "192.0.2.1"})
+        self.assertEqual(data["port"], 15021)
+
+    async def test_unit_id_is_an_integer_even_with_float_returning_selector(self):
+        schema = (await self.flow.async_step_user())["data_schema"]
+        for unit in (1, 7.0, "255"):
+            data = schema({"host": "192.0.2.1", "unit_id": unit})
+            self.assertIs(type(data["unit_id"]), int)
+            self.assertEqual(data["unit_id"], int(unit))
+        for unit in (0, 256, 1.5, "7.1"):
+            with self.assertRaises(vol.Invalid):
+                schema({"host": "192.0.2.1", "unit_id": unit})
+
+    async def test_retry_preserves_selected_unit_id(self):
+        self.probe.side_effect = CannotConnect("Test")
+        result = await self.flow.async_step_user({"host": "192.0.2.1", "port": 502, "unit_id": 7})
+        data = result["data_schema"]({"host": "192.0.2.1"})
+        self.assertEqual(data["unit_id"], 7)

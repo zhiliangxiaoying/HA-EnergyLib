@@ -29,6 +29,8 @@ WORK_MODES = (
     "other",
 )
 RUNNING_STATES = ("standby", "ready", "off_grid", "on_grid", "other")
+# Values of DeviceRuntime.schedule_status(): active period type, or why none applies.
+TOU_STATUSES = ("charge", "discharge", "outside_period", "inactive", "remote")
 
 
 @dataclass(frozen=True)
@@ -100,6 +102,7 @@ OPTIONAL = (
             enabled=False,
             capabilities=frozenset({"ctrl_tou"}),
             interval=300,
+            options=TOU_STATUSES,
         ),
     )
 )
