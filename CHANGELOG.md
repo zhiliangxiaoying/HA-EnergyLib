@@ -3,42 +3,37 @@
 All notable changes to this integration. Versions before the first public release
 (`0.5.0.devN`) were internal previews.
 
-## [Unreleased]
+## [0.6.0] — 2026-10-20
+
+Tested with software simulators only; controls are still **not verified on physical
+hardware** (see [docs/TESTING.md](docs/TESTING.md)).
 
 ### Added
-- EnergyLIB dashboard: *Add dashboard → EnergyLIB* generates the page from the user's
-  devices (dashboard strategy `custom:energylib`, served by the integration). Controls
-  appear only when enabled; the optional flow diagram uses Power Flow Card Plus when
-  installed.
-- EnergyLIB digital twin: the first tab of the EnergyLIB dashboard, a 3D home showing
-  live solar, battery, grid and load flows from the EnergyLIB entities. Bundled with
-  the integration (three.js r128 and meshoptimizer, MIT; no CDN); models are original.
-
-### Fixed
-- Time-of-use schedule sensor states are translated (enum sensor with declared options).
-
-## [0.5.3] — Unreleased
+- EnergyLIB dashboard: *Settings → Dashboards → Add dashboard → EnergyLIB* builds the
+  page from your devices (dashboard strategy `custom:energylib`, served by the
+  integration). Tabs: **Digital twin** first, then **Overview** (energy flow, battery,
+  today's and lifetime energy, 7-day chart, status, controls, time-of-use, activity).
+  Controls appear only when enabled. The optional flow diagram uses Power Flow Card
+  Plus when installed (HACS); it is not bundled.
+- Digital twin: a 3D home with live solar, battery, grid and load flows from the
+  EnergyLIB entities, bundled with the integration (three.js r128 and meshoptimizer,
+  MIT; no CDN). The car is adapted from "Chevrolet Corvette (C7)" by Martin Trafas,
+  CC BY 4.0, emblems removed; other models are original. See [NOTICE](NOTICE).
 
 ### Changed
-- Show the Modbus unit ID as a numeric input box with its default value 1 visible.
-  Preserve the selected address on retry; reject fractional addresses and pass
-  validated addresses to the protocol as integers.
-
-## [0.5.2] — Unreleased
-
-### Fixed
-- Default the manual connection form's Modbus TCP port to 502; preserve advertised
-  ports during discovery and user-selected ports after a failed connection.
-
-## [0.5.1] — Unreleased
+- Modbus unit ID is a numeric input with its default 1 visible; the selected address is
+  kept on retry, fractional addresses are rejected.
+- The manual connection form defaults the Modbus TCP port to 502; advertised ports are
+  kept during discovery and user-selected ports after a failed connection.
 
 ### Fixed
-- Preserve the device's TOU effective-date bounds when saving or clearing a plan;
-  status respects the full stored validity range and read-back compares it.
-- Re-probe capabilities after reconnect and validate power/SOC/mode limits inside
-  the device lock before sending a control or schedule write.
-- Reject queued commands and reads after runtime closure; unload cannot leave a
-  new remote lease or reconnect through an old runtime reference.
+- Time-of-use schedule states are translated (enum sensor with declared options).
+- TOU effective-date bounds are preserved when saving or clearing a plan; status
+  respects the stored validity range and read-back compares it.
+- Capabilities are re-probed after reconnect; power/SOC/mode limits are validated
+  inside the device lock before a control or schedule write.
+- Queued commands and reads are rejected after runtime closure; unloading cannot leave
+  a new remote lease or reconnect through an old runtime reference.
 
 ## [0.5.0] — 2026-10-20 (first public preview)
 
