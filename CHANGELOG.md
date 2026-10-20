@@ -3,7 +3,7 @@
 All notable changes to this integration. Versions before the first public release
 (`0.5.0.devN`) were internal previews.
 
-## [0.5.0] — unreleased (first public preview)
+## [0.5.0] — 2026-10-20 (first public preview)
 
 Tested with software simulators only. Controls follow the V001B031 protocol but are
 **not verified on physical hardware**; see [docs/TESTING.md](docs/TESTING.md) and
