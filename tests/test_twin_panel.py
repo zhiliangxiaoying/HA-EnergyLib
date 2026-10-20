@@ -47,29 +47,16 @@ class HttpDouble:
             self.paths.append(config)
 
 
-def load_panel_module(panels):
-    def register_panel(hass, component_name, *, update=False, **kwargs):
-        path = kwargs["frontend_url_path"]
-        if path in panels and not update:
-            raise ValueError(f"Overwriting panel {path}")
-        panels[path] = {"component_name": component_name, **kwargs}
-
-    async def get_integration(hass, domain):
-        return SimpleNamespace(version="9.8.7")
-
+def load_panel_module():
     names = [
         "homeassistant",
         "homeassistant.components",
-        "homeassistant.components.frontend",
         "homeassistant.components.http",
         "homeassistant.core",
-        "homeassistant.loader",
     ]
     modules = {name: ModuleType(name) for name in names}
-    modules["homeassistant.components.frontend"].async_register_built_in_panel = register_panel
     modules["homeassistant.components.http"].StaticPathConfig = StaticPathConfigDouble
     modules["homeassistant.core"].HomeAssistant = object
-    modules["homeassistant.loader"].async_get_integration = get_integration
     sys.modules.pop("energylib_under_test.twin_panel", None)
     with patch.dict(sys.modules, modules):
         return importlib.import_module("energylib_under_test.twin_panel")
@@ -156,41 +143,38 @@ class TwinFilesTests(unittest.TestCase):
             if isinstance(node, ast.ImportFrom)
             and (node.module or "").startswith("homeassistant.components.")
         }
-        self.assertEqual(imported, {"frontend", "http"})
-        self.assertTrue(imported <= set(manifest["dependencies"]))
+        # Only static files: the twin lives in the dashboard, not in the sidebar.
+        self.assertEqual(imported, {"http"})
+        self.assertTrue({"frontend", "http"} <= set(manifest["dependencies"]))
         self.assertIn("zeroconf", manifest["dependencies"])
 
-    def test_setup_registers_panel_and_yaml_is_entry_only(self):
+    def test_setup_serves_twin_files_and_yaml_is_entry_only(self):
         source = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn("await async_register_twin_panel(hass)", source)
+        self.assertIn("await async_register_twin_files(hass)", source)
         self.assertIn("CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)", source)
+        self.assertNotIn(
+            "async_register_built_in_panel",
+            (COMPONENT / "twin_panel.py").read_text(encoding="utf-8"),
+        )
 
 
-class TwinPanelRegistrationTests(unittest.IsolatedAsyncioTestCase):
+class TwinFilesRegistrationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.panels = {}
-        self.module = load_panel_module(self.panels)
+        self.module = load_panel_module()
 
     async def test_repeated_registration_is_a_no_op(self):
         hass = SimpleNamespace(data={}, http=HttpDouble())
-        await self.module.async_register_twin_panel(hass)
-        await self.module.async_register_twin_panel(hass)
+        await self.module.async_register_twin_files(hass)
+        await self.module.async_register_twin_files(hass)
         self.assertEqual(len(hass.http.paths), 1)
         static = hass.http.paths[0]
         self.assertEqual(static.url_path, "/energylib_twin")
         self.assertEqual(Path(static.path), TWIN)
-        panel = self.panels["energylib-twin"]
-        self.assertEqual(panel["component_name"], "iframe")
-        self.assertEqual(panel["sidebar_title"], "EnergyLIB 数字孪生")
-        self.assertFalse(panel["require_admin"])
-        self.assertEqual(panel["config"], {"url": "/energylib_twin/index.html?v=9.8.7"})
 
     async def test_failed_static_registration_can_be_retried(self):
         hass = SimpleNamespace(data={}, http=HttpDouble(fail=True))
         with self.assertRaises(RuntimeError):
-            await self.module.async_register_twin_panel(hass)
-        self.assertNotIn("energylib-twin", self.panels)
+            await self.module.async_register_twin_files(hass)
         hass.http.fail = False
-        await self.module.async_register_twin_panel(hass)
+        await self.module.async_register_twin_files(hass)
         self.assertEqual(len(hass.http.paths), 1)
-        self.assertIn("energylib-twin", self.panels)

@@ -15,7 +15,7 @@ from .energylib_core.runtime import DeviceRuntime
 from .energylib_core.transport.modbus_tcp import EnergyLibError, ModbusTcpClient
 from .migration import async_migrate_entry  # noqa: F401
 from .services import async_register_services
-from .twin_panel import async_register_twin_panel
+from .twin_panel import async_register_twin_files
 
 PLATFORMS = [
     Platform.SENSOR,
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config) -> bool:
     await async_register_dashboard(hass)
-    await async_register_twin_panel(hass)
+    await async_register_twin_files(hass)
     return True
 
 

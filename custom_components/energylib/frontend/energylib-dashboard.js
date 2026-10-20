@@ -9,9 +9,15 @@
 // Optional: the flow diagram uses power-flow-card-plus when the user installed it
 // (HACS). It is not bundled: the upstream project publishes no license.
 const FLOW_CARD = "power-flow-card-plus";
+// The integration loads this file with ?v=<hash of this file and the twin files>;
+// the twin page reuses it so browsers fetch new twin files after an update.
+const VERSION = new URL(import.meta.url).searchParams.get("v") || "dev";
+const TWIN_URL = `/energylib_twin/index.html?v=${encodeURIComponent(VERSION)}`;
 
 const TEXT = {
   en: {
+    twin: "Digital twin",
+    overview: "Overview",
     flow: "Live energy flow",
     flowTitle: "Power flow",
     flowMissing: "Some power values are unavailable; the flow appears again once the device reports.",
@@ -52,6 +58,8 @@ const TEXT = {
     activeDays: "Active",
   },
   zh: {
+    twin: "数字孪生",
+    overview: "总览",
     flow: "实时能流",
     flowTitle: "实时功率流向",
     flowMissing: "部分功率数据暂不可用，恢复连接后自动显示流向。",
@@ -329,9 +337,9 @@ function buildView(hass, device, t, flowCard, multiple) {
 
   const deviceName = device.name_by_user || device.name;
   return {
-    title: multiple ? deviceName : "EnergyLIB",
-    path: multiple ? device.id : "home",
-    icon: "mdi:home-battery",
+    // No view icons: HA then shows the tab titles as text.
+    title: multiple ? deviceName : t.overview,
+    path: multiple ? device.id : "overview",
     type: "sections",
     max_columns: 3,
     sections: [
@@ -356,9 +364,16 @@ class EnergyLibDashboardStrategy extends HTMLElement {
       };
     }
     const flowCard = await hasFlowCard();
+    // First tab: the 3D digital twin (it has its own device selector), full screen.
+    const twin = {
+      title: t.twin,
+      path: "twin",
+      type: "panel",
+      cards: [{ type: "iframe", url: TWIN_URL, aspect_ratio: "56%" }],
+    };
     return {
       title: "EnergyLIB",
-      views: devices.map((device) => buildView(hass, device, t, flowCard, devices.length > 1)),
+      views: [twin, ...devices.map((device) => buildView(hass, device, t, flowCard, devices.length > 1))],
     };
   }
 }
@@ -376,7 +391,7 @@ if (!window.customStrategies.some((s) => s.type === "energylib")) {
     type: "energylib",
     strategyType: "dashboard",
     name: "EnergyLIB",
-    description: "Energy flow, battery, daily energy and controls for EnergyLIB inverters.",
+    description: "3D digital twin, energy flow, battery, daily energy and controls for EnergyLIB inverters.",
     documentationURL: "https://github.com/zhiliangxiaoying/HA-EnergyLib",
   });
 }

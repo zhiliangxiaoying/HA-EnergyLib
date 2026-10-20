@@ -111,11 +111,24 @@ class StrategyOutputTests(unittest.TestCase):
     def test_no_device_explains_what_to_do(self):
         self.assertIn("No EnergyLIB device found", text(self.out["empty"]))
 
-    def test_one_view_per_device(self):
+    def test_twin_first_then_one_view_per_device(self):
         views = self.out["two"]["views"]
-        self.assertEqual([v["path"] for v in views], ["dev1", "dev2"])
-        for view in views:
+        self.assertEqual([v["path"] for v in views], ["twin", "dev1", "dev2"])
+        twin = views[0]
+        self.assertEqual(twin["type"], "panel")
+        self.assertEqual(twin["cards"][0]["type"], "iframe")
+        self.assertTrue(twin["cards"][0]["url"].startswith("/energylib_twin/index.html?v="))
+        for view in views[1:]:
             self.assertTrue(all(f".{view['path']}_" in r for r in referenced(view)))
+
+    def test_single_device_tabs_are_twin_and_overview(self):
+        self.assertEqual(
+            [(v["path"], v["title"]) for v in self.out["full_zh"]["views"]],
+            [("twin", "数字孪生"), ("overview", "总览")],
+        )
+        # Text tabs: a view icon would replace the title in the tab bar.
+        self.assertFalse([v for v in self.out["full_zh"]["views"] if "icon" in v])
+        self.assertNotIn("twin", text(self.out["empty"]))
 
 
 class StrategyServingTests(unittest.TestCase):

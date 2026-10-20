@@ -10,11 +10,17 @@ from .const import DOMAIN
 URL_BASE = "/energylib_static"
 STRATEGY_FILE = "energylib-dashboard.js"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
+TWIN_DIR = Path(__file__).parent / "twin"
 _REGISTERED = f"{DOMAIN}_dashboard_registered"
 
 
 def _content_hash() -> str:
-    return hashlib.sha256((FRONTEND_DIR / STRATEGY_FILE).read_bytes()).hexdigest()[:10]
+    """Hash of the strategy and the twin files it embeds (the twin reuses ?v=)."""
+    digest = hashlib.sha256((FRONTEND_DIR / STRATEGY_FILE).read_bytes())
+    for path in sorted(p for p in TWIN_DIR.rglob("*") if p.is_file()):
+        digest.update(path.relative_to(TWIN_DIR).as_posix().encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
 
 
 async def async_register_dashboard(hass: HomeAssistant) -> bool:

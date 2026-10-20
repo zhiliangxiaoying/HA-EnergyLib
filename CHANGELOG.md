@@ -10,7 +10,7 @@ All notable changes to this integration. Versions before the first public releas
   devices (dashboard strategy `custom:energylib`, served by the integration). Controls
   appear only when enabled; the optional flow diagram uses Power Flow Card Plus when
   installed.
-- EnergyLIB digital twin: a sidebar page ("EnergyLIB 数字孪生") with a 3D home showing
+- EnergyLIB digital twin: the first tab of the EnergyLIB dashboard, a 3D home showing
   live solar, battery, grid and load flows from the EnergyLIB entities. Bundled with
   the integration (three.js r128 and meshoptimizer, MIT; no CDN); models are original.
 

@@ -9,7 +9,7 @@ tested yet; nothing here is evidence of hardware compatibility.
 
 | Check | Result |
 |---|---|
-| Unit + loopback TCP tests (`python -m unittest discover`; dashboard tests run the strategy under Node) | 119 passed |
+| Unit + loopback TCP tests (`python -m unittest discover`; dashboard tests run the strategy under Node) | 120 passed |
 | Ruff lint / format | passed |
 | Official **hassfest** container (`ghcr.io/home-assistant/hassfest`) | 1 integration, 0 invalid |
 | HACS action (release-readiness workflow, v0.5.0) | passed |
@@ -42,7 +42,7 @@ Simulator: `tools/sinexcel_simulator.py` (V001B031 registers, writes enabled) an
 | Closure (0.5.1) | Close followed by queued writes or retained runtime calls cannot reconnect or start a new lease | pass |
 | TOU status | Schedule sensor states show translated text (enum sensor) | pass |
 | Dashboard | *Add dashboard → EnergyLIB* generates the page from the device; controls shown only when enabled; flow card used when installed | pass |
-| Digital twin | Sidebar panel loads without setup; binds the EnergyLIB device's 5 values; numbers match the entities; car parked in the bay | pass |
+| Digital twin | First dashboard tab loads without setup; binds the EnergyLIB device's 5 values; numbers match the entities; car parked in the bay | pass |
 
 ## Not covered yet / 尚未覆盖
 

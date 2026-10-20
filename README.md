@@ -71,10 +71,10 @@ To use it in YAML: `strategy: {type: custom:energylib}`.
 
 ### Digital twin
 
-The sidebar entry **EnergyLIB 数字孪生** shows a 3D home with live solar, battery, grid
-and load flows from your EnergyLIB device (a selector appears with several devices).
-It is bundled with the integration and needs no setup. The page text is currently
-Chinese only.
+The first tab of the EnergyLIB dashboard is a 3D digital twin of the home with live
+solar, battery, grid and load flows from your EnergyLIB device (a selector appears with
+several devices); the cards are on the second tab, *Overview*. The twin is bundled with
+the integration and needs no setup. Its page text is currently Chinese only.
 
 ### Sign convention
 

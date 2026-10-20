@@ -63,7 +63,7 @@ async def check():
     # Discovery contracts have separate tests. Do not bind a second HTTP/mDNS
     # service on the running host merely to exercise HA registries/entities.
     hass.config.components.add("zeroconf")
-    # The twin panel and dashboard need http/frontend; record their routes and
+    # The twin files and dashboard need http/frontend; record their routes and
     # extra modules instead of serving them.
     from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
 
@@ -131,15 +131,11 @@ async def check():
         from homeassistant.components.frontend import DATA_PANELS
 
         from custom_components.energylib.dashboard import async_register_dashboard
-        from custom_components.energylib.twin_panel import (
-            PANEL_URL_PATH,
-            async_register_twin_panel,
-        )
+        from custom_components.energylib.twin_panel import async_register_twin_files
 
-        panel = hass.data[DATA_PANELS][PANEL_URL_PATH]
-        assert panel.component_name == "iframe" and not panel.require_admin
-        assert panel.config["url"].startswith("/energylib_twin/index.html?v=")
-        await async_register_twin_panel(hass)
+        # The twin is the dashboard's first tab; no sidebar panel of its own.
+        assert not [p for p in hass.data.get(DATA_PANELS, {}) if "energylib" in p]
+        await async_register_twin_files(hass)
         await async_register_dashboard(hass)
         routes = sorted(p.url_path for p in hass.http.paths)
         assert routes == ["/energylib_static", "/energylib_twin"], routes
@@ -150,7 +146,7 @@ async def check():
             assert (Path(route.path) / index).is_file()
         modules = hass.data[DATA_EXTRA_MODULE_URL].urls
         assert [u.split("?")[0] for u in modules] == ["/energylib_static/energylib-dashboard.js"]
-        results.append("twin panel and dashboard strategy register once, visible to all users")
+        results.append("twin files and dashboard strategy register once, no extra sidebar panel")
         assert await hass.config_entries.async_unload(legacy.entry_id)
 
         lab = entry(enabled=False, serial=lab_model.config.serial, peer_port=lab_port)

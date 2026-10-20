@@ -1,5 +1,5 @@
 /* EnergyLIB digital twin: self-built scene + live EnergyLIB entities from the HA frontend.
- * Runs inside the HA sidebar iframe panel and reads the parent page's hass object;
+ * Runs in the EnergyLIB dashboard's iframe card and reads the parent page's hass object;
  * it stores no credentials and makes no REST calls. */
 (() => {
   'use strict';
