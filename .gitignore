@@ -23,3 +23,6 @@ secrets_*.yaml
 *.pcapng
 private/
 local_data/
+
+# Internal records (validation logs, plans, competitor notes); never published
+internal/

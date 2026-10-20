@@ -2,13 +2,13 @@
 
 ## Scope
 
-Build a Home Assistant integration for EnergyLIB devices. The project is at the design stage. Do not invent telemetry endpoints, register addresses, default ports, credentials, supported models or firmware capabilities. Read README.md and docs before making changes.
+Build a Home Assistant integration for EnergyLIB devices. The project has an experimental read-only implementation. Current user-confirmed scope is a single inverter, standard Modbus TCP and `_energylib._tcp.local.` discovery. No parallel commands or controls in the initial version. Do not invent telemetry endpoints, register addresses, default ports, credentials, supported models or firmware capabilities. Read README.md and docs before making changes.
 
 ## Discovery
 
 - Agreed service type: `_energylib._tcp.local.`.
 - Reuse Home Assistant's shared zeroconf implementation; never start a separate mDNS instance in the integration.
-- Verify discovery metadata through the authenticated device interface before trusting identity or enabling controls.
+- Verify discovery metadata through the device interface before trusting identity. The current plain Modbus TCP profile has no authentication; SN verification is not cryptographic authentication. Reject advertised authentication requirements that are not implemented; never enable controls based on discovery alone.
 - Use a stable device ID; never use an IP address or user-editable name as unique identity.
 - Deduplicate devices and refresh changed addresses without changing entity identity.
 - Do not create a config entry silently from a discovery callback; ask for confirmation through HA's native config flow.

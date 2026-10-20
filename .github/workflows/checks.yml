@@ -1,0 +1,38 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  protocol-and-flow-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
+      - run: python -m unittest discover -v
+      - run: python -m compileall -q custom_components tests
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+  ha-runtime:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ha: ["2026.8.2", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check real HA lifecycle and registries in a temporary configuration
+        run: >-
+          docker run --rm --network none --entrypoint python
+          -v "$PWD:/workspace:ro" -w /workspace
+          ghcr.io/home-assistant/home-assistant:${{ matrix.ha }}
+          -m tools.ha_runtime_check

@@ -1,0 +1,22 @@
+name: Release readiness (manual, does not publish)
+on:
+  workflow_dispatch:
+    inputs:
+      publication_authorized:
+        description: The owner approves publishing this release (Apache-2.0 LICENSE present)
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  release-readiness:
+    if: inputs.publication_authorized
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require an owner-approved license
+        run: test -s LICENSE
+      - uses: hacs/action@main
+        with:
+          category: integration

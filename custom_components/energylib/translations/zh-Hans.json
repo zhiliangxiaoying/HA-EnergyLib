@@ -1,0 +1,337 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "连接 EnergyLIB",
+        "description": "填写逆变器的 Modbus TCP 地址（盛弘 V001B031 协议）。控制功能默认关闭，需要在集成选项中手动打开。",
+        "data": {
+          "host": "IP 地址或主机名",
+          "port": "Modbus TCP 端口",
+          "unit_id": "Modbus 设备地址"
+        }
+      },
+      "discovery_confirm": {
+        "title": "添加发现的 EnergyLIB",
+        "description": "填写逆变器的 Modbus TCP 地址（盛弘 V001B031 协议）。控制功能默认关闭，需要在集成选项中手动打开。",
+        "data": {
+          "host": "IP 地址或主机名",
+          "port": "Modbus TCP 端口",
+          "unit_id": "Modbus 设备地址"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法读取设备，请检查地址、端口和设备地址。",
+      "unsupported_device": "设备不符合所选适配方案。",
+      "identity_mismatch": "设备身份与发现信息不一致。"
+    },
+    "abort": {
+      "already_configured": "设备已配置。",
+      "already_in_progress": "设备正在配置中。",
+      "identity_mismatch": "设备身份与发现信息不一致。",
+      "unsupported_discovery": "不支持的通信、认证或发现信息。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB 设置",
+        "menu_options": {
+          "control": "控制权限",
+          "tou": "定时充放电"
+        }
+      },
+      "control": {
+        "title": "控制权限",
+        "description": "默认关闭。只有设备能读写全部控制寄存器时才会出现控制实体，新增的控制实体需逐个启用。控制按盛弘 V001B031 协议实现，尚未经过实机验证。",
+        "data": {
+          "allow_control": "允许控制"
+        }
+      },
+      "tou": {
+        "title": "定时充放电草稿",
+        "description": "修改暂存在草稿中，点击保存后才下发。",
+        "menu_options": {
+          "add": "添加时段",
+          "edit": "编辑时段",
+          "delete": "删除时段",
+          "settings": "星期与时段外模式",
+          "save": "预览并保存"
+        }
+      },
+      "settings": {
+        "title": "计划设置",
+        "data": {
+          "weekdays": "生效星期",
+          "outside_mode": "时段外模式"
+        }
+      },
+      "save": {
+        "title": "保存计划",
+        "description": "当前草稿：\n{preview}\n多帧保存不具备原子性。失败可能留下部分计划。",
+        "data": {
+          "activate": "保存后切换为定时充放电"
+        }
+      },
+      "add": {
+        "title": "编辑时段",
+        "data": {
+          "type": "类型",
+          "start": "开始",
+          "end": "结束",
+          "power": "功率（kW）"
+        }
+      },
+      "edit_period": {
+        "title": "编辑时段",
+        "data": {
+          "type": "类型",
+          "start": "开始",
+          "end": "结束",
+          "power": "功率（kW）"
+        }
+      },
+      "edit": {
+        "title": "选择时段",
+        "data": {
+          "period": "时段"
+        }
+      },
+      "delete": {
+        "title": "选择时段",
+        "data": {
+          "period": "时段"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "此设备没有提供控制寄存器。",
+      "cannot_connect": "无法读取设备，请检查地址、端口和设备地址。",
+      "invalid_schedule": "时段、重叠关系、星期或功率无效。",
+      "command_failed": "保存失败或部分完成。请检查设备实际状态后再操作。"
+    },
+    "abort": {
+      "control_unverified": "此设备没有提供控制寄存器。",
+      "cannot_connect": "无法读取设备，请检查地址、端口和设备地址。",
+      "command_failed": "保存失败或部分完成。请重新打开选项，读取设备实际计划后再操作。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "电池 1 电量"
+      },
+      "battery_total_soc": {
+        "name": "电池总电量"
+      },
+      "grid_import_energy": {
+        "name": "累计购电量"
+      },
+      "grid_export_energy": {
+        "name": "累计上网电量"
+      },
+      "solar_energy": {
+        "name": "累计光伏发电量"
+      },
+      "battery_charge_energy": {
+        "name": "累计电池充电量"
+      },
+      "battery_discharge_energy": {
+        "name": "累计电池放电量"
+      },
+      "load_energy": {
+        "name": "累计负载用电量"
+      },
+      "solar_power": {
+        "name": "光伏功率"
+      },
+      "battery_power": {
+        "name": "电池功率"
+      },
+      "load_power": {
+        "name": "家庭负载功率"
+      },
+      "grid_power": {
+        "name": "电网功率"
+      },
+      "running_state": {
+        "name": "运行状态",
+        "state": {
+          "standby": "待机",
+          "ready": "就绪",
+          "off_grid": "离网",
+          "on_grid": "并网",
+          "other": "其他"
+        }
+      },
+      "active_alarms": {
+        "name": "当前告警"
+      },
+      "work_mode": {
+        "name": "工作模式",
+        "state": {
+          "self_consumption": "自发自用",
+          "time_of_use": "定时充放电",
+          "dynamic_tariff": "分时电价",
+          "backup": "灾备",
+          "remote": "手动控制",
+          "pv_charge_priority": "光伏优先充电",
+          "feed_in_priority": "卖电优先",
+          "voltage_regulation": "调压",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "电网 A 相电压"
+      },
+      "grid_voltage_b": {
+        "name": "电网 B 相电压"
+      },
+      "grid_voltage_c": {
+        "name": "电网 C 相电压"
+      },
+      "grid_frequency": {
+        "name": "电网频率"
+      },
+      "battery_voltage": {
+        "name": "电池电压"
+      },
+      "battery_current": {
+        "name": "电池电流"
+      },
+      "battery_soh": {
+        "name": "电池健康度"
+      },
+      "battery_2_soc": {
+        "name": "电池 2 电量"
+      },
+      "battery_2_power": {
+        "name": "电池 2 功率"
+      },
+      "pv1_power": {
+        "name": "光伏 1 功率"
+      },
+      "pv2_power": {
+        "name": "光伏 2 功率"
+      },
+      "pv3_power": {
+        "name": "光伏 3 功率"
+      },
+      "pv4_power": {
+        "name": "光伏 4 功率"
+      },
+      "backup_load_power": {
+        "name": "重要负载功率"
+      },
+      "generator_power": {
+        "name": "发电机功率"
+      },
+      "ac_couple_power": {
+        "name": "AC 耦合功率"
+      },
+      "inverter_temperature": {
+        "name": "逆变器温度"
+      },
+      "tou_schedule": {
+        "name": "定时充放电计划"
+      }
+    },
+    "binary_sensor": {
+      "grid_fault": {
+        "name": "电网异常"
+      },
+      "bms_comm_fault": {
+        "name": "BMS 通讯异常"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "工作模式",
+        "state": {
+          "self_consumption": "自发自用",
+          "time_of_use": "定时充放电",
+          "dynamic_tariff": "分时电价",
+          "backup": "灾备",
+          "remote": "手动控制",
+          "pv_charge_priority": "光伏优先充电",
+          "feed_in_priority": "卖电优先",
+          "voltage_regulation": "调压",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "备电 SOC"
+      },
+      "min_soc": {
+        "name": "放电截止 SOC"
+      },
+      "export_limit": {
+        "name": "出口功率限制"
+      },
+      "remote_power": {
+        "name": "远程充放电功率"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "允许电网充电"
+      },
+      "remote_control": {
+        "name": "远程充放电控制"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "设定充放电功率",
+      "description": "需要在集成选项中打开“允许控制”，且设备提供控制寄存器。",
+      "fields": {
+        "device_id": {
+          "name": "设备"
+        },
+        "power_kw": {
+          "name": "功率（kW），负数充电"
+        },
+        "duration": {
+          "name": "持续秒数（必填）"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "替换定时充放电计划",
+      "description": "需要在集成选项中打开“允许控制”，且设备提供控制寄存器。",
+      "fields": {
+        "device_id": {
+          "name": "设备"
+        },
+        "periods": {
+          "name": "时段列表"
+        },
+        "weekdays": {
+          "name": "生效星期"
+        },
+        "outside_mode": {
+          "name": "时段外模式"
+        },
+        "activate": {
+          "name": "校验后启用定时模式"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "清空定时充放电计划",
+      "description": "需要在集成选项中打开“允许控制”，且设备提供控制寄存器。",
+      "fields": {
+        "device_id": {
+          "name": "设备"
+        }
+      }
+    }
+  }
+}

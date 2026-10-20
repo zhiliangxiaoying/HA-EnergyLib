@@ -1,0 +1,337 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Connect EnergyLIB",
+        "description": "Enter the inverter's Modbus TCP address (Sinexcel V001B031). Controls stay off until you enable them in the integration options.",
+        "data": {
+          "host": "IP address or hostname",
+          "port": "Modbus TCP port",
+          "unit_id": "Modbus unit ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Add discovered EnergyLIB",
+        "description": "Enter the inverter's Modbus TCP address (Sinexcel V001B031). Controls stay off until you enable them in the integration options.",
+        "data": {
+          "host": "IP address or hostname",
+          "port": "Modbus TCP port",
+          "unit_id": "Modbus unit ID"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "unsupported_device": "The device does not match this profile.",
+      "identity_mismatch": "Device identity does not match discovery."
+    },
+    "abort": {
+      "already_configured": "Device already configured.",
+      "already_in_progress": "Configuration is already in progress.",
+      "identity_mismatch": "Device identity does not match discovery.",
+      "unsupported_discovery": "Unsupported transport, authentication or discovery contract."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB settings",
+        "menu_options": {
+          "control": "Control access",
+          "tou": "Time-of-use schedule"
+        }
+      },
+      "control": {
+        "title": "Control access",
+        "description": "Disabled by default. Controls appear only if the inverter answers every control register; each new control entity must then be enabled individually. Controls follow the Sinexcel V001B031 protocol and are not yet verified on physical hardware.",
+        "data": {
+          "allow_control": "Allow control"
+        }
+      },
+      "tou": {
+        "title": "Time-of-use draft",
+        "description": "Edits stay in the draft until Save.",
+        "menu_options": {
+          "add": "Add period",
+          "edit": "Edit period",
+          "delete": "Delete period",
+          "settings": "Weekdays and outside mode",
+          "save": "Preview and save"
+        }
+      },
+      "settings": {
+        "title": "Schedule settings",
+        "data": {
+          "weekdays": "Weekdays",
+          "outside_mode": "Outside-period mode"
+        }
+      },
+      "save": {
+        "title": "Save schedule",
+        "description": "Draft:\n{preview}\nA multi-frame save is not atomic. A failure can leave a partial plan.",
+        "data": {
+          "activate": "Switch to time-of-use after saving"
+        }
+      },
+      "add": {
+        "title": "Edit period",
+        "data": {
+          "type": "Type",
+          "start": "Start",
+          "end": "End",
+          "power": "Power (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Edit period",
+        "data": {
+          "type": "Type",
+          "start": "Start",
+          "end": "End",
+          "power": "Power (kW)"
+        }
+      },
+      "edit": {
+        "title": "Choose period",
+        "data": {
+          "period": "Period"
+        }
+      },
+      "delete": {
+        "title": "Choose period",
+        "data": {
+          "period": "Period"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "This device does not expose the control registers.",
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "invalid_schedule": "Invalid periods, overlap, weekdays or power.",
+      "command_failed": "Save failed or may be partially applied. Inspect actual device state before retrying."
+    },
+    "abort": {
+      "control_unverified": "This device does not expose the control registers.",
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "command_failed": "Save failed or may be partially applied. Reopen options to read the actual device plan before retrying."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Battery 1 state of charge"
+      },
+      "battery_total_soc": {
+        "name": "Battery state of charge"
+      },
+      "grid_import_energy": {
+        "name": "Grid import energy"
+      },
+      "grid_export_energy": {
+        "name": "Grid export energy"
+      },
+      "solar_energy": {
+        "name": "Solar energy"
+      },
+      "battery_charge_energy": {
+        "name": "Battery charge energy"
+      },
+      "battery_discharge_energy": {
+        "name": "Battery discharge energy"
+      },
+      "load_energy": {
+        "name": "Load energy"
+      },
+      "solar_power": {
+        "name": "Solar power"
+      },
+      "battery_power": {
+        "name": "Battery power"
+      },
+      "load_power": {
+        "name": "Load power"
+      },
+      "grid_power": {
+        "name": "Grid power"
+      },
+      "running_state": {
+        "name": "Running state",
+        "state": {
+          "standby": "standby",
+          "ready": "ready",
+          "off_grid": "off grid",
+          "on_grid": "on grid",
+          "other": "other"
+        }
+      },
+      "active_alarms": {
+        "name": "Active alarms"
+      },
+      "work_mode": {
+        "name": "Work mode",
+        "state": {
+          "self_consumption": "self consumption",
+          "time_of_use": "time of use",
+          "dynamic_tariff": "dynamic tariff",
+          "backup": "backup",
+          "remote": "remote",
+          "pv_charge_priority": "pv charge priority",
+          "feed_in_priority": "feed in priority",
+          "voltage_regulation": "voltage regulation",
+          "peak_shaving": "peak shaving",
+          "other": "other"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Grid voltage A"
+      },
+      "grid_voltage_b": {
+        "name": "Grid voltage B"
+      },
+      "grid_voltage_c": {
+        "name": "Grid voltage C"
+      },
+      "grid_frequency": {
+        "name": "Grid frequency"
+      },
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
+      "battery_current": {
+        "name": "Battery current"
+      },
+      "battery_soh": {
+        "name": "Battery health"
+      },
+      "battery_2_soc": {
+        "name": "Battery 2 state of charge"
+      },
+      "battery_2_power": {
+        "name": "Battery 2 power"
+      },
+      "pv1_power": {
+        "name": "PV1 power"
+      },
+      "pv2_power": {
+        "name": "PV2 power"
+      },
+      "pv3_power": {
+        "name": "PV3 power"
+      },
+      "pv4_power": {
+        "name": "PV4 power"
+      },
+      "backup_load_power": {
+        "name": "Backup load power"
+      },
+      "generator_power": {
+        "name": "Generator power"
+      },
+      "ac_couple_power": {
+        "name": "AC coupling power"
+      },
+      "inverter_temperature": {
+        "name": "Inverter temperature"
+      },
+      "tou_schedule": {
+        "name": "Time-of-use schedule"
+      }
+    },
+    "binary_sensor": {
+      "grid_fault": {
+        "name": "Grid fault"
+      },
+      "bms_comm_fault": {
+        "name": "BMS communication fault"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Work mode",
+        "state": {
+          "self_consumption": "self consumption",
+          "time_of_use": "time of use",
+          "dynamic_tariff": "dynamic tariff",
+          "backup": "backup",
+          "remote": "remote",
+          "pv_charge_priority": "pv charge priority",
+          "feed_in_priority": "feed in priority",
+          "voltage_regulation": "voltage regulation",
+          "peak_shaving": "peak shaving",
+          "other": "other"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "Backup SOC"
+      },
+      "min_soc": {
+        "name": "Minimum SOC"
+      },
+      "export_limit": {
+        "name": "Export limit"
+      },
+      "remote_power": {
+        "name": "Remote power"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Grid charging"
+      },
+      "remote_control": {
+        "name": "Remote power control"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Set battery power",
+      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "power_kw": {
+          "name": "Power (kW), negative charge"
+        },
+        "duration": {
+          "name": "Duration (seconds), required"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Replace time-of-use schedule",
+      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "periods": {
+          "name": "Periods"
+        },
+        "weekdays": {
+          "name": "Weekdays"
+        },
+        "outside_mode": {
+          "name": "Outside-period mode"
+        },
+        "activate": {
+          "name": "Activate after verification"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Clear time-of-use schedule",
+      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        }
+      }
+    }
+  }
+}
