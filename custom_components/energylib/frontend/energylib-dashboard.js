@@ -363,9 +363,13 @@ class EnergyLibDashboardStrategy extends HTMLElement {
   }
 }
 
-if (!customElements.get("ll-strategy-dashboard-energylib")) {
-  customElements.define("ll-strategy-dashboard-energylib", EnergyLibDashboardStrategy);
-}
+// Integration extra modules can run before the HA frontend installs its scoped
+// custom-element registry; a definition made earlier is invisible to the
+// frontend's lookup and the dashboard times out. Define once the app shell exists.
+const STRATEGY_TAG = "ll-strategy-dashboard-energylib";
+customElements.whenDefined("home-assistant").then(() => {
+  if (!customElements.get(STRATEGY_TAG)) customElements.define(STRATEGY_TAG, EnergyLibDashboardStrategy);
+});
 window.customStrategies = window.customStrategies || [];
 if (!window.customStrategies.some((s) => s.type === "energylib")) {
   window.customStrategies.push({

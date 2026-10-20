@@ -13,13 +13,15 @@ globalThis.HTMLElement = class {};
 globalThis.customElements = {
   get: (name) => (name === "power-flow-card-plus" ? (flowInstalled ? class {} : undefined) : defined.get(name)),
   define: (name, cls) => defined.set(name, cls),
-  whenDefined: () => new Promise(() => {}),
+  // The HA app shell is already defined; optional cards never arrive.
+  whenDefined: (name) => (name === "home-assistant" ? Promise.resolve() : new Promise(() => {})),
 };
 // Strategy waits up to 2 s for an optional card; do not wait in tests.
 const realSetTimeout = globalThis.setTimeout;
 globalThis.setTimeout = (fn, ms, ...args) => realSetTimeout(fn, Math.min(ms, 10), ...args);
 
 await import(pathToFileURL(strategyPath).href);
+await Promise.resolve(); // let the deferred definition run
 const strategy = defined.get("ll-strategy-dashboard-energylib");
 const out = { registered: window.customStrategies };
 for (const s of scenarios) {

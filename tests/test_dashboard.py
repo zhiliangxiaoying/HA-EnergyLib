@@ -121,7 +121,9 @@ class StrategyOutputTests(unittest.TestCase):
 class StrategyServingTests(unittest.TestCase):
     def test_served_file_exists_and_is_self_contained(self):
         source = STRATEGY.read_text(encoding="utf-8")
-        self.assertIn('customElements.define("ll-strategy-dashboard-energylib"', source)
+        self.assertIn('STRATEGY_TAG = "ll-strategy-dashboard-energylib"', source)
+        # Defined only after the HA app shell, so the frontend's registry sees it.
+        self.assertIn('customElements.whenDefined("home-assistant")', source)
         # Entities are found by translation key, never by a fixed entity ID.
         self.assertIsNone(re.search(r"[a-z_]+\.energylib_\w+", source))
         self.assertNotIn("import(", source)
