@@ -7,7 +7,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from energylib_under_test.energylib_core.model.points import CONTROLS, MEASUREMENTS
+from energylib_under_test.energylib_core.model.points import BUTTONS, CONTROLS, DRAFTS, MEASUREMENTS
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components" / "energylib"
@@ -23,9 +23,14 @@ def fake_hass(devices, language, controls=True):
         keys = [
             ("binary_sensor" if p.kind == "problem" else "sensor", p.key)
             for p in MEASUREMENTS.values()
+            if p.key
+            not in {"active_alarms", "fault_count", "warning_count", "any_fault", "any_warning"}
+            and (controls or p.key not in ("remote_status", "remote_end_time"))
         ]
         if controls:
-            keys += [(c.platform, c.key) for c in CONTROLS]
+            keys += [(c.platform, c.key) for c in CONTROLS + DRAFTS]
+            keys += [("button", key) for key in BUTTONS]
+            keys += [("switch", "allow_remote_control")]
         for domain, key in keys:
             entity_id = f"{domain}.{device}_renamed_{key}"
             entities[entity_id] = {
@@ -43,7 +48,9 @@ def referenced(value):
     found = set()
     if isinstance(value, dict):
         for key, child in value.items():
-            if key in ("entity", "state_of_charge") and isinstance(child, str):
+            if (key in ("entity", "state_of_charge") or key.endswith("_entity")) and isinstance(
+                child, str
+            ):
                 found.add(child)
             elif key == "entities" and isinstance(child, list):
                 found.update(c for c in child if isinstance(c, str))
@@ -60,6 +67,28 @@ def text(value):
 
 @unittest.skipUnless(NODE, "node is required to execute the dashboard strategy")
 class StrategyOutputTests(unittest.TestCase):
+    def test_native_ems_mode_priority_is_scoped_and_stable(self):
+        result = subprocess.run(
+            [NODE, str(ROOT / "tests/js/run_ems_priority.mjs"), str(STRATEGY)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["result"], "passed")
+
+    def test_dispatch_card_events_and_feedback(self):
+        result = subprocess.run(
+            [NODE, str(ROOT / "tests/js/run_dispatch.mjs"), str(STRATEGY)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["result"], "passed")
+
     @classmethod
     def setUpClass(cls):
         scenarios = [
@@ -68,6 +97,33 @@ class StrategyOutputTests(unittest.TestCase):
             {"name": "empty", "flow": False, "hass": fake_hass([], "en")},
             {"name": "two", "flow": True, "hass": fake_hass(["dev1", "dev2"], "en")},
         ]
+        remote_only = fake_hass(["dev1"], "en")
+        legacy_keys = {c.key for c in CONTROLS}
+        remote_only["entities"] = {
+            key: value
+            for key, value in remote_only["entities"].items()
+            if not (
+                key.split(".")[0] in ("select", "number", "switch")
+                and value["translation_key"] in legacy_keys
+            )
+        }
+        scenarios.append({"name": "remote_only", "flow": False, "hass": remote_only})
+        combined = fake_hass(["dev1"], "zh-Hans")
+        combined["entities"] = {
+            key: value
+            for key, value in combined["entities"].items()
+            if value["translation_key"]
+            not in {
+                "remote_target_power",
+                "remote_duration",
+                "start_charge",
+                "start_discharge",
+                "stop_remote",
+                "allow_remote_control",
+                "remote_end_time",
+            }
+        }
+        scenarios.append({"name": "combined", "flow": False, "hass": combined})
         cls.hass = {s["name"]: s["hass"] for s in scenarios}
         run = subprocess.run(
             [NODE, str(ROOT / "tests" / "js" / "run_strategy.mjs"), str(STRATEGY)],
@@ -89,9 +145,18 @@ class StrategyOutputTests(unittest.TestCase):
     def test_every_default_entity_and_control_is_on_the_page(self):
         refs = referenced(self.out["full_zh"])
         self.assertTrue(refs <= set(self.hass["full_zh"]["entities"]), refs)
-        expected = {f"sensor.dev1_renamed_{p.key}" for p in MEASUREMENTS.values() if p.enabled}
-        expected |= {f"{c.platform}.dev1_renamed_{c.key}" for c in CONTROLS}
+        expected = {
+            f"{'binary_sensor' if p.kind == 'problem' else 'sensor'}.dev1_renamed_{p.key}"
+            for p in MEASUREMENTS.values()
+            if p.enabled
+        }
+        expected |= {
+            f"{c.platform}.dev1_renamed_{c.key}"
+            for c in CONTROLS + DRAFTS
+            if c.key not in ("remote_power", "remote_control")
+        }
         expected.add("sensor.dev1_renamed_tou_schedule")
+        expected.add("sensor.dev1_renamed_remote_status")
         # With controls, the work mode select replaces the read-only sensor.
         expected.remove("sensor.dev1_renamed_work_mode")
         self.assertEqual(expected - refs, set())
@@ -101,30 +166,79 @@ class StrategyOutputTests(unittest.TestCase):
     def test_read_only_device_gets_no_controls_and_no_missing_card(self):
         page = self.out["read_only_en"]
         refs = referenced(page)
-        self.assertFalse({r for r in refs if r.split(".")[0] in ("select", "number", "switch")})
+        self.assertFalse(
+            {r for r in refs if r.split(".")[0] in ("select", "number", "switch", "button")}
+        )
         self.assertIn("sensor.dev1_renamed_work_mode", refs)
         self.assertNotIn("power-flow-card-plus", text(page))
         self.assertIn("Allow control", text(page))
         self.assertIn("Live energy flow", text(page))
         self.assertNotIn("null", text(page))
 
+    def test_new_remote_operations_exclude_legacy_immediate_controls(self):
+        status = self.out["full_zh"]["views"][0]["sections"][-1]
+        refs = referenced(status)
+        self.assertNotIn("number.dev1_renamed_remote_power", refs)
+        self.assertNotIn("switch.dev1_renamed_remote_control", refs)
+        self.assertIn("number.dev1_renamed_remote_duration", refs)
+        self.assertNotIn("button.dev1_renamed_stop_remote", refs)
+        self.assertIn("custom:energylib-dispatch", text(status))
+        self.assertNotIn("Controls are off", text(self.out["remote_only"]))
+        self.assertIn("custom:energylib-dispatch", text(self.out["remote_only"]))
+
     def test_no_device_explains_what_to_do(self):
         self.assertIn("No EnergyLIB device found", text(self.out["empty"]))
 
-    def test_twin_first_then_one_view_per_device(self):
+    def test_combined_form_does_not_require_native_parameter_or_button_entities(self):
+        page = self.out["combined"]
+        self.assertIn("custom:energylib-dispatch", text(page))
+        self.assertTrue(referenced(page) <= set(self.hass["combined"]["entities"]))
+        self.assertNotIn("number.dev1_renamed_remote_duration", referenced(page))
+
+    def test_one_overview_per_device_then_twin(self):
         views = self.out["two"]["views"]
-        self.assertEqual([v["path"] for v in views], ["twin", "dev1", "dev2"])
-        twin = views[0]
+        self.assertEqual([v["path"] for v in views], ["dev1", "dev2", "twin"])
+        twin = views[-1]
         self.assertEqual(twin["type"], "panel")
         self.assertEqual(twin["cards"][0]["type"], "iframe")
         self.assertTrue(twin["cards"][0]["url"].startswith("/energylib_twin/index.html?v="))
-        for view in views[1:]:
+        for view in views[:-1]:
             self.assertTrue(all(f".{view['path']}_" in r for r in referenced(view)))
 
-    def test_single_device_tabs_are_twin_and_overview(self):
+    def test_overview_columns_are_balanced(self):
+        sections = self.out["full_zh"]["views"][0]["sections"]
+        self.assertEqual(len(sections), 3)
+        flow, energy, right = sections
+        self.assertFalse(any(s.get("column_span") for s in sections))
+
+        def headings(sec):
+            return [c["heading"] for c in sec["cards"] if c["type"] == "heading"]
+
+        # Desktop controls stay in the last column; no second-row spillover.
+        self.assertEqual(headings(flow), ["实时能流", "今日电量", "累计电量", "运行记录"])
+        self.assertEqual(headings(energy), ["储能电池"])
+        self.assertEqual(headings(right), ["运行状态", "运行控制", "定时充放电"])
+        self.assertEqual(flow["cards"][-1]["type"], "logbook")
+        self.assertEqual(energy["cards"][-1]["type"], "history-graph")
+        self.assertEqual(energy["cards"][-2]["type"], "statistics-graph")
+        self.assertFalse(any(c["type"] == "statistics-graph" for c in flow["cards"]))
+        self.assertEqual(right["cards"][-1]["type"], "custom:energylib-dispatch")
+        for section in (flow, energy):
+            self.assertFalse(
+                any(c["type"] in ("button", "custom:energylib-dispatch") for c in section["cards"])
+            )
+            self.assertFalse(
+                any(
+                    c.get("entity", "").split(".")[0] in ("number", "switch", "select")
+                    for c in section["cards"]
+                    if c["type"] == "tile"
+                )
+            )
+
+    def test_single_device_tabs_are_overview_and_twin(self):
         self.assertEqual(
             [(v["path"], v["title"]) for v in self.out["full_zh"]["views"]],
-            [("twin", "数字孪生"), ("overview", "总览")],
+            [("overview", "总览"), ("twin", "数字孪生")],
         )
         # Text tabs: a view icon would replace the title in the tab bar.
         self.assertFalse([v for v in self.out["full_zh"]["views"] if "icon" in v])

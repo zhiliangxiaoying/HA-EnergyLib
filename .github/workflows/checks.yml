@@ -36,3 +36,15 @@ jobs:
           -v "$PWD:/workspace:ro" -w /workspace
           ghcr.io/home-assistant/home-assistant:${{ matrix.ha }}
           -m tools.ha_runtime_check
+      - name: Check alarm events and persistent history
+        run: >-
+          docker run --rm --network none --entrypoint python
+          -v "$PWD:/workspace:ro" -w /workspace
+          ghcr.io/home-assistant/home-assistant:${{ matrix.ha }}
+          -m tools.ha_alarm_check
+      - name: Check remote dispatch drafts, buttons and lifecycle
+        run: >-
+          docker run --rm --network none --entrypoint python
+          -v "$PWD:/workspace:ro" -w /workspace
+          ghcr.io/home-assistant/home-assistant:${{ matrix.ha }}
+          -m tools.ha_remote_check

@@ -56,4 +56,10 @@ def controls_for(coordinator, platform):
     device = coordinator.device
     if not device.allow_control or not device.profile.controls_supported:
         return []
-    return [c for c in CONTROLS if c.platform == platform and c.key in device.profile.control_keys]
+    return [
+        c
+        for c in CONTROLS
+        if c.platform == platform
+        and c.key in device.profile.control_keys
+        and c.key not in ("remote_power", "remote_control")
+    ]

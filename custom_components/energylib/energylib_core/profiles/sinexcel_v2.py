@@ -22,6 +22,7 @@ from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
 from ..transport.modbus_tcp import DeviceException, InvalidResponse
+from .sinexcel_alarms import GRID_ALARM_BIT, describe_alarm
 
 Mapping = RegisterMapping
 
@@ -54,13 +55,14 @@ PROTOCOL_MAX_KW = 50.0  # 0x3004 / 0xC648 / TOU power ranges in V001B031
 SCHEDULE_BLOCKS = ((0xC014, 48), (0xC0B4, 6), (0xC0BA, 24))
 # Device sign conventions, flipped to the standard (grid + = import, battery + = discharge).
 # Confirmed for Sinexcel 2026-10-19: battery power + = charging (0x1272), grid power
-# + = feed-in/export (0x1276). Battery 2 power and battery current are assumed to
-# follow the battery convention (Q2 follow-up).
+# + = feed-in/export (0x1276). Battery 2 power and both battery currents are
+# assumed to follow the battery convention (Q2 follow-up).
 DEVICE_SIGN = {
     "battery_power": -1.0,
     "grid_power": -1.0,
     "battery_2_power": -1.0,
     "battery_current": -1.0,
+    "battery_2_current": -1.0,
 }
 FAR_FUTURE = int(datetime(2099, 12, 31, tzinfo=timezone.utc).timestamp())
 REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
@@ -139,6 +141,9 @@ def decode_schedule(blocks, outside_mode, limits):
 
 
 class SinexcelProfile:
+    def describe_alarm(self, function, unit, address):
+        return describe_alarm(self.id, function, unit, address)
+
     id = "sinexcel_v2"
     version = 1
     namespace = "energylib"
@@ -227,6 +232,8 @@ class SinexcelProfile:
             "battery_soh": 0xB108,
             "battery_2_soc": 0x121C,
             "battery_2_power": 0x121A,
+            "battery_2_voltage": 0x1216,  # PDF p99: battery 2 voltage (V)
+            "battery_2_current": 0x1218,  # PDF p99: battery 2 current (A)
             "pv1_power": 0x1204,
             "pv2_power": 0x120A,
             "pv3_power": 0x1280,
@@ -243,20 +250,24 @@ class SinexcelProfile:
             Mapping(f"temperature_{i}", 0x10DE + i * 2, unit=client.unit_id) for i in range(5)
         )
         if client.unit_id == 1:
+            alarm_sources = tuple(Mapping(f"alarms_{u}", 0x1048, 202, 2, u, "bits") for u in (1, 2))
+            # The grid summary bit sits outside the alarm table. Only a device that
+            # answers it gets the source, so an unsupported address never leaves the
+            # alarm status permanently incomplete. (BMS communication is already in
+            # the table at 0x1110/0x1111.)
+            try:
+                await client.read_discrete_inputs(GRID_ALARM_BIT, 1)
+            except DeviceException as err:
+                if err.code not in (1, 2):
+                    raise
+            else:
+                alarm_sources += (Mapping("alarm_grid", GRID_ALARM_BIT, 1, 2, 1, "bits"),)
             self.mappings.update(
                 {
                     "running_state": (Mapping("running_state", 0x1001, 3, 2, encoding="bits"),),
-                    "active_alarms": tuple(
-                        Mapping(f"alarms_{u}", 0x1048, 202, 2, u, "bits") for u in (1, 2)
-                    ),
-                    "grid_fault": (Mapping("grid_fault", 0x1014, 1, 2, encoding="bits"),),
-                    "bms_comm_fault": (Mapping("bms_1", 0x1110, 1, 2, encoding="bits"),),
+                    "active_alarms": alarm_sources,
                 }
             )
-            if "battery_2" in self.capabilities:
-                self.mappings["bms_comm_fault"] += (
-                    Mapping("bms_2", 0x1111, 1, 2, encoding="bits"),
-                )
 
     async def _configure_controls(self, client):
         """Offer controls only for a device that answers every control register."""

@@ -1,65 +1,87 @@
-# EnergyLIB 局域网发现约定
+# EnergyLIB 采集棒局域网发现约定
 
-状态：单机只读发现流程已实现，在真实 HA 2026.8.2 上通过独立电脑发布的 DNS-SD 服务完成发现与原生确认添加。物理设备固件仍待联调。用户已确认业务协议为标准 Modbus TCP。
+基于《采集棒 mDNS 设备发现协议 V1.0》（2026-10-20）的客户端适配修订。
+[原始协议](采集棒mDNS设备发现协议_V1.0.md) 保持原文；本文件是增加可选 `unit_id` 等规则的固件与 HA 联调修订约定。
+仅支持单逆变器、普通 Modbus TCP；物理采集棒尚待验证。
 
-## 服务记录
+## 记录和字段
 
-| 项目 | 约定/示例 |
-| --- | --- |
-| 服务类型 | `_energylib._tcp.local.` |
-| 实例名 | `EnergyLIB-<device_id>` |
-| 主机名 | `energylib-<device_id>.local.` |
-| 地址 | 当前可连接的 IPv4/IPv6 地址，通过 A/AAAA 记录解析 |
-| SRV 端口 | 实际 Modbus TCP 端口，不默认 502、80 或 443 |
-| TXT `id` | 可选，当前须与业务接口读出的逆变器 SN 一致；不填通讯棒的不同 SN |
-| TXT `model` | 型号标识，建议稳定的机器可读字符串 |
-| TXT `api_ver` | 可选，当前发现合同版本为 `1`；不是 ARM 固件版本 |
-| TXT `manufacturer` | 可选，`EnergyLIB` |
-| TXT `fw` | 可选，固件版本 |
-| TXT `transport` | 可选，当前仅支持 `modbus_tcp` |
-| TXT `auth` | 可选，当前仅支持 `none`；不得携带任何秘密 |
+- 服务类型：`_energylib._tcp.local.`；发现使用 IPv4 mDNS UDP 5353。
+- PTR 指向实例，SRV 提供实际 TCP 端口和主机名，A 提供当前 IPv4。
+- 实例默认 `EnergyLIB-<采集棒SN>`，主机默认 `energylib-<采集棒SN小写>.local.`。
+- 响应 `_services._dns-sd._udp.local.` 枚举，并响应后续查询，不能只发送一次公告。
+- 客户端从 SRV 取业务端口；手动添加预填 502 仅为 UI 默认，不是固件端口保证。
 
-这些 TXT 键是项目建议，不是 Home Assistant 或 mDNS 标准为逆变器定义的通用字段。mDNS 端口 UDP 5353 与 SRV 中的业务服务端口是两个概念。
+| TXT 键 | 必填 | 内容 |
+| --- | --- | --- |
+| `sn` | 是 | 采集棒完整原始 SN，重启、升级和恢复出厂后不变 |
+| `model` | 是 | 采集棒正式型号，不是逆变器型号 |
+| `fw` | 是 | 采集棒当前运行固件，不是逆变器固件 |
+| `transport` | 是 | 当前为 `modbus_tcp` |
+| `api_ver` | 是 | 当前为 `1`，本地业务接口版本 |
+| `auth` | 是 | 当前插件仅实现 `none` |
+| `unit_id` | 否 | **本次新增可选扩展**，目标逆变器实际 Modbus 地址，十进制 1～255 |
 
-## 身份与网络行为
+示例仅说明格式，不代表物理设备默认值：
 
-- `id` 必须在重启、固件升级、DHCP 地址变化后保持稳定；设备信息接口应返回相同 ID。
-- 同一台设备的 Wi-Fi 和以太网地址应归属于同一设备身份，避免产生重复设备。
-- 多设备实例名和主机名应避免冲突；应按 mDNS/DNS-SD 标准处理冲突、缓存、服务更新和退出。
-- 服务应在业务接口可用时发布；网络重新连接后恢复响应。不要只发一次公告而不响应后续查询。
-- 初始部署假设 HA 与设备位于多播可达的局域网；跨 VLAN 需要网络层正确转发，插件不能绕过隔离。
-- 仅实现 `.local` 名称解析、没有服务注册时，需要用户提供完整主机名/IP，或另行设计发现机制。
-
-## HA 端实现
-
-manifest.json 中已声明：
-
-```json
-"zeroconf": ["_energylib._tcp.local."]
+```text
+sn=LOGGER202600001
+model=LOGGER-01
+fw=1.0.0
+transport=modbus_tcp
+api_ver=1
+auth=none
+unit_id=7
 ```
 
-以上为 manifest 中的发现片段，完整开发预览组件位于 `custom_components/energylib/`。
+`api_ver=1` 对应单机标准 Modbus TCP 本地接口：SRV 端口接受标准 MBAP 报文，
+请求 Unit ID 路由到对应逆变器；不存在额外登录握手。它不是逆变器寄存器协议版本。
+插件仍通过 Modbus 身份读取确认当前支持的盛弘 V001B031 profile；不能根据采集棒型号选择点表。
+设备端须确认实际转发能力，未完成联调不声明硬件兼容。
 
-配置流程接收 ZeroconfServiceInfo，解析主机、端口和 TXT；实际读取逆变器 SN 并核对 TXT ID；根据 SN 去重，用户确认后创建配置。再次发现时经业务接口核对后更新连接地址，不改变设备和实体 ID。没有 TXT ID 时可读 SN 去重；若同时使用非默认 Modbus 地址，需要在确认页修改地址再读取。
+### 编码与校验
 
-当前仅支持无认证普通 Modbus TCP，不实现额外认证或 TLS，SN 核对不是加密认证。TXT 型号、固件只是提示，不能作为已验证的设备能力。
+- TXT 使用独立 `key=value` 字符串，键为表中小写 ASCII，值为 UTF-8；一个键只发布一次。
+- 六个必填字段不得为空、包含首尾空白或控制字符；单个完整 `key=value` 最多 255 字节。
+- `unit_id` 如存在，使用 1～3 位 ASCII 十进制数字，数值 1～255；缺失允许，非法值拒绝，不回退。
+- 未知扩展键忽略；`id` 无身份语义，也不能代替 `sn`。仅有旧字段的广播不再自动发现。
+- 不支持的通信、版本、认证方式拒绝；缺少 `auth` 不能按免认证处理；TXT 不携带秘密。
+- 服务实例首标签和主机标签均最多 63 字节。实例保留 SN 大小写，DNS 分隔字符 `.`、`\` 替换为连字符；
+  主机标签只保留 ASCII 字母、数字、连字符，其他字符替换为连字符。
+  截短时保留完整 UTF-8 字符；名称冲突追加序号并为后缀预留长度，TXT SN 不截短。
+- 固件按 RFC 执行探测、公告、冲突处理、缓存更新及正常退出的 goodbye。
 
-需要主动监听时，应通过 `homeassistant.components.zeroconf` 获取 HA 共享实例，不在插件中运行第二套 mDNS 服务。
+## 双身份与配置流程
 
-## 联调验收
+采集棒 SN 只标识网络接入端；逆变器 SN 通过业务接口读取，两者**不要求相同**。
+采集棒 SN 无业务读回接口，当前只能记录为 `source=zeroconf` 的广播元数据，不能宣称已验证或认证。
+设备和实体继续使用既有逆变器唯一 ID；不因本次升级重建注册表或统计。
 
-1. 设备先启动、HA 后启动，可以发现。
-2. HA 先启动、设备后上线，可以发现。
-3. 两台设备同时上线，独立显示且不重复。
-4. 地址变化后更新原配置，历史实体保持不变。
-5. 设备断电/网络中断后显示正确状态，恢复后可重新连接。
-6. 缺失 ID、不支持的版本、伪造元数据、认证失败均明确处理。
-7. 服务可以发现但业务端口不可达时，不生成虚假的在线读数。
+1. 严格解析新版广播，按采集棒 SN 合并同一采集棒的待确认流程。
+2. 连接 SRV 地址读取逆变器身份，按业务 SN 去重；新设备等待 HA 原生确认，不静默添加。
+3. 地址优先级：用户明确输入 > 唯一关联的已有配置 Unit ID > 广播 Unit ID > UI 预填 1。
+   若新采集棒发现了已有逆变器，切回已保存 Unit ID 时须重新读取并核对同一逆变器，失败不更新原配置。
+4. 用户改动广播的主机或端口后，不把原广播的采集棒身份绑定到另一个端点。
+5. 地址变化须业务 SN 一致后才更新。重复公告无变化不写配置，元数据更新不重载，连接变化重载一次。
+6. 换棒但逆变器不变：更新关联，保留历史。换逆变器但棒不变：保留旧配置，新设备另行确认。
+   同一棒存在多份历史关联时，不用该关联选择设备；继续依据业务 SN 判断。
 
-## 标准与开发参考
+已有配置不要求补齐 TXT 信息，手动添加仍可用。配置版本保持 2，元数据是可选项。
+SN 核对不是加密认证；不根据发现记录开放控制。诊断不输出完整 SN 或原始广播。
+HA 集成复用 HA 共享 Zeroconf，不启动另一套 mDNS 服务。
 
-- https://www.rfc-editor.org/rfc/rfc6762
-- https://www.rfc-editor.org/rfc/rfc6763
-- https://contributors.home-assistant.io/core/integrations/manifest/#zeroconf
-- https://contributors.home-assistant.io/core/integrations/network-discovery/#zeroconf
-- https://contributors.home-assistant.io/core/integrations/config-flow/
+## 运行和验收
+
+- 在允许组播的同一 IPv4 局域网，设备取得有效 IP、TCP 业务服务就绪后 10 秒内可解析完整记录。
+  TCP 服务就绪与下游逆变器可读是不同状态；下游离线时 HA 显示不可用，不能生成零值冒充在线。
+- 覆盖设备先启动、HA 先启动、至少三台同时上线、重复发现、DHCP 地址变化和端口变化。
+- 覆盖采集棒与逆变器 SN 不同、换棒、换逆变器及同一逆变器多个广播入口。
+- 覆盖缺字段、非法 Unit ID、不支持认证/版本、端口不可达、身份读取失败和恢复。
+- 覆盖重载、重启、旧配置加载，检查设备/实体 ID 和能源统计标识连续。
+- 自动化、真实 HA＋模拟器、物理采集棒结果分开记录；跨 VLAN 和 IPv6 不属于本次硬件验收。
+
+## 参考
+
+- [RFC 6762](https://www.rfc-editor.org/rfc/rfc6762)
+- [RFC 6763](https://www.rfc-editor.org/rfc/rfc6763)
+- [HA Zeroconf](https://contributors.home-assistant.io/core/integrations/network-discovery/#zeroconf)

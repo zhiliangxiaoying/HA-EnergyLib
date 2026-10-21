@@ -17,8 +17,8 @@ charge/discharge and a time-of-use schedule).
 
 - Automatic discovery via mDNS (`_energylib._tcp.local.`) or manual setup
 - Identity check by reading the inverter serial number; no duplicate devices on address changes
-- 14 measurements enabled by default (PV, battery, load and grid power; six cumulative
-  energy counters; total SOC; running state; active alarms; work mode)
+- 13 main measurements plus one alert status enabled by default (PV, battery, load and grid power; six cumulative
+  energy counters; total SOC; running state; alert status; work mode)
 - More diagnostic sensors available but disabled by default (grid voltage/frequency,
   battery voltage/current/SOH, PV strings, temperatures, faults)
 - Optional controls (opt-in): work mode, backup SOC, minimum SOC, grid charging,
@@ -48,6 +48,11 @@ directory and restart Home Assistant.
 
 - **Discovered device:** *Settings → Devices & services* shows **EnergyLIB** under
   *Discovered*. Select **Add**, check the address and confirm.
+  Discovery requires the new logger TXT contract (`sn`, `model`, `fw`, `transport`,
+  `api_ver`, `auth`); optional `unit_id` pre-fills the address. Logger and inverter
+  serials are separate; existing device/entity identities stay unchanged.
+  Legacy `id`-only advertisements need a firmware update or manual setup.
+  See [Discovery contract](docs/DISCOVERY.md).
 - **Manual:** *Add integration → EnergyLIB*, then enter host, Modbus TCP port and
   unit ID (default 1). The manual form pre-fills port **502**; change it if the device
   uses another port. Discovery pre-fills the advertised port instead.
@@ -71,9 +76,9 @@ To use it in YAML: `strategy: {type: custom:energylib}`.
 
 ### Digital twin
 
-The first tab of the EnergyLIB dashboard is a 3D digital twin of the home with live
+The first tab is the everyday Overview. The following Digital twin tab shows a 3D home with live
 solar, battery, grid and load flows from your EnergyLIB device (a selector appears with
-several devices); the cards are on the second tab, *Overview*. The twin is bundled with
+several devices). The twin is bundled with
 the integration and needs no setup. Its page text is currently Chinese only.
 
 ### Sign convention
@@ -89,8 +94,8 @@ integration converts them.
 ## Controls (opt-in)
 
 1. *Settings → Devices & services → EnergyLIB → Configure → Control access* → enable **Allow control**.
-2. Control entities appear only if the inverter answers every control register; they
-   are **disabled by default** — enable the ones you need on the device page.
+2. The battery operation panel appears once controls are allowed and the device
+   answers the required registers. Advanced settings stay optional.
 
 | Entity | Purpose |
 |---|---|
@@ -98,7 +103,10 @@ integration converts them.
 | Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
 | Grid charging (switch) | allow charging the battery from the grid |
 | Export limit (number) | maximum feed-in power, up to the inverter rating |
-| Remote power control + Remote power (switch/number) | charge (−) or discharge (+) at a set power for 300 s, then return to self-consumption |
+| Target power + Duration (draft numbers), Start charging/discharging and Stop buttons | Enter a positive kW magnitude and whole minutes (1–1440), then explicitly start/stop |
+| Battery operation card | Choose direction, power and minutes, then Start; status/countdown/Stop in one card |
+
+Draft edits do not write the inverter or change a running task. Drafts persist; tasks never resume after HA restart. See the [remote operation guide](docs/REMOTE_DISPATCH.md).
 
 Remote control writes a heartbeat; if Home Assistant stops, the inverter falls back to
 self-consumption after the timeout.
@@ -127,6 +135,7 @@ data:
 ```
 
 - `energylib.set_battery_power` — `power_kw` (negative = charge) and `duration` in seconds
+- `energylib.stop_battery_power` — stop remote dispatch immediately
 - `energylib.clear_tou_schedule` — remove all periods
 
 Each `set_tou_schedule` call replaces the whole table.
@@ -135,7 +144,8 @@ Each `set_tou_schedule` call replaces the whole table.
 
 - *Settings → Devices & services → EnergyLIB → ⋮ → Download diagnostics* gives the
   detected capabilities and the last command status without serial numbers or addresses.
-- *Active alarms* lists alarm source and register code; `complete: false` means some
+- *Fault and warning status* shows named faults, warnings, indications and recent occurrences
+  ([alarm guide and automation example](docs/ALARMS.md)). *Active alarms* keeps its count; `complete: false` means some
   alarm sources could not be read — it does not mean "no alarms".
 - A discovered card for a device that no longer exists disappears after the mDNS cache
   expires; select **Ignore** meanwhile.
@@ -164,3 +174,7 @@ belong to their respective owners.
 [Apache License 2.0](LICENSE) — Copyright 2026 zhiliangxiaoying. See [NOTICE](NOTICE).
 The vendor protocol document is not included; the license does not cover brand images
 or trademarks.
+
+Remote charge/discharge has its own **Allow remote charge/discharge** switch, default off. Enabling only unlocks the combined overview card; Start executes the task. The native permission switch, parameter inputs and action buttons are disabled by default. See [Remote operation](docs/REMOTE_DISPATCH.md).
+
+The work-mode UI is named **EMS mode**. Its selector is first in device Configuration and overview controls; entity IDs and mode values are unchanged.

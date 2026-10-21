@@ -1,6 +1,7 @@
 """End-to-end TCP bench tests for profiles, polling, controls and failure states."""
 
 import asyncio
+import time
 import unittest
 from dataclasses import replace
 from datetime import date, datetime, timezone
@@ -13,6 +14,7 @@ from energylib_under_test.energylib_core.profiles.sinexcel_v2 import Mapping
 from energylib_under_test.energylib_core.runtime import ControlError, DeviceRuntime, PartialWrite
 from energylib_under_test.energylib_core.transport.modbus_tcp import (
     DeviceException,
+    EnergyLibError,
     ModbusTcpClient,
 )
 
@@ -126,6 +128,108 @@ class TouTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unowned_remote_session_is_not_reported_idle_or_resumed(self):
+        self.runtime.allow_control = True
+        self.model.set_float(0xC646, 1)
+        values = await self.runtime.refresh({"remote_status"})
+        self.assertEqual(values["remote_status"], "unconfirmed")
+        self.assertIsNone(self.runtime.remote_deadline)
+        self.assertIsNone(self.runtime._lease_task)
+        self.assertEqual(self.peer.write_count, 0)
+
+    async def test_remote_drafts_do_not_write_or_mutate_running_snapshot(self):
+        self.runtime.allow_control = True
+        self.runtime.draft.set("remote_target_power", 2, 5)
+        self.runtime.draft.set("remote_duration", 1, 5)
+        self.assertEqual(self.peer.write_count, 0)
+        power, seconds = self.runtime.draft.snapshot("charge", 5)
+        await self.runtime.set_battery_power(power, seconds)
+        writes = self.peer.write_count
+        self.runtime.draft.set("remote_target_power", 3, 5)
+        self.runtime.draft.set("remote_duration", 1440, 5)
+        self.assertEqual(self.peer.write_count, writes)
+        self.assertEqual(self.runtime.remote_target, -2)
+        self.assertEqual(self.runtime.remote_deadline, self.now + 60)
+        self.assertEqual(self.runtime.remote_status, "charging")
+        await self.runtime.stop_remote()
+        self.assertEqual(self.runtime.remote_status, "stopped")
+        self.assertIsNone(self.runtime.remote_end_time)
+
+    async def test_expiration_publishes_status_without_polling(self):
+        self.runtime.allow_control = True
+        self.runtime._clock = time.monotonic
+        changes = []
+        self.runtime.state_changed = lambda: changes.append(self.runtime.remote_status)
+        await self.runtime.set_battery_power(1, 1)
+        task = self.runtime._lease_task
+        await asyncio.wait_for(asyncio.shield(task), 2)
+        self.assertEqual(self.model.get_float(0xC646), 0)
+        self.assertEqual(changes, ["discharging", "completed"])
+        self.assertIsNone(self.runtime.remote_end_time)
+
+    async def test_one_failed_poll_does_not_leave_a_running_task_unconfirmed(self):
+        self.runtime.allow_control = True
+        await self.runtime.set_battery_power(1, 300)
+        self.assertEqual(self.runtime.remote_status, "discharging")
+        self.peer.fault = "short_frame"
+        with self.assertRaises(EnergyLibError):
+            await self.runtime.refresh({"remote_status"}, force=True)
+        self.assertEqual(self.runtime.remote_status, "unconfirmed")
+        self.peer.fault = "normal"
+        values = await self.runtime.refresh({"remote_status"}, force=True)
+        # The device confirms the session again: the task is shown as running.
+        self.assertEqual(values["remote_status"], "discharging")
+        await self.runtime.stop_remote()
+
+    async def test_confirmed_exit_after_a_failed_poll_reports_completed(self):
+        self.runtime.allow_control = True
+        self.runtime._clock = time.monotonic
+        await self.runtime.set_battery_power(1, 1)
+        task = self.runtime._lease_task
+        self.peer.fault = "short_frame"
+        with self.assertRaises(EnergyLibError):
+            await self.runtime.refresh({"remote_status"}, force=True)
+        self.peer.fault = "normal"
+        await asyncio.wait_for(asyncio.shield(task), 3)
+        self.assertEqual(self.model.get_float(0xC646), 0)
+        self.assertEqual(self.runtime.remote_status, "completed")
+        self.assertEqual(self.runtime.last_command, "confirmed")
+
+    async def test_uncertain_remote_write_never_claims_running_or_stopped(self):
+        self.runtime.allow_control = True
+        self.peer.fault = "mismatch"
+        with self.assertRaises(PartialWrite):
+            await self.runtime.set_battery_power(1, 60)
+        self.assertEqual(self.runtime.remote_status, "unconfirmed")
+        self.assertIsNone(self.runtime.remote_deadline)
+        self.peer.fault = "normal"
+        await self.runtime.stop_remote()
+        await self.runtime.set_battery_power(0, 300)
+        self.assertEqual(self.runtime.remote_status, "holding")
+        self.assertEqual(self.runtime.remote_deadline, self.now + 300)
+
+    async def test_alarm_summaries_read_without_original_alarm_entity(self):
+        self.model.bits[1][0x1054] = True
+        self.model.bits[2][0x1048] = True
+        values = await self.runtime.refresh({"fault_count", "warning_count", "alarm_status"})
+        self.assertEqual(values, {"fault_count": 1, "warning_count": 1, "alarm_status": "abnormal"})
+        before = self.client.requests
+        await self.runtime.refresh({"fault_count", "warning_count", "alarm_status"})
+        # Identity remains checked, but alarm blocks are shared and not read per summary.
+        self.assertLess(self.client.requests - before, 3)
+
+    async def test_partial_alarm_source_retains_previous_confirmed_fault(self):
+        self.model.bits[2][0x1054] = True
+        await self.runtime.refresh({"active_alarms"})
+        self.peer.fault = "unit2_offline"
+        values = await self.runtime.refresh(
+            {"any_fault", "fault_count", "alarm_status"}, force=True
+        )
+        self.assertTrue(values["any_fault"])
+        self.assertIsNone(values["fault_count"])
+        self.assertEqual(values["alarm_status"], "incomplete")
+        self.assertFalse(self.runtime.alarms.events)
+
     async def asyncSetUp(self):
         self.now = 1000.0
         self.model = BenchModel(
@@ -156,7 +260,43 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         keys = {p.key for p in self.runtime.points()}
         self.assertIn("pv4_power", keys)
         self.assertIn("battery_2_soc", keys)
-        self.assertLess(self.runtime.last_frame_count, 18)
+        # +1 since the grid bit 0x1014 became an alarm source: it cannot share the
+        # 0x1048 read (0x1015–0x1047 are status bits, not alarms).
+        self.assertLess(self.runtime.last_frame_count, 19)
+
+    async def test_battery_2_voltage_and_current_follow_battery_2(self):
+        keys = {"battery_2_voltage", "battery_2_current", "battery_2_power"}
+        self.assertLessEqual(keys, {p.key for p in self.runtime.points()})
+        values = await self.runtime.refresh(keys, force=True)
+        self.assertAlmostEqual(values["battery_2_voltage"], 51.0, places=2)
+        # Same standard sign as battery 2 power (+ = discharge, - = charge).
+        self.assertGreater(values["battery_2_current"] * values["battery_2_power"], 0)
+        self.model.set_float(0x3036, 0)  # single battery
+        await self.runtime.initialize()
+        self.assertFalse(keys & {p.key for p in self.runtime.points()})
+
+    async def test_grid_bit_is_an_alarm_source_and_diagnostics_are_gone(self):
+        sources = self.runtime.profile.mappings["active_alarms"]
+        self.assertIn(
+            (2, 1, 0x1014, 1), {(m.function, m.unit, m.address, m.count) for m in sources}
+        )
+        keys = {p.key for p in self.runtime.points()}
+        self.assertFalse({"grid_fault", "bms_comm_fault"} & keys)
+        self.model.bits[1][0x1014] = True
+        values = await self.runtime.refresh({"alarm_status"}, force=True)
+        self.assertEqual(values["alarm_status"], "abnormal")
+        (alarm,) = self.runtime.attributes["alarm_status"]["alarms"]
+        self.assertEqual(
+            (alarm["name"], alarm["severity"], alarm["code"]), ("电网异常", "warning", "1014")
+        )
+
+    async def test_unsupported_grid_bit_does_not_leave_alarms_incomplete(self):
+        del self.model.bits[1][0x1014]
+        await self.runtime.initialize()
+        sources = self.runtime.profile.mappings["active_alarms"]
+        self.assertNotIn(0x1014, {m.address for m in sources})
+        values = await self.runtime.refresh({"alarm_status"}, force=True)
+        self.assertEqual(values["alarm_status"], "normal")
 
     async def test_reconnect_limits_are_checked_before_every_command(self):
         self.runtime.allow_control = True
@@ -294,7 +434,8 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(values["active_alarms"])
         attributes = self.runtime.attributes["active_alarms"]
         self.assertFalse(attributes["complete"])
-        self.assertEqual(attributes["alarms"], [{"source": 1, "code": "1048"}])
+        self.assertEqual([(a["source"], a["code"]) for a in attributes["alarms"]], [(1, "1048")])
+        self.assertEqual(attributes["alarms"][0]["severity"], "warning")
 
     async def test_changed_serial_refuses_all_writes(self):
         self.runtime.allow_control = True

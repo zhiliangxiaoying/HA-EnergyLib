@@ -29,7 +29,7 @@ class StaticPaths:
 
 
 async def check():
-    from homeassistant import loader
+    from homeassistant import config_entries, loader
     from homeassistant.bootstrap import async_load_base_functionality
     from homeassistant.config_entries import ConfigEntries, ConfigEntry, ConfigEntryState
     from homeassistant.core import HomeAssistant
@@ -38,6 +38,7 @@ async def check():
     from homeassistant.helpers import entity_registry as er
     from homeassistant.setup import async_setup_component
 
+    default_reload_delay = config_entries.RELOAD_AFTER_UPDATE_DELAY
     root = Path(__file__).resolve().parents[1]
     tmp = tempfile.TemporaryDirectory(prefix="energylib-ha-check-")
     config = Path(tmp.name)
@@ -171,7 +172,9 @@ async def check():
             pass
         else:
             raise AssertionError("Service bypassed disabled controls")
-        results.append("14 defaults, optional entities disabled, services cannot bypass opt-in")
+        results.append(
+            "13 main measurements + one alert status, optional entities disabled, services cannot bypass opt-in"
+        )
         flow = await hass.config_entries.options.async_init(lab.entry_id)
         assert flow["type"] == "menu"
         flow = await hass.config_entries.options.async_configure(
@@ -183,8 +186,10 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        assert len(controls) == 7 and all(e.disabled_by is not None for e in controls)
-        results.append("native options enable controls; all seven start disabled")
+        assert len(controls) == 8 and all(e.disabled_by is not None for e in controls)
+        results.append(
+            "native options enable controls; five advanced controls disabled; operation settings ready, remote permission off"
+        )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))
         registry.async_update_entity(backup_control.entity_id, disabled_by=None)
@@ -239,6 +244,23 @@ async def check():
         lab_model.registers.update({0xC0B6 + i: w for i, w in enumerate(previous_dates)})
         results.append("TOU action roundtrip, clear preserves work mode")
         await lab.runtime_data.async_command("work_mode", "self_consumption")
+        # Enabling remote access enables entities and HA reloads after a delay.
+        # Starts are refused until the enabled entities are live; otherwise the
+        # request below stops at that gate and never re-probes. Shorten HA's 30 s
+        # delay only here: elsewhere this check reloads explicitly, and an extra
+        # automatic reload would race with it.
+        config_entries.RELOAD_AFTER_UPDATE_DELAY = 0.05
+        try:
+            await lab.runtime_data.async_set_remote_enabled(True)
+            async with asyncio.timeout(10):
+                while (  # noqa: ASYNC110 - bounded probe of HA reload and live entities
+                    lab.state is not ConfigEntryState.LOADED
+                    or not lab.runtime_data.remote_entities_ready
+                ):
+                    await asyncio.sleep(0.02)
+            await hass.async_block_till_done()
+        finally:
+            config_entries.RELOAD_AFTER_UPDATE_DELAY = default_reload_delay
         lab_model.config = replace(lab_model.config, rated_kw=3)
         lab_model.tick(datetime.now(timezone.utc), 0)
         await lab.runtime_data.device.client.close()

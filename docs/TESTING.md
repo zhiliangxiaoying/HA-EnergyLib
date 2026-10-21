@@ -5,6 +5,13 @@ tested yet; nothing here is evidence of hardware compatibility.
 
 以下结果都来自**软件模拟器**，尚未在物理逆变器上测试，不能作为硬件兼容性的证据。
 
+## 0.6.1 – 0.8.14 验证摘要（2026-10-20 ~ 2026-10-21）
+
+- 161 项单元 / TCP / 看板测试、Ruff、hassfest 通过。
+- HA 2026.8.2 临时环境中 `tools.ha_runtime_check`、`tools.ha_alarm_check`、`tools.ha_remote_check` 全部通过：告警来源与历史、远程权限与租约、草稿、到期 / 失败 / 重启、旧实体清理、实体标识保持。
+- 在测试用 HA 上用软件设备和真实浏览器验证了 mDNS 发现（多台设备、端口更新、重启恢复）、强制充放电卡片、告警卡片和 EMS 模式显示。
+- 未对物理逆变器做任何控制测试；详细的内部验证记录不随仓库发布。
+
 ## Automated checks / 自动化检查
 
 | Check | Result |

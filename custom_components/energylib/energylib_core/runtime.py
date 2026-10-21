@@ -4,10 +4,12 @@ import asyncio
 import math
 import time
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from .legacy import IdentityMismatch, decode_float
+from .model.alarms import ALARM_KEYS, AlarmTracker
 from .model.points import CONTROLS, MEASUREMENTS
+from .model.remote import REMOTE_KEYS, RemoteDraft
 from .model.tou import TouSchedule
 from .planner import plan_reads
 from .profiles import get_profile
@@ -46,6 +48,13 @@ class DeviceRuntime:
         self._generation = -1
         self._closed = False
         self.last_frame_count = 0
+        self.alarms = AlarmTracker(self.profile.describe_alarm)
+        self.draft = RemoteDraft()
+        self.remote_status = "idle"
+        self.remote_end_time = None
+        self.remote_target = None
+        self._poll_uncertain = False  # "unconfirmed" caused only by a failed poll
+        self.state_changed = None
 
     @property
     def unique_id(self):
@@ -91,7 +100,16 @@ class DeviceRuntime:
             p
             for p in MEASUREMENTS.values()
             if (
-                (p.key in self.profile.mappings or p.kind == "schedule")
+                (
+                    p.key in self.profile.mappings
+                    or p.kind == "schedule"
+                    or (p.key in ALARM_KEYS and "active_alarms" in self.profile.mappings)
+                    or (
+                        p.key in REMOTE_KEYS
+                        and self.allow_control
+                        and self.profile.controls_supported
+                    )
+                )
                 and p.capabilities <= self.profile.capabilities
                 and (p.kind != "schedule" or self.allow_control)
             )
@@ -115,10 +133,27 @@ class DeviceRuntime:
                 now = self._clock()
                 supported = {p.key for p in self.points()}
                 enabled = set(enabled) & supported
+                # Every enabled summary depends on exactly the same source reads.
+                alarm_due = bool(enabled & ALARM_KEYS) and (
+                    force or now - self._timestamps.get("active_alarms", -math.inf) >= 30
+                )
+                if alarm_due:
+                    for mapping in self.profile.mappings["active_alarms"]:
+                        try:
+                            bits = await self._read(mapping)
+                        except EnergyLibError:
+                            bits = None
+                        self.alarms.observe(mapping, bits)
+                    self._publish_alarms()
+                    self._timestamps["active_alarms"] = now
                 due = {
                     k
                     for k in enabled
-                    if force or now - self._timestamps.get(k, -math.inf) >= MEASUREMENTS[k].interval
+                    if k not in ALARM_KEYS | REMOTE_KEYS
+                    and (
+                        force
+                        or now - self._timestamps.get(k, -math.inf) >= MEASUREMENTS[k].interval
+                    )
                 }
                 maps = [m for k in due for m in self.profile.mappings.get(k, ())]
                 raw = {}
@@ -168,34 +203,69 @@ class DeviceRuntime:
                     self._timestamps[key] = now
                 if self.allow_control and self.profile.controls_supported:
                     self.controls = await self.profile.read_controls(self.client)
+                    if (
+                        self._poll_uncertain
+                        and self.remote_deadline is not None
+                        and self.controls.get("remote_control")
+                    ):
+                        # This poll re-read the device: our session is still active.
+                        self._poll_uncertain = False
+                        target = self.remote_target or 0
+                        self.remote_status = (
+                            "charging" if target < 0 else "discharging" if target > 0 else "holding"
+                        )
                 self.last_frame_count = self.client.requests - count
+                self._publish_remote()
                 return {k: self.values.get(k) for k in enabled}
             except BaseException:
                 self._timestamps.clear()  # Recovery must not publish stale slow-tier values.
+                for mapping in self.profile.mappings.get("active_alarms", ()):
+                    self.alarms.observe(mapping, None)
+                self._publish_alarms()
+                if self.remote_deadline is not None:
+                    # Only this poll failed; a later poll may confirm the session again.
+                    self._poll_uncertain = True
+                    self.remote_status = "unconfirmed"
+                    self._publish_remote()
                 raise
+
+    def _publish_alarms(self):
+        values, attributes = self.alarms.snapshot(self.profile.mappings.get("active_alarms", ()))
+        self.values.update(values)
+        for key in ALARM_KEYS:
+            self.attributes[key] = (
+                attributes
+                if key in ("active_alarms", "alarm_status")
+                else {k: attributes[k] for k in ("complete", "unknown_count", "info_count")}
+            )
+
+    def _publish_remote(self):
+        if self.remote_deadline is None and self.controls.get("remote_control"):
+            # After an abrupt restart (or App control), an active device session
+            # is not an owned HA task. Do not present it as idle or resume it.
+            self.remote_status = "unconfirmed"
+        self.values["remote_status"] = self.remote_status
+        self.values["remote_end_time"] = self.remote_end_time
+        self.attributes["remote_status"] = {
+            "target_power_kw": self.remote_target,
+            "actual_power_kw": self.values.get("battery_power"),
+            "end_time": self.remote_end_time.isoformat() if self.remote_end_time else None,
+            "last_command": self.last_command,
+        }
+
+    def _remote_changed(self):
+        self._publish_remote()
+        if self.state_changed is not None and not self._closed:
+            self.state_changed()
 
     def _decode(self, key, raw):
         maps = self.profile.mappings.get(key, ())
         parts = [raw.get(m) for m in maps]
         self.attributes.pop(key, None)
-        if key == "active_alarms":
-            alarms = [
-                {"source": m.unit, "code": f"{m.address + i:04X}"}
-                for m, bits in zip(maps, parts)
-                if bits is not None
-                for i, bit in enumerate(bits)
-                if bit
-            ]
-            complete = all(p is not None for p in parts)
-            self.attributes[key] = {"alarms": alarms, "complete": complete}
-            self.values[key] = len(alarms) if complete else None
-            return
         if not parts or any(p is None for p in parts):
             self.values[key] = None
             return
-        if key in ("grid_fault", "bms_comm_fault"):
-            self.values[key] = any(any(p) for p in parts)
-        elif key == "running_state":
+        if key == "running_state":
             self.values[key] = self.profile.decode_enum(key, parts[0])
         else:
             values = [decode_float(words, kind=MEASUREMENTS[key].kind) for words in parts]
@@ -354,6 +424,11 @@ class DeviceRuntime:
                 await self.profile.enter_remote(self.client, power_kw)
                 await self._send_heartbeat()
                 self.remote_deadline = self._clock() + duration
+                self.remote_end_time = datetime.now(timezone.utc) + timedelta(seconds=duration)
+                self.remote_target = float(power_kw)
+                self.remote_status = (
+                    "charging" if power_kw < 0 else "discharging" if power_kw > 0 else "holding"
+                )
                 # A renewed lease has its own owner. An old worker may already
                 # be waiting to clean up after expiry or a heartbeat failure.
                 self._lease_generation += 1
@@ -363,11 +438,15 @@ class DeviceRuntime:
                 self.last_command = "confirmed"
             except EnergyLibError as err:
                 self.last_command = "uncertain"
+                self.remote_status = "unconfirmed"
                 raise PartialWrite(
                     "Remote request uncertain; watchdog remains authoritative"
                 ) from err
             finally:
                 await self._update_controls_best_effort()
+                if not self.controls:
+                    self.remote_status = "unconfirmed"
+                self._remote_changed()
 
     async def _send_heartbeat(self):
         self._heartbeat = (self._heartbeat + 1) & 0xFFFF
@@ -390,25 +469,41 @@ class DeviceRuntime:
                     await self._identity()
                     await self._send_heartbeat()
         except EnergyLibError:
+            # A lost heartbeat means the device may have left early: stays unconfirmed.
+            self._poll_uncertain = False
             self.last_command = "uncertain"
+            self.remote_status = "unconfirmed"
         finally:
             async with self._lock:
                 if generation == self._lease_generation:
                     try:
                         await self._identity()
                         await self.profile.leave_remote(self.client)
+                        # A confirmed exit resolves doubt left by a failed poll, but not
+                        # by a failed heartbeat or command.
+                        if self.remote_status != "unconfirmed" or self._poll_uncertain:
+                            self.remote_status = "completed"
+                            self.last_command = "confirmed"
                     except EnergyLibError:
                         self.last_command = "uncertain"
+                        self.remote_status = "unconfirmed"
                     finally:
                         self.remote_deadline = None
+                        self.remote_end_time = None
                         self._lease_task = None
+                        self._poll_uncertain = False
                         await self._update_controls_best_effort()
+                        if not self.controls:
+                            self.remote_status = "unconfirmed"
+                        self._remote_changed()
 
     def _cancel_lease_locked(self):
         """Invalidate the worker before cancellation; caller owns the device lock."""
         self._lease_generation += 1
         task, self._lease_task = self._lease_task, None
         self.remote_deadline = None
+        self.remote_end_time = None
+        self._poll_uncertain = False
         if task is not None:
             task.cancel()
         return task
@@ -425,11 +520,16 @@ class DeviceRuntime:
                     await self._identity()
                     await self.profile.leave_remote(self.client)
                     self.last_command = "confirmed"
+                    self.remote_status = "stopped"
                 except EnergyLibError:
                     self.last_command = "uncertain"
+                    self.remote_status = "unconfirmed"
                     raise
                 finally:
                     await self._update_controls_best_effort()
+                    if not self.controls:
+                        self.remote_status = "unconfirmed"
+                    self._remote_changed()
         finally:
             if task is not None:
                 await asyncio.gather(task, return_exceptions=True)

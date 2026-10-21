@@ -40,18 +40,35 @@ class PeerIdentityTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(serial=serial), self.assertRaises(ValueError):
                 PeerModel(serial)
 
+    async def test_idle_connection_can_be_closed_before_waiting_for_server(self):
+        peer = InverterServer(PeerModel("CLEANUP-TEST"), {"127.0.0.1"})
+        server = await asyncio.start_server(peer.handle, "127.0.0.1", 0)
+        reader, writer = await asyncio.open_connection(
+            "127.0.0.1", server.sockets[0].getsockname()[1]
+        )
+        try:
+            await asyncio.sleep(0)
+            server.close()
+            await asyncio.wait_for(peer.close(), 1)
+            await asyncio.wait_for(server.wait_closed(), 1)
+            self.assertEqual(await asyncio.wait_for(reader.read(), 1), b"")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
 
 class TxtTests(unittest.TestCase):
     def test_default_txt_is_accepted_by_integration(self):
         props = txt_properties("ELIB260101")
-        self.assertEqual(props["id"], "ELIB260101")
-        self.assertEqual(parse_discovery("192.0.2.10", 15030, props).advertised_id, "ELIB260101")
+        self.assertEqual(props["sn"], "ELIB260101")
+        self.assertEqual(parse_discovery("192.0.2.10", 15030, props).logger_sn, "ELIB260101")
 
     def test_negative_variants(self):
-        mismatch = txt_properties("ELIB260103", txt_id="ELIB999999")
-        self.assertEqual(parse_discovery("192.0.2.10", 1, mismatch).advertised_id, "ELIB999999")
-        self.assertNotIn("id", txt_properties("ELIB260105", omit_id=True))
+        self.assertNotIn("id", txt_properties("LOGGER-001"))
         for props in (
+            txt_properties("ELIB260105", omit=("sn",)),
+            txt_properties("LOGGER-001", overrides={"unit_id": "256"}),
+            txt_properties("LOGGER-001", api_ver="2"),
             txt_properties("ELIB260104", auth="token"),
             txt_properties("ELIB260106", transport="http"),
         ):
@@ -63,7 +80,16 @@ class CliTests(unittest.TestCase):
     def test_arguments(self):
         base = ["--serial", "ELIB1", "--bind", "192.0.2.10", "--allow-peer", "192.0.2.20"]
         self.assertEqual(parse_args(base + ["--port", "15030"]).port, 15030)
-        for extra in (["--port", "0"], ["--port", "1", "--txt-id", "X", "--no-txt-id"]):
+        parsed = parse_args(
+            base + ["--port", "15030", "--unit-id", "7", "--logger-sn", "LOGGER-001"]
+        )
+        self.assertEqual(parsed.unit_id, 7)
+        self.assertEqual(parsed.logger_sn, "LOGGER-001")
+        for extra in (
+            ["--port", "0"],
+            ["--port", "1", "--unit-id", "256"],
+            ["--port", "1", "--txt", "bad"],
+        ):
             with (
                 self.subTest(extra=extra),
                 contextlib.redirect_stderr(io.StringIO()),

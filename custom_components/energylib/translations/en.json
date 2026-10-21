@@ -121,7 +121,7 @@
   "entity": {
     "sensor": {
       "battery_soc": {
-        "name": "Battery 1 state of charge"
+        "name": "Battery charge level"
       },
       "battery_total_soc": {
         "name": "Battery state of charge"
@@ -170,7 +170,7 @@
         "name": "Active alarms"
       },
       "work_mode": {
-        "name": "Work mode",
+        "name": "EMS mode",
         "state": {
           "self_consumption": "self consumption",
           "time_of_use": "time of use",
@@ -211,6 +211,12 @@
       "battery_2_power": {
         "name": "Battery 2 power"
       },
+      "battery_2_voltage": {
+        "name": "Battery 2 voltage"
+      },
+      "battery_2_current": {
+        "name": "Battery 2 current"
+      },
       "pv1_power": {
         "name": "PV1 power"
       },
@@ -244,19 +250,50 @@
           "inactive": "inactive",
           "remote": "remote control"
         }
+      },
+      "fault_count": {
+        "name": "Active faults"
+      },
+      "warning_count": {
+        "name": "Active warnings"
+      },
+      "alarm_status": {
+        "name": "Device alerts",
+        "state": {
+          "normal": "Normal",
+          "abnormal": "Abnormal",
+          "unrecognized": "Unrecognized alarm",
+          "incomplete": "Incomplete data",
+          "offline": "Communication unavailable"
+        }
+      },
+      "remote_status": {
+        "name": "Battery operation",
+        "state": {
+          "idle": "Idle",
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "holding": "Holding at zero power",
+          "stopped": "Stopped",
+          "completed": "Completed",
+          "unconfirmed": "Execution unconfirmed"
+        }
+      },
+      "remote_end_time": {
+        "name": "Remote charge/discharge estimated end time"
       }
     },
     "binary_sensor": {
-      "grid_fault": {
-        "name": "Grid fault"
+      "any_fault": {
+        "name": "Fault present"
       },
-      "bms_comm_fault": {
-        "name": "BMS communication fault"
+      "any_warning": {
+        "name": "Warning present"
       }
     },
     "select": {
       "work_mode": {
-        "name": "Work mode",
+        "name": "EMS mode",
         "state": {
           "self_consumption": "self consumption",
           "time_of_use": "time of use",
@@ -282,7 +319,13 @@
         "name": "Export limit"
       },
       "remote_power": {
-        "name": "Remote power"
+        "name": "Legacy remote power (immediate, 5 minutes)"
+      },
+      "remote_target_power": {
+        "name": "Battery power"
+      },
+      "remote_duration": {
+        "name": "Duration"
       }
     },
     "switch": {
@@ -290,14 +333,28 @@
         "name": "Grid charging"
       },
       "remote_control": {
-        "name": "Remote power control"
+        "name": "Legacy remote control (immediate, 5 minutes)"
+      },
+      "allow_remote_control": {
+        "name": "Allow remote charge/discharge"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Start charging"
+      },
+      "start_discharge": {
+        "name": "Start discharging"
+      },
+      "stop_remote": {
+        "name": "Stop immediately"
       }
     }
   },
   "services": {
     "set_battery_power": {
       "name": "Set battery power",
-      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "description": "Requires integration control access and Allow remote charge/discharge. Enabling access alone never starts a task.",
       "fields": {
         "device_id": {
           "name": "Device"
@@ -337,6 +394,43 @@
       "fields": {
         "device_id": {
           "name": "Device"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Stop remote battery dispatch",
+      "description": "End remote control immediately and verify readback.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "EnergyLIB device."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Set charge/discharge parameters",
+      "description": "Save power and whole minutes locally, without starting a task or writing the device.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "power_kw": {
+          "name": "Power"
+        },
+        "duration_minutes": {
+          "name": "Duration (minutes)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Set remote charge/discharge access",
+      "description": "Enabling only unlocks the operation panel; disabling first confirms exit from an active remote task.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "enabled": {
+          "name": "Allow remote charge/discharge"
         }
       }
     }

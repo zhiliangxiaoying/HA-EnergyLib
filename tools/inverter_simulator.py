@@ -13,7 +13,6 @@ import json
 import logging
 import math
 import os
-import socket
 import struct
 import time
 from datetime import datetime, timedelta, timezone
@@ -194,8 +193,10 @@ def atomic_json(path: Path, data: dict):
 
 
 async def run(args):
-    from zeroconf import IPVersion, ServiceInfo
+    from zeroconf import IPVersion
     from zeroconf.asyncio import AsyncZeroconf
+
+    from tools.discovery_advertisement import service_info
 
     state = json.loads(args.state.read_text(encoding="utf-8")) if args.state.exists() else None
     model = InverterModel(state)
@@ -203,14 +204,7 @@ async def run(args):
     peer = InverterServer(model, {args.allow_peer, args.bind, "127.0.0.1"})
     server = await asyncio.start_server(peer.handle, args.bind, args.port)
     zc = AsyncZeroconf(interfaces=[args.bind], ip_version=IPVersion.V4Only)
-    info = ServiceInfo(
-        SERVICE,
-        f"EnergyLIB-{SERIAL}.{SERVICE}",
-        addresses=[socket.inet_aton(args.bind)],
-        port=args.port,
-        properties={"id": SERIAL, "transport": "modbus_tcp", "api_ver": "1", "auth": "none"},
-        server=f"energylib-{SERIAL.lower()}.local.",
-    )
+    info = service_info(f"LOGGER-{SERIAL}", args.bind, args.port)
     registered = False
     try:
         await zc.async_register_service(info)
@@ -245,8 +239,8 @@ async def run(args):
             await zc.async_unregister_service(info)
         await zc.async_close()
         server.close()
-        await server.wait_closed()
         await peer.close()
+        await server.wait_closed()
 
 
 if __name__ == "__main__":

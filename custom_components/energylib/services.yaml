@@ -1,3 +1,45 @@
+set_remote_access:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    enabled:
+      required: true
+      selector:
+        boolean:
+set_remote_parameters:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    power_kw:
+      required: true
+      selector:
+        number:
+          min: 0
+          step: 0.1
+          unit_of_measurement: kW
+          mode: box
+    duration_minutes:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+          mode: box
+stop_battery_power:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
 set_battery_power:
   fields:
     device_id:

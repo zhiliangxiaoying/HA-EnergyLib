@@ -20,11 +20,11 @@
 | 0x3036 | 03 | float | 电池 2 启用，决定是否创建电池 2 实体 |
 | 0xC264 | 03 | float | 发电机口用途（禁止 / 发电机 / 智能负载 / AC 耦合），决定是否创建对应功率实体 |
 
-## B. 默认显示：14 个（v0.2）
+## B. 默认显示：14 个（v0.2；告警项修订于 v0.8.5）
 
 | # | key | 中文名 | 地址 | FC / 从机 | 单位 | HA 类型 | device_class / state_class |
 |---|---|---|---|---|---|---|---|
-| 1 | solar_power | 光伏功率 | 0x1270 | 03 / 1 | kW | sensor | power / measurement |
+| 1 | solar_power | 光伏总功率 | 0x1270 | 03 / 1 | kW | sensor | power / measurement |
 | 2 | battery_power | 电池功率 | 0x1272 | 03 / 1 | kW | sensor | power / measurement ⚠方向 |
 | 3 | grid_power | 电网功率 | 0x1276 | 03 / 1 | kW | sensor | power / measurement ⚠方向 |
 | 4 | load_power | 负载功率 | 0x1274 | 03 / 1 | kW | sensor | power / measurement |
@@ -36,7 +36,7 @@
 | 10 | battery_discharge_energy | 电池放电量 | 0x1260 | 03 / 1 | kWh | sensor | energy / total_increasing |
 | 11 | load_energy | 负载用电量 | 0x1262 | 03 / 1 | kWh | sensor | energy / total_increasing |
 | 12 | running_state | 运行状态 | 0x1001（3 位） | 02 / 1 | — | sensor | enum：待机 / 就绪 / 离网 / 并网 |
-| 13 | active_alarms | 当前告警 | 0x1048~0x1111（202 位） | 02 / 1 和 2 | 个 | sensor | measurement；属性 `alarms`=告警名称列表 |
+| 13 | alarm_status | 设备告警 | 0x1048~0x1111（202 位）+ 0x1014 电网异常位 | 02 / 1 和 2（0x1014 仅从机 1） | — | sensor | enum；属性包含 `alarms`、数量、完整性及历史 |
 | 14 | work_mode | 工作模式 | 0x300C | 03 / 1 | — | sensor | enum：自发自用 / 定时充放电 / 分时电价 / 灾备 / 手动控制 / 光伏优先充电 / 卖电优先 / 调压 / 削峰填谷 |
 
 第 1~11 项中已有 10 项实现（缺 0xC644）；第 12~14 项需新开发，其中第 12、13 项依赖 FC02。
@@ -56,15 +56,15 @@
 | battery_soh | 电池 SOH | 0xB108 | 03 / 1 | % | BMS 在线（0xB000=1） |
 | battery_2_soc | 电池 2 SOC | 0x121C | 03 / 1 | % | 电池 2 启用 |
 | battery_2_power | 电池 2 功率 | 0x121A | 03 / 1 | kW | 电池 2 启用 |
-| pv1_power ~ pv4_power | 光伏 1~4 功率 | 0x1204、0x120A、0x1280、0x1286 | 03 / 1 | kW | 按 MPPT 路数（PV5~PV10 见 D 节） |
+| battery_2_voltage | 电池 2 电压 | 0x1216 | 03 / 1 | V | 电池 2 启用 |
+| battery_2_current | 电池 2 电流 | 0x1218 | 03 / 1 | A | 电池 2 启用；⚠方向同电池电流 |
+| pv1_power ~ pv4_power | PV 1~4 功率 | 0x1204、0x120A、0x1280、0x1286 | 03 / 1 | kW | 按 MPPT 路数（PV5~PV10 见 D 节） |
 | backup_load_power | 重要负载功率 | 0x1278 | 03 / 1 | kW | — |
 | generator_power | 发电机功率 | 0x128C | 03 / 1 | kW | 0xC264 = 1 或 2 |
 | ac_couple_power | AC 耦合功率 | 0x12A4 | 03 / 1 | kW | 0xC264 = 4 |
 | inverter_temperature | 逆变器温度 | max(0x10DE~0x10E6) | 03 / 1 | ℃ | 5 路取最大值，合成一个实体 |
-| grid_fault | 电网异常 | 0x1014 | 02 / 1 | — | binary_sensor（problem） |
-| bms_comm_fault | BMS 通讯异常 | 0x1110（电池 2 加 0x1111） | 02 / 1 | — | binary_sensor（problem） |
 
-注：PV1~PV4 只在 MPPT 路数足够时创建，所以实体数不固定，最多 20 个。
+注：PV1~PV4 只在 MPPT 路数足够时创建，所以实体数不固定，最多 20 个（含电池 2 电压/电流）。原“电网异常”（0x1014）和“BMS 通讯异常”（0x1110/0x1111）两个诊断实体已并入设备告警（见 ALARMS.md）。
 
 ## D. 只进诊断信息下载（不建实体）
 
@@ -132,6 +132,7 @@
 | 3 | 03 / 1 | 0x300C~0x300D | 工作模式（60 s 刷新一次） |
 | 4 | 02 / 1 | 0x1001~0x1003 | 运行状态 |
 | 5 | 02 / 1、2 | 0x1048~0x1111 | 告警位 |
+| 6 | 02 / 1 | 0x1014 | 电网异常位（设备支持时才读） |
 | 其余 | 03 / 1 | 按已启用的实体计算 | 禁用的实体不读 |
 
 ⚠ 协议示例写的是“读 0x1000~0x1062 的 50 个寄存器，返回 200 字节”，数量字段到底按 16 位寄存器计还是按 float 点计，需要实机确认。

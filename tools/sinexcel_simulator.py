@@ -25,7 +25,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from .inverter_simulator import SERVICE, InverterModel, atomic_json
+from .discovery_advertisement import service_info, txt_properties
+from .inverter_simulator import InverterModel, atomic_json
 
 _package = types.ModuleType("energylib_bench")
 _package.__path__ = [str(Path(__file__).resolve().parents[1] / "custom_components" / "energylib")]
@@ -230,6 +231,8 @@ class BenchModel:
             0x1012: 50,
             0x120C: 51.2,
             0x120E: -battery * 1000 / 51.2,
+            0x1216: 51.0,  # battery 2 voltage
+            0x1218: -battery / 2 * 1000 / 51.0,  # battery 2 current, device sign
             0x1278: load * 0.3,
             0x128C: 0,
             0x12A4: 0,
@@ -373,30 +376,21 @@ class BenchServer:
                 await writer.wait_closed()
 
 
-def mdns_properties(serial):
-    """Same TXT contract as docs/DISCOVERY.md; the id is the bench's own serial."""
-    return {"id": serial, "transport": "modbus_tcp", "api_ver": "1", "auth": "none"}
+def mdns_properties(logger_sn):
+    """The logger identity is independent of the Modbus inverter serial."""
+    return txt_properties(logger_sn)
 
 
-def mdns_service_info(serial, bind, port):
-    import socket
-
-    if bind.startswith("127.") or bind in ("0.0.0.0", "localhost"):
-        raise ValueError("--mdns needs a concrete LAN address in --bind")
-    from zeroconf import ServiceInfo
-
-    return ServiceInfo(
-        SERVICE,
-        f"EnergyLIB-{serial}.{SERVICE}",
-        addresses=[socket.inet_aton(bind)],
-        port=port,
-        properties=mdns_properties(serial),
-        server=f"energylib-{serial.lower()}.local.",
-    )
+def mdns_service_info(logger_sn, bind, port):
+    return service_info(logger_sn, bind, port)
 
 
 async def run(args):
-    info = mdns_service_info(args.serial, args.bind, args.port) if args.mdns else None
+    info = (
+        mdns_service_info(args.logger_sn or f"LOGGER-{args.serial}", args.bind, args.port)
+        if args.mdns
+        else None
+    )
     config = BenchConfig(
         args.serial,
         args.machine_type,
@@ -425,7 +419,7 @@ async def run(args):
         from zeroconf.asyncio import AsyncZeroconf
 
         zc = AsyncZeroconf(interfaces=[args.bind], ip_version=IPVersion.V4Only)
-        await zc.async_register_service(info)
+        await zc.async_register_service(info, allow_name_change=True)
         print(f"mDNS registered {info.name} on {args.bind}:{args.port}", flush=True)
     previous = time.monotonic()
     try:
@@ -440,8 +434,8 @@ async def run(args):
             await zc.async_unregister_service(info)
             await zc.async_close()
         server.close()
-        await server.wait_closed()
         await peer.close()
+        await server.wait_closed()
 
 
 if __name__ == "__main__":
@@ -450,6 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=15021)
     parser.add_argument("--allow-peer", required=True)
     parser.add_argument("--serial", default="ELIB260002")
+    parser.add_argument("--logger-sn", help="Logger identity, independent of --serial")
     parser.add_argument("--rated-kw", type=float, default=5.0, help="Served at 0x2008")
     parser.add_argument("--machine-type", type=int, choices=(0, 1, 2), default=0)
     parser.add_argument("--pv-count", type=int, default=2)

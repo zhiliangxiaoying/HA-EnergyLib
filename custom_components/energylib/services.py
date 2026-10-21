@@ -38,6 +38,14 @@ def async_register_services(hass):
         c = coordinator(call.data["device_id"])
         await c.async_command("power", call.data["power_kw"], duration=call.data["duration"])
 
+    async def parameters(call):
+        await coordinator(call.data["device_id"]).async_set_remote_parameters(
+            call.data["power_kw"], call.data["duration_minutes"]
+        )
+
+    async def access(call):
+        await coordinator(call.data["device_id"]).async_set_remote_enabled(call.data["enabled"])
+
     async def schedule(call):
         c = coordinator(call.data["device_id"])
         data = {k: v for k, v in call.data.items() if k not in ("device_id", "activate")}
@@ -46,6 +54,31 @@ def async_register_services(hass):
     async def clear(call):
         c = coordinator(call.data["device_id"])
         await c.async_command("schedule", {"periods": []}, activate=False)
+
+    async def stop(call):
+        await coordinator(call.data["device_id"]).async_command("stop_remote")
+
+    hass.services.async_register(
+        DOMAIN, "stop_battery_power", stop, schema=vol.Schema({vol.Required("device_id"): str})
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_remote_access",
+        access,
+        schema=vol.Schema({vol.Required("device_id"): str, vol.Required("enabled"): bool}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_remote_parameters",
+        parameters,
+        schema=vol.Schema(
+            {
+                vol.Required("device_id"): str,
+                vol.Required("power_kw"): vol.Any(int, float),
+                vol.Required("duration_minutes"): vol.Any(int, float),
+            }
+        ),
+    )
 
     hass.services.async_register(
         DOMAIN,

@@ -5,7 +5,7 @@ process keeps its contract. Each instance can advertise its own identity, or
 deliberately wrong metadata, to exercise HA's zeroconf flow:
 
     python -m tools.mdns_peer --serial ELIB260101 --bind 192.0.2.10 --port 15030 \
-        --allow-peer 192.0.2.20 [--txt-id OTHER | --no-txt-id] [--auth token]
+        --allow-peer 192.0.2.20 --logger-sn LOGGER-001 [--omit-field sn] [--auth token]
 
 Development peer only; never evidence of real device compatibility.
 """
@@ -14,15 +14,14 @@ import argparse
 import asyncio
 import json
 import logging
-import socket
 import struct
 import time
 from datetime import datetime
 from pathlib import Path
 
+from tools.discovery_advertisement import service_info, txt_properties
 from tools.inverter_simulator import (
     LOCAL_TIMEZONE,
-    SERVICE,
     InverterModel,
     InverterServer,
     atomic_json,
@@ -48,16 +47,8 @@ class PeerModel(InverterModel):
         return words
 
 
-def txt_properties(serial, *, txt_id=None, omit_id=False, auth="none", transport="modbus_tcp"):
-    """TXT record per docs/DISCOVERY.md; overrides allow negative tests."""
-    properties = {"transport": transport, "api_ver": "1", "auth": auth}
-    if not omit_id:
-        properties["id"] = txt_id or serial
-    return properties
-
-
 async def run(args):
-    from zeroconf import IPVersion, ServiceInfo
+    from zeroconf import IPVersion
     from zeroconf.asyncio import AsyncZeroconf
 
     state = None
@@ -65,29 +56,25 @@ async def run(args):
         state = json.loads(args.state.read_text(encoding="utf-8"))
     model = PeerModel(args.serial, state)
     model.step(datetime.now(LOCAL_TIMEZONE), 0)
-    peer = InverterServer(model, {args.allow_peer, args.bind, "127.0.0.1"})
+    peer = InverterServer(model, {args.allow_peer, args.bind, "127.0.0.1"}, unit_id=args.unit_id)
     server = await asyncio.start_server(peer.handle, args.bind, args.port)
     zc = AsyncZeroconf(interfaces=[args.bind], ip_version=IPVersion.V4Only)
+    logger_sn = args.logger_sn or f"LOGGER-{args.serial}"
     properties = txt_properties(
-        args.serial,
-        txt_id=args.txt_id,
-        omit_id=args.no_txt_id,
+        logger_sn,
+        unit_id=None if args.no_txt_unit_id else args.unit_id,
+        omit=args.omit_field,
+        overrides=dict(item.split("=", 1) for item in args.txt),
         auth=args.auth,
         transport=args.transport,
+        api_ver=args.api_ver,
     )
-    info = ServiceInfo(
-        SERVICE,
-        f"EnergyLIB-{args.serial}.{SERVICE}",
-        addresses=[socket.inet_aton(args.bind)],
-        port=args.port,
-        properties=properties,
-        server=f"energylib-{args.serial.lower()}.local.",
-    )
+    info = service_info(logger_sn, args.bind, args.port, properties=properties)
     registered = False
     try:
-        await zc.async_register_service(info)
+        await zc.async_register_service(info, allow_name_change=True)
         registered = True
-        LOG.info("Registered %s on %s:%s TXT=%s", info.name, args.bind, args.port, properties)
+        LOG.info("Registered test peer on %s:%s", args.bind, args.port)
         previous = time.monotonic()
         tick = 0
         while True:
@@ -105,8 +92,8 @@ async def run(args):
             await zc.async_unregister_service(info)
         await zc.async_close()
         server.close()
-        await server.wait_closed()
         await peer.close()
+        await server.wait_closed()
 
 
 def parse_args(argv=None):
@@ -115,9 +102,14 @@ def parse_args(argv=None):
     parser.add_argument("--bind", required=True)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--allow-peer", required=True)
-    identity = parser.add_mutually_exclusive_group()
-    identity.add_argument("--txt-id", help="Advertise a different id (identity-mismatch test)")
-    identity.add_argument("--no-txt-id", action="store_true", help="Omit TXT id")
+    parser.add_argument("--logger-sn", help="Independent logger SN; default LOGGER-<serial>")
+    parser.add_argument("--unit-id", type=int, default=1)
+    parser.add_argument("--no-txt-unit-id", action="store_true")
+    parser.add_argument("--omit-field", action="append", default=[])
+    parser.add_argument(
+        "--txt", action="append", default=[], help="Override a TXT key=value for fault tests"
+    )
+    parser.add_argument("--api-ver", default="1")
     parser.add_argument("--auth", default="none", help="Non-'none' tests rejection")
     parser.add_argument("--transport", default="modbus_tcp", help="Other values test rejection")
     parser.add_argument(
@@ -126,6 +118,8 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
+    if not 1 <= args.unit_id <= 255 or any("=" not in item for item in args.txt):
+        parser.error("unit ID must be 1-255 and TXT overrides must be key=value")
     return args
 
 

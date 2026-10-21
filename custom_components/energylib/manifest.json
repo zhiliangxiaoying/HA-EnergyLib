@@ -1,14 +1,22 @@
 {
   "domain": "energylib",
   "name": "EnergyLIB",
-  "codeowners": ["@zhiliangxiaoying"],
+  "codeowners": [
+    "@zhiliangxiaoying"
+  ],
   "config_flow": true,
-  "dependencies": ["frontend", "http", "zeroconf"],
+  "dependencies": [
+    "frontend",
+    "http",
+    "zeroconf"
+  ],
   "documentation": "https://github.com/zhiliangxiaoying/HA-EnergyLib",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/zhiliangxiaoying/HA-EnergyLib/issues",
   "requirements": [],
-  "version": "0.6.0",
-  "zeroconf": ["_energylib._tcp.local."]
+  "version": "0.8.14.dev1",
+  "zeroconf": [
+    "_energylib._tcp.local."
+  ]
 }

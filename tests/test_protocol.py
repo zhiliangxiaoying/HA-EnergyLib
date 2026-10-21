@@ -22,6 +22,8 @@ from energylib_under_test.protocol.modbus import (
     ModbusTcpClient,
 )
 
+from tools.discovery_advertisement import txt_properties
+
 
 def float_words(value):
     return list(struct.unpack(">2H", struct.pack(">f", value)))
@@ -54,25 +56,43 @@ class DecodingTests(unittest.TestCase):
             with self.subTest(words=words), self.assertRaises(UnsupportedDevice):
                 decode_serial(words)
 
-    def test_discovery_accepts_minimal_service_and_explicit_contract(self):
-        self.assertIsNone(parse_discovery("192.0.2.1", 1502, {}).advertised_id)
+    def test_discovery_requires_logger_contract_and_optional_unit(self):
+        props = txt_properties("LOGGER-001", unit_id=None)
+        discovery = parse_discovery("192.0.2.1", 1502, props)
+        self.assertEqual(discovery.logger_sn, "LOGGER-001")
+        self.assertIsNone(discovery.unit_id)
+        for unit in (1, 7, 255):
+            self.assertEqual(
+                parse_discovery("::1", 1502, {**props, "unit_id": str(unit)}).unit_id, unit
+            )
         self.assertEqual(
-            parse_discovery("::1", 1502, {"id": "TEST-001", "transport": "modbus_tcp"}).port,
-            1502,
+            parse_discovery("192.0.2.1", 1502, {**props, "id": "IGNORED", "future": "x"}).port, 1502
         )
+
+    def test_all_six_fields_required_and_nonempty(self):
+        props = txt_properties("LOGGER-001", unit_id=None)
+        for key in props:
+            missing = {k: v for k, v in props.items() if k != key}
+            for candidate in (missing, {**props, key: ""}, {**props, key: " "}, {**props, key: 1}):
+                with self.subTest(key=key), self.assertRaises(ValueError):
+                    parse_discovery("192.0.2.1", 1502, candidate)
+        for props in ({}, {"id": "OLD", "transport": "modbus_tcp", "api_ver": "1", "auth": "none"}):
+            with self.assertRaises(ValueError):
+                parse_discovery("192.0.2.1", 1502, props)
 
     def test_discovery_rejects_unsupported_or_malformed_metadata(self):
         for properties in [
             {"transport": "rtu"},
             {"api_ver": "2"},
             {"auth": "token"},
-            {"id": ""},
-            {"id": 123},
-            {"id": " ID "},
+            {"sn": " ID "},
+            {"sn": "X\nY"},
+            {"sn": "X" * 253},
+            *({"unit_id": v} for v in ("", "0", "256", "1.5", "-1", " 1", "１", 1, None, "0001")),
         ]:
             with self.subTest(properties=properties), self.assertRaises(ValueError):
-                parse_discovery("192.0.2.1", 1502, properties)
-        for port in [None, 0, 65536]:
+                parse_discovery("192.0.2.1", 1502, {**txt_properties("LOGGER"), **properties})
+        for port in [None, 0, 65536, True]:
             with self.assertRaises(ValueError):
                 parse_discovery("192.0.2.1", port, {})
 

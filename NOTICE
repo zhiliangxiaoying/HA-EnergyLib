@@ -16,8 +16,9 @@ original models made for this project.
 The sports car (twin/models/sports-car.glb) is adapted from "Chevrolet Corvette (C7)"
 by Martin Trafas, https://sketchfab.com/3d-models/chevrolet-corvette-c7-2b509d1bce104224b147c81757f6f43a
 licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
-Changes: emblems, licence plate and shadow plane removed; geometry simplified;
-textures reduced; meshopt-compressed. Chevrolet and Corvette are trademarks of
+Changes: emblems, badges and lettering, licence plate and shadow plane removed;
+tyre textures replaced with plain rubber; geometry simplified; glass made plain
+transparent; textures reduced; meshopt-compressed. Chevrolet and Corvette are trademarks of
 General Motors; this project is not affiliated with or endorsed by General Motors.
 
 The page bundles these unmodified third-party files, each under the MIT License:

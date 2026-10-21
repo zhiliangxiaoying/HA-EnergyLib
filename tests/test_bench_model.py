@@ -21,12 +21,21 @@ class BenchMdnsTests(unittest.TestCase):
         self.assertEqual(info.port, 15021)
         props = mdns_properties("ELIB260002")
         discovery = parse_discovery("192.0.2.10", 15021, props)
-        self.assertEqual(discovery.advertised_id, "ELIB260002")
+        self.assertEqual(discovery.logger_sn, "ELIB260002")
+        self.assertEqual(discovery.unit_id, 1)
 
     def test_loopback_bind_cannot_be_advertised(self):
         for bind in ("127.0.0.1", "0.0.0.0", "localhost"):
             with self.subTest(bind=bind), self.assertRaises(ValueError):
                 mdns_service_info("ELIB-X", bind, 15021)
+
+    def test_long_logger_name_keeps_full_txt_identity(self):
+        logger = "LOGGER-" + "中" * 70
+        info = mdns_service_info(logger, "192.0.2.10", 15021)
+        instance = info.name.removesuffix("._energylib._tcp.local.")
+        self.assertLessEqual(len(instance.encode("utf-8")), 63)
+        self.assertLessEqual(len(info.server.removesuffix(".local.").encode("ascii")), 63)
+        self.assertEqual(info.properties[b"sn"].decode("utf-8"), logger)
 
 
 class BenchModelTests(unittest.TestCase):

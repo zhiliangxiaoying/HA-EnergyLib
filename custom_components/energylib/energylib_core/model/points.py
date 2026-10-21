@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from .remote import REMOTE_STATUSES
+
 
 @dataclass(frozen=True)
 class RegisterMapping:
@@ -68,7 +70,7 @@ CORE = (
     + (
         Measurement("battery_total_soc", "soc", "%"),
         Measurement("running_state", "enum", options=RUNNING_STATES),
-        Measurement("active_alarms", "count"),
+        Measurement("active_alarms", "count", enabled=False),
         Measurement("work_mode", "enum", interval=60, options=WORK_MODES),
     )
 )
@@ -84,6 +86,8 @@ OPTIONAL = (
         Measurement("battery_soh", "soc", "%", False, frozenset({"bms"})),
         Measurement("battery_2_soc", "soc", "%", False, frozenset({"battery_2"})),
         Measurement("battery_2_power", "power", "kW", False, frozenset({"battery_2"})),
+        Measurement("battery_2_voltage", "voltage", "V", False, frozenset({"battery_2"})),
+        Measurement("battery_2_current", "current", "A", False, frozenset({"battery_2"})),
     )
     + tuple(
         Measurement(f"pv{i}_power", "power", "kW", False, frozenset({f"pv{i}"}))
@@ -94,8 +98,6 @@ OPTIONAL = (
         Measurement("generator_power", "power", "kW", False, frozenset({"generator"})),
         Measurement("ac_couple_power", "power", "kW", False, frozenset({"ac_couple"})),
         Measurement("inverter_temperature", "temperature", "°C", False),
-        Measurement("grid_fault", "problem", enabled=False),
-        Measurement("bms_comm_fault", "problem", enabled=False, capabilities=frozenset({"bms"})),
         Measurement(
             "tou_schedule",
             "schedule",
@@ -106,7 +108,22 @@ OPTIONAL = (
         ),
     )
 )
-MEASUREMENTS = {p.key: p for p in CORE + OPTIONAL}
+ALARM_SUMMARIES = (
+    Measurement(
+        "alarm_status",
+        "enum",
+        options=("normal", "abnormal", "unrecognized", "incomplete", "offline"),
+    ),
+    Measurement("fault_count", "count", enabled=False),
+    Measurement("warning_count", "count", enabled=False),
+    Measurement("any_fault", "problem", enabled=False),
+    Measurement("any_warning", "problem", enabled=False),
+)
+REMOTE_MEASUREMENTS = (
+    Measurement("remote_status", "task", options=REMOTE_STATUSES),
+    Measurement("remote_end_time", "timestamp", enabled=False),
+)
+MEASUREMENTS = {p.key: p for p in CORE + OPTIONAL + ALARM_SUMMARIES + REMOTE_MEASUREMENTS}
 
 
 @dataclass(frozen=True)
@@ -149,3 +166,8 @@ CONTROLS = (
     Control("remote_control", "switch", maximum=1),
     Control("remote_power", "number", step=0.1, power_range="bipolar"),
 )
+DRAFTS = (
+    Control("remote_target_power", "number", step=0.1, power_range="unipolar"),
+    Control("remote_duration", "number", minimum=1, maximum=1440),
+)
+BUTTONS = ("start_charge", "start_discharge", "stop_remote")

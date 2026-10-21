@@ -5,7 +5,13 @@ import json
 import unittest
 from pathlib import Path
 
-from energylib_under_test.energylib_core.model.points import CONTROLS, MEASUREMENTS, WORK_MODES
+from energylib_under_test.energylib_core.model.points import (
+    BUTTONS,
+    CONTROLS,
+    DRAFTS,
+    MEASUREMENTS,
+    WORK_MODES,
+)
 from energylib_under_test.energylib_core.profiles.sinexcel_v2 import SinexcelProfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,12 +37,20 @@ class MetadataTests(unittest.TestCase):
             for point in MEASUREMENTS.values():
                 platform = "binary_sensor" if point.kind == "problem" else "sensor"
                 self.assertIn(point.key, data["entity"][platform])
-            for control in CONTROLS:
+            for control in CONTROLS + DRAFTS:
                 self.assertIn(control.key, data["entity"][control.platform])
+            self.assertEqual(set(data["entity"]["button"]), set(BUTTONS))
             self.assertIn("command_failed", data["options"]["abort"])
         self.assertEqual(
             set(original["services"]),
-            {"set_battery_power", "set_tou_schedule", "clear_tou_schedule"},
+            {
+                "set_battery_power",
+                "stop_battery_power",
+                "set_remote_parameters",
+                "set_remote_access",
+                "set_tou_schedule",
+                "clear_tou_schedule",
+            },
         )
 
     def test_every_enum_state_is_translated(self):

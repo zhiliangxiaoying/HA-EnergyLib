@@ -121,7 +121,7 @@
   "entity": {
     "sensor": {
       "battery_soc": {
-        "name": "电池 1 电量"
+        "name": "电池电量"
       },
       "battery_total_soc": {
         "name": "电池总电量"
@@ -145,7 +145,7 @@
         "name": "累计负载用电量"
       },
       "solar_power": {
-        "name": "光伏功率"
+        "name": "光伏总功率"
       },
       "battery_power": {
         "name": "电池功率"
@@ -170,7 +170,7 @@
         "name": "当前告警"
       },
       "work_mode": {
-        "name": "工作模式",
+        "name": "EMS模式",
         "state": {
           "self_consumption": "自发自用",
           "time_of_use": "定时充放电",
@@ -211,17 +211,23 @@
       "battery_2_power": {
         "name": "电池 2 功率"
       },
+      "battery_2_voltage": {
+        "name": "电池 2 电压"
+      },
+      "battery_2_current": {
+        "name": "电池 2 电流"
+      },
       "pv1_power": {
-        "name": "光伏 1 功率"
+        "name": "PV 1 功率"
       },
       "pv2_power": {
-        "name": "光伏 2 功率"
+        "name": "PV 2 功率"
       },
       "pv3_power": {
-        "name": "光伏 3 功率"
+        "name": "PV 3 功率"
       },
       "pv4_power": {
-        "name": "光伏 4 功率"
+        "name": "PV 4 功率"
       },
       "backup_load_power": {
         "name": "重要负载功率"
@@ -244,19 +250,50 @@
           "inactive": "未启用",
           "remote": "远程调度中"
         }
+      },
+      "fault_count": {
+        "name": "激活故障数"
+      },
+      "warning_count": {
+        "name": "激活警告数"
+      },
+      "alarm_status": {
+        "name": "设备告警",
+        "state": {
+          "normal": "正常",
+          "abnormal": "有异常",
+          "unrecognized": "未识别异常",
+          "incomplete": "数据不完整",
+          "offline": "通信不可用"
+        }
+      },
+      "remote_status": {
+        "name": "充放电状态",
+        "state": {
+          "idle": "空闲",
+          "charging": "充电中",
+          "discharging": "放电中",
+          "holding": "零功率保持",
+          "stopped": "已停止",
+          "completed": "已到期",
+          "unconfirmed": "执行未确认"
+        }
+      },
+      "remote_end_time": {
+        "name": "远程充放电预计结束时间"
       }
     },
     "binary_sensor": {
-      "grid_fault": {
-        "name": "电网异常"
+      "any_fault": {
+        "name": "存在故障"
       },
-      "bms_comm_fault": {
-        "name": "BMS 通讯异常"
+      "any_warning": {
+        "name": "存在警告"
       }
     },
     "select": {
       "work_mode": {
-        "name": "工作模式",
+        "name": "EMS模式",
         "state": {
           "self_consumption": "自发自用",
           "time_of_use": "定时充放电",
@@ -282,7 +319,13 @@
         "name": "出口功率限制"
       },
       "remote_power": {
-        "name": "远程充放电功率"
+        "name": "旧版远程功率（立即执行5分钟）"
+      },
+      "remote_target_power": {
+        "name": "充放电功率"
+      },
+      "remote_duration": {
+        "name": "充放电时长"
       }
     },
     "switch": {
@@ -290,14 +333,28 @@
         "name": "允许电网充电"
       },
       "remote_control": {
-        "name": "远程充放电控制"
+        "name": "旧版远程控制（立即执行5分钟）"
+      },
+      "allow_remote_control": {
+        "name": "允许远程充放电"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "开始充电"
+      },
+      "start_discharge": {
+        "name": "开始放电"
+      },
+      "stop_remote": {
+        "name": "立即停止"
       }
     }
   },
   "services": {
     "set_battery_power": {
       "name": "设定充放电功率",
-      "description": "需要在集成选项中打开“允许控制”，且设备提供控制寄存器。",
+      "description": "需要先打开集成的“允许控制”，再开启“允许远程充放电”。开启权限本身不会执行任务。",
       "fields": {
         "device_id": {
           "name": "设备"
@@ -337,6 +394,43 @@
       "fields": {
         "device_id": {
           "name": "设备"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "停止远程充放电",
+      "description": "立即结束远程控制并回读。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "EnergyLIB 设备。"
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "设置充放电参数",
+      "description": "仅保存功率和分钟数，不启动任务、不写设备。",
+      "fields": {
+        "device_id": {
+          "name": "设备"
+        },
+        "power_kw": {
+          "name": "功率"
+        },
+        "duration_minutes": {
+          "name": "时长（分钟）"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "设置远程充放电权限",
+      "description": "开启只解锁操作，关闭时先确认结束已有远程任务。",
+      "fields": {
+        "device_id": {
+          "name": "设备"
+        },
+        "enabled": {
+          "name": "允许远程充放电"
         }
       }
     }
