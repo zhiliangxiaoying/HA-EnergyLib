@@ -301,11 +301,68 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.runtime.remote_status, "completed")
         self.assertEqual(self.runtime.last_command, "confirmed")
 
+    async def test_rejected_remote_start_returns_to_idle_and_restores_watchdog(self):
+        self.runtime.allow_control = True
+        self.model.set_float(0xC06A, 0)
+        self.model.set_float(0xC06C, 0)
+        original = self.model.apply_write
+
+        def refuse_power(address, words):
+            # Like the real device without a battery: 0xC648 reads back 0.
+            if address == 0xC648:
+                return None
+            return original(address, words)
+
+        with patch.object(self.model, "apply_write", refuse_power):
+            with self.assertRaises(ControlError) as caught:
+                await self.runtime.set_battery_power(1, 60)
+        self.assertNotIsInstance(caught.exception, PartialWrite)
+        self.assertEqual(self.runtime.remote_status, "idle")
+        self.assertIsNone(self.runtime.remote_deadline)
+        self.assertEqual((self.model.get_float(0xC06A), self.model.get_float(0xC06C)), (0, 0))
+
+    async def test_export_limit_can_be_switched_off_without_zero_export(self):
+        self.runtime.allow_control = True
+        await self.runtime.set_control("export_limit", 5)
+        self.assertEqual((self.model.get_float(0x3002), self.model.get_float(0x3004)), (1, 5))
+        self.assertEqual(self.runtime.controls["export_limit_enable"], 1)
+        await self.runtime.set_control("export_limit_enable", False)
+        # Unlimited again; the stored limit value is kept for the next enable.
+        self.assertEqual((self.model.get_float(0x3002), self.model.get_float(0x3004)), (0, 5))
+        self.assertEqual(self.runtime.controls["export_limit_enable"], 0)
+        self.model.set_float(0x3002, 2)  # another limit mode set from the App
+        await self.runtime.refresh(set(), force=True)
+        self.assertEqual(self.runtime.controls["export_limit_enable"], 1)
+
+    async def test_heartbeat_accepts_a_consumed_alive_flag_while_the_session_runs(self):
+        self.runtime.allow_control = True
+        original = self.model.apply_write
+
+        def consume_alive(address, words):
+            result = original(address, words)
+            if address == 0xC068:
+                self.model.set_float(0xC068, 0)
+            return result
+
+        with patch.object(self.model, "apply_write", consume_alive):
+            await self.runtime.set_battery_power(1, 60)
+        self.assertEqual(self.runtime.remote_status, "discharging")
+        await self.runtime.stop_remote()
+
     async def test_uncertain_remote_write_never_claims_running_or_stopped(self):
         self.runtime.allow_control = True
-        self.peer.fault = "mismatch"
-        with self.assertRaises(PartialWrite):
-            await self.runtime.set_battery_power(1, 60)
+        original = self.model.apply_write
+
+        def lost_enable(address, words):
+            result = original(address, words)
+            if address == 0xC646:
+                raise ConnectionError  # session may be active; outcome unknown
+            return result
+
+        self.peer.fault = "normal"
+        with patch.object(self.model, "apply_write", lost_enable):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_battery_power(1, 60)
         self.assertEqual(self.runtime.remote_status, "unconfirmed")
         self.assertIsNone(self.runtime.remote_deadline)
         self.peer.fault = "normal"
@@ -492,8 +549,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             expected = u32_words(int(first.timestamp())) + u32_words(int(last.timestamp()))
             self.model.registers.update({0xC0B6 + i: word for i, word in enumerate(expected)})
             await self.runtime.refresh({"tou_schedule"}, force=True)
+            expired = last.year < 2026
             self.assertEqual(
-                self.runtime.schedule_status(datetime(2026, 10, 20, 11)), "outside_period"
+                self.runtime.schedule_status(datetime(2026, 10, 20, 11)),
+                "expired" if expired else "outside_period",
             )
             self.assertEqual(self.runtime.schedule.valid_from, first)
             self.assertEqual(self.runtime.schedule.valid_until, last)
@@ -504,7 +563,18 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 "valid_from": "2020-01-01T00:00:00+00:00",
             }
             await self.runtime.set_schedule(data)
-            self.assertEqual([self.model.registers[0xC0B6 + i] for i in range(4)], expected)
+            written = [self.model.registers[0xC0B6 + i] for i in range(4)]
+            if expired:
+                # An expired window would never run the saved plan: start today.
+                start, end = self.runtime.profile.fresh_validity(datetime.now().date())
+                self.assertEqual(
+                    written, u32_words(int(start.timestamp())) + u32_words(int(end.timestamp()))
+                )
+                self.assertEqual(self.runtime.schedule.valid_until, end)
+                # The device stores window ends as 23:59:59 (observed on hardware).
+                self.assertEqual((end.hour, end.minute, end.second), (23, 59, 59))
+                continue
+            self.assertEqual(written, expected)
             await self.runtime.set_schedule({"periods": []})
             self.assertEqual([self.model.registers[0xC0B6 + i] for i in range(4)], expected)
 
@@ -524,14 +594,14 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_disabled_points_are_not_polled_and_slow_tier_is_cached(self):
         await self.runtime.refresh({"solar_energy", "solar_power"})
-        first = self.runtime.last_frame_count
         self.now += 30
         await self.runtime.refresh({"solar_energy", "solar_power"})
-        self.assertLess(self.runtime.last_frame_count, first)
+        at_30 = self.runtime.last_frame_count
         self.assertNotIn("pv1_power", self.runtime.values)
         self.now += 30
         await self.runtime.refresh({"solar_energy", "solar_power"})
-        self.assertGreater(self.runtime.last_frame_count, 3)
+        # The 60 s energy point is read again only on its own tier.
+        self.assertEqual(self.runtime.last_frame_count, at_30 + 1)
 
     async def test_flow_powers_poll_every_10_s_and_other_points_every_30_s(self):
         keys = {"solar_power", "grid_power", "grid_voltage_a"}
@@ -550,8 +620,27 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(values["grid_voltage_a"], 199.0)
         self.now += 10
         values = await self.runtime.refresh(keys)
-        self.assertEqual(self.runtime.last_frame_count, full)
+        self.assertGreater(self.runtime.last_frame_count, fast)
         self.assertEqual(values["grid_voltage_a"], 199.0)
+
+    async def test_a_tick_a_few_ms_early_still_reads_the_flow_powers(self):
+        await self.runtime.refresh({"solar_power"})
+        self.model.set_float(0x1270, 3.5)
+        self.now += 9.995  # HA schedules from the previous start, not after the reads
+        values = await self.runtime.refresh({"solar_power"})
+        self.assertEqual(values["solar_power"], 3.5)
+
+    async def test_identity_and_controls_follow_the_30_s_tier(self):
+        self.runtime.allow_control = True
+        keys = {"solar_power"}
+        await self.runtime.refresh(keys, force=True)
+        self.now += 10
+        await self.runtime.refresh(keys)
+        fast = self.runtime.last_frame_count
+        self.assertEqual(fast, 1)  # power only: no identity, no control registers
+        self.now += 20
+        await self.runtime.refresh(keys)
+        self.assertGreater(self.runtime.last_frame_count, fast + 2)
 
     async def test_partial_alarm_source_never_becomes_zero(self):
         self.peer.fault = "unit2_offline"

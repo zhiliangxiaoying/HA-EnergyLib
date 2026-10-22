@@ -14,6 +14,7 @@ Controls are offered only when the device answers every control register, and
 HA still requires the user's explicit "allow control" option.
 """
 
+import contextlib
 import math
 import struct
 from datetime import date, datetime, timezone
@@ -22,7 +23,7 @@ from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
 from ..transport.energylib_push import skip_logger_push
-from ..transport.modbus_tcp import DeviceException, InvalidResponse
+from ..transport.modbus_tcp import DeviceException, EnergyLibError, InvalidResponse
 from .sinexcel_alarms import GRID_ALARM_BIT, describe_alarm
 
 Mapping = RegisterMapping
@@ -39,16 +40,17 @@ WORK_MODE_CODES = {
     7: "voltage_regulation",
     8: "peak_shaving",
 }
+EXPORT_LIMIT_ENABLE = 0x3002
 CONTROL_ADDRESSES = {
     "work_mode": 0x300C,
     "backup_soc": 0x314A,
     "min_soc": 0x3046,
     "grid_charge": 0x322A,
     "export_limit": 0x3004,
+    "export_limit_enable": EXPORT_LIMIT_ENABLE,
     "remote_control": 0xC646,
     "remote_power": 0xC648,
 }
-EXPORT_LIMIT_ENABLE = 0x3002
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = 0xC068, 0xC06A, 0xC06C
 OUTSIDE_MODE = 0x314E
 RATED_POWER = 0x2008
@@ -65,7 +67,9 @@ DEVICE_SIGN = {
     "battery_current": -1.0,
     "battery_2_current": -1.0,
 }
-FAR_FUTURE = int(datetime(2099, 12, 31, tzinfo=timezone.utc).timestamp())
+# Validity ends are stored as the last second of a day: the real device normalised a
+# written 2099-12-31 00:00 to 23:59:59 (and its own windows end at 23:59:59).
+FAR_FUTURE = int(datetime(2099, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp())
 REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
 # Explicit level parameters only. Heartbeats, remote enable/disable and TOU table
 # blocks retain single-send semantics until their repeated-write behavior is verified.
@@ -359,10 +363,17 @@ class SinexcelProfile:
                 )
         if any(v is None for v in result.values()):
             raise InvalidResponse("Control state is incomplete")
+        result["export_limit_enable"] = float(result["export_limit_enable"] != 0)
         for key in ("grid_charge", "remote_control"):
             if result[key] not in (0, 1):
                 raise InvalidResponse("Invalid switch state")
         return result
+
+    @staticmethod
+    def fresh_validity(today: date):
+        """Validity written when the device's own window has already expired."""
+        start = datetime.fromtimestamp(local_date_stamp(today), timezone.utc)
+        return start, datetime.fromtimestamp(FAR_FUTURE, timezone.utc)
 
     async def read_schedule(self, client):
         blocks = [await client.read_holding_registers(a, n) for a, n in SCHEDULE_BLOCKS]
@@ -474,17 +485,39 @@ class SinexcelProfile:
         )
 
     async def enter_remote(self, client, power):
-        for address, value in (
-            (HEARTBEAT_TIMEOUT, REMOTE_TIMEOUT_S),
-            (ESCAPE_MODE, REMOTE_ESCAPE),
-            (CONTROL_ADDRESSES["remote_power"], power),
-            (CONTROL_ADDRESSES["remote_control"], 1),
-        ):
-            await self.write_float(client, address, value)
+        saved = {
+            a: await client.read_holding_registers(a, 2) for a in (HEARTBEAT_TIMEOUT, ESCAPE_MODE)
+        }
+        try:
+            for address, value in (
+                (HEARTBEAT_TIMEOUT, REMOTE_TIMEOUT_S),
+                (ESCAPE_MODE, REMOTE_ESCAPE),
+                (CONTROL_ADDRESSES["remote_power"], power),
+                (CONTROL_ADDRESSES["remote_control"], 1),
+            ):
+                await self.write_float(client, address, value)
+        except EnergyLibError:
+            # A device that refused the session (e.g. 0xC648 read back 0 without a
+            # battery) keeps its own watchdog settings. While a session may be
+            # active, the watchdog stays as written: it is the safety net.
+            with contextlib.suppress(EnergyLibError):
+                remote = await client.read_holding_registers(CONTROL_ADDRESSES["remote_control"], 2)
+                if decode_float(remote, kind="control") == 0:
+                    for address, words in saved.items():
+                        await client.write_registers(address, words)
+            raise
 
     async def heartbeat(self, client, value):
         # Assumption (Q3): writing 1.0 (Alive) to 0xC068 refreshes the EMS watchdog.
-        await self.write_float(client, HEARTBEAT, 1.0)
+        words = floats([1.0])
+        await client.write_registers(HEARTBEAT, words)
+        if await client.read_holding_registers(HEARTBEAT, 2) == words:
+            return
+        # Firmware may consume the Alive flag at once (it reads 0 at rest); then the
+        # still-active session is the evidence that the keepalive was accepted.
+        remote = await client.read_holding_registers(CONTROL_ADDRESSES["remote_control"], 2)
+        if decode_float(remote, kind="control") != 1:
+            raise InvalidResponse("Heartbeat not confirmed")
 
     async def leave_remote(self, client):
         await self.write_float(client, CONTROL_ADDRESSES["remote_control"], 0)

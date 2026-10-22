@@ -404,7 +404,8 @@ async def check():
                 pass
             else:
                 raise AssertionError("Mismatched write reported success")
-            assert state("remote_status").state == "unconfirmed"
+            # Acknowledged but not applied: read-back proves no session started.
+            assert state("remote_status").state == "idle"
             peer.fault = "normal"
             await press("stop_remote")
             await press("start_charge")
@@ -417,7 +418,7 @@ async def check():
             assert state("remote_target_power").state in ("2.0", "2")
             assert model.get_float(0xC646) == 0
             checks.append(
-                "expiration publishes without polling; write mismatch unconfirmed; reload exits without task resume"
+                "expiration publishes without polling; refused start returns to idle; reload exits without task resume"
             )
             hass.config_entries.async_update_entry(entry, options={"allow_control": False})
             await hass.async_block_till_done()

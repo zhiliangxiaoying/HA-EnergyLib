@@ -32,7 +32,7 @@ WORK_MODES = (
 )
 RUNNING_STATES = ("standby", "ready", "off_grid", "on_grid", "other")
 # Values of DeviceRuntime.schedule_status(): active period type, or why none applies.
-TOU_STATUSES = ("charge", "discharge", "outside_period", "inactive", "remote")
+TOU_STATUSES = ("charge", "discharge", "outside_period", "expired", "inactive", "remote")
 
 
 @dataclass(frozen=True)
@@ -166,6 +166,8 @@ CONTROLS = (
     Control("min_soc", "number"),
     Control("grid_charge", "switch", maximum=1),
     Control("export_limit", "number", step=0.1, power_range="unipolar"),
+    # 0x3002: the limit value alone cannot express "no limit" (0 kW means zero export).
+    Control("export_limit_enable", "switch", maximum=1),
     Control("remote_control", "switch", maximum=1),
     Control("remote_power", "number", step=0.1, power_range="bipolar"),
 )

@@ -186,9 +186,9 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        assert len(controls) == 8 and all(e.disabled_by is not None for e in controls)
+        assert len(controls) == 9 and all(e.disabled_by is not None for e in controls)
         results.append(
-            "native options enable controls; five advanced controls disabled; operation settings ready, remote permission off"
+            "native options enable controls; six advanced controls disabled; operation settings ready, remote permission off"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))

@@ -68,7 +68,7 @@ class MetadataTests(unittest.TestCase):
     def test_schedule_sensor_declares_every_status(self):
         self.assertEqual(
             set(MEASUREMENTS["tou_schedule"].options),
-            {"charge", "discharge", "outside_period", "inactive", "remote"},
+            {"charge", "discharge", "outside_period", "expired", "inactive", "remote"},
         )
         # HA translates sensor states only for the ENUM device class.
         tree = ast.parse((COMPONENT / "sensor.py").read_text(encoding="utf-8"))

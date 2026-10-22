@@ -57,6 +57,11 @@ class ModbusTcpClient:
         # DeviceRuntime pins writes to its last identity-verified connection.
         self.write_generation: int | None = None
 
+    @property
+    def connected(self) -> bool:
+        """An open connection; the next request will not reconnect."""
+        return self._writer is not None and not self._writer.is_closing()
+
     async def _disconnect(self) -> None:
         writer, self._writer = self._writer, None
         self._reader = None

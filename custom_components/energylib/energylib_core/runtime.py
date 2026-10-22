@@ -15,6 +15,11 @@ from .planner import plan_reads
 from .profiles import get_profile
 from .transport.modbus_tcp import DeviceException, EnergyLibError
 
+SLOW_TIER = 30  # seconds: alarms, identity and control state
+# HA starts each poll exactly one interval after the previous start, a few ms
+# before a point's tier has fully elapsed; without slack every other tick is lost.
+TIER_SLACK = 1.0
+
 
 class ControlError(EnergyLibError):
     """Rejected or uncertain command. No private values in exception messages."""
@@ -48,6 +53,7 @@ class DeviceRuntime:
         self.remote_deadline = None
         self._heartbeat = 0
         self._generation = -1
+        self._identity_checked = -math.inf
         self._closed = False
         self.last_frame_count = 0
         self.alarms = AlarmTracker(self.profile.describe_alarm)
@@ -88,6 +94,7 @@ class DeviceRuntime:
             raise IdentityMismatch("Endpoint identity changed")
         self.identity = identity
         self.client.write_generation = self.client.generation
+        self._identity_checked = self._clock()
 
     async def _verify_connection(self):
         """A transparent read retry must not publish another device's data."""
@@ -104,9 +111,18 @@ class DeviceRuntime:
         if self.client.generation != self._generation:
             raise ControlError("Connection changed while validating write retry")
 
-    async def _prepare_locked(self):
-        """Verify identity and refresh capabilities before using a new connection."""
-        await self._identity()
+    async def _prepare_locked(self, *, verify=True):
+        """Verify identity and refresh capabilities before using a new connection.
+
+        Polls may skip the identity read on a connection that is still the one
+        last verified; any reconnect is re-identified by _verify_connection.
+        """
+        if (
+            verify
+            or not getattr(self.client, "connected", False)
+            or self._generation != self.client.generation
+        ):
+            await self._identity()
         if self._generation == self.client.generation:
             return False
         await self.profile.configure(self.client, self.identity)
@@ -151,14 +167,19 @@ class DeviceRuntime:
         async with self._lock:
             count = self.client.requests
             try:
-                if await self._prepare_locked():
-                    force = True
                 now = self._clock()
+                # Identity and control state change rarely: check them on the 30 s
+                # tier, not on every fast energy-flow tick.
+                verify = force or now - self._identity_checked >= SLOW_TIER - TIER_SLACK
+                if await self._prepare_locked(verify=verify):
+                    force = True
                 supported = {p.key for p in self.points()}
                 enabled = set(enabled) & supported
                 # Every enabled summary depends on exactly the same source reads.
                 alarm_due = bool(enabled & ALARM_KEYS) and (
-                    force or now - self._timestamps.get("active_alarms", -math.inf) >= 30
+                    force
+                    or now - self._timestamps.get("active_alarms", -math.inf)
+                    >= SLOW_TIER - TIER_SLACK
                 )
                 if alarm_due:
                     for mapping in self.profile.mappings["active_alarms"]:
@@ -175,7 +196,8 @@ class DeviceRuntime:
                     if k not in ALARM_KEYS | REMOTE_KEYS
                     and (
                         force
-                        or now - self._timestamps.get(k, -math.inf) >= MEASUREMENTS[k].interval
+                        or now - self._timestamps.get(k, -math.inf)
+                        >= MEASUREMENTS[k].interval - TIER_SLACK
                     )
                 }
                 maps = [m for k in due for m in self.profile.mappings.get(k, ())]
@@ -224,8 +246,17 @@ class DeviceRuntime:
                                 if err.code not in (1, 2):
                                     raise
                     self._timestamps[key] = now
-                if self.allow_control and self.profile.controls_supported:
+                if (
+                    self.allow_control
+                    and self.profile.controls_supported
+                    and (
+                        force
+                        or now - self._timestamps.get("controls", -math.inf)
+                        >= SLOW_TIER - TIER_SLACK
+                    )
+                ):
                     self.controls = await self.profile.read_controls(self.client)
+                    self._timestamps["controls"] = now
                     if (
                         self._poll_uncertain
                         and self.remote_deadline is not None
@@ -243,6 +274,7 @@ class DeviceRuntime:
                 return {k: self.values.get(k) for k in enabled}
             except BaseException:
                 self._timestamps.clear()  # Recovery must not publish stale slow-tier values.
+                self._identity_checked = -math.inf  # Re-verify on the next poll.
                 for mapping in self.profile.mappings.get("active_alarms", ()):
                     self.alarms.observe(mapping, None)
                 self._publish_alarms()
@@ -398,14 +430,19 @@ class DeviceRuntime:
                 raise ControlError("Cannot safely restore current mode")
             current = await self.profile.read_schedule(self.client)
             # Validity is not editable through this API or the native forms.
-            # Always retain the device's current bounds, even for a stale draft.
+            # Retain the device's current bounds, even for a stale draft, unless
+            # they have already expired: a saved plan would then never run.
+            valid_from, valid_until = current.valid_from, current.valid_until
+            today = datetime.now().date()
+            if valid_until is not None and valid_until < _calendar_day(today):
+                valid_from, valid_until = self.profile.fresh_validity(today)
             schedule = replace(
                 schedule,
                 outside_mode=(
                     current.outside_mode if schedule.outside_mode is None else schedule.outside_mode
                 ),
-                valid_from=current.valid_from,
-                valid_until=current.valid_until,
+                valid_from=valid_from,
+                valid_until=valid_until,
             )
             try:
                 await self.profile.write_schedule(self.client, schedule)
@@ -448,6 +485,7 @@ class DeviceRuntime:
                 raise ControlError("Leave TOU before starting remote control")
             if actual["remote_control"] and self.remote_deadline is None:
                 raise ControlError("An unowned remote session must first be stopped")
+            failure = None
             try:
                 await self.profile.enter_remote(self.client, power_kw)
                 await self._send_heartbeat()
@@ -465,16 +503,27 @@ class DeviceRuntime:
                 self._lease_task = self._task_factory(self._lease_loop(self._lease_generation))
                 self.last_command = "confirmed"
             except EnergyLibError as err:
+                failure = err
                 self.last_command = "uncertain"
                 self.remote_status = "unconfirmed"
-                raise PartialWrite(
-                    "Remote request uncertain; watchdog remains authoritative"
-                ) from err
             finally:
                 await self._update_controls_best_effort()
                 if not self.controls:
                     self.remote_status = "unconfirmed"
+                elif (
+                    failure is not None
+                    and self.remote_deadline is None
+                    and self.controls.get("remote_control") == 0
+                ):
+                    # Read-back proves no session started: nothing is left to resolve.
+                    self.remote_status = "idle"
                 self._remote_changed()
+            if failure is not None:
+                if self.remote_status == "idle":
+                    raise ControlError("The device did not accept the remote request") from failure
+                raise PartialWrite(
+                    "Remote request uncertain; watchdog remains authoritative"
+                ) from failure
 
     async def _send_heartbeat(self):
         self._heartbeat = (self._heartbeat + 1) & 0xFFFF
@@ -590,4 +639,12 @@ class DeviceRuntime:
         if self.controls.get("work_mode") != "time_of_use":
             return "inactive"
         p = self.schedule.active(now)
-        return p.type if p else "outside_period"
+        if p:
+            return p.type
+        until = self.schedule.valid_until
+        return "expired" if until is not None and until < _calendar_day(now) else "outside_period"
+
+
+def _calendar_day(day):
+    """The device stores local calendar dates as UTC midnights (see TouSchedule.active)."""
+    return datetime(day.year, day.month, day.day, tzinfo=timezone.utc)

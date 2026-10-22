@@ -247,6 +247,7 @@
           "charge": "charge period",
           "discharge": "discharge period",
           "outside_period": "outside periods",
+          "expired": "validity expired",
           "inactive": "inactive",
           "remote": "remote control"
         }
@@ -331,6 +332,9 @@
     "switch": {
       "grid_charge": {
         "name": "Grid charging"
+      },
+      "export_limit_enable": {
+        "name": "Export limit enabled"
       },
       "remote_control": {
         "name": "Legacy remote control (immediate, 5 minutes)"

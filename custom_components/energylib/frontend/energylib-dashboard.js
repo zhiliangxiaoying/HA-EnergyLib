@@ -250,6 +250,7 @@ function buildView(hass, device, t, flowCard, multiple) {
     ["number.backup_soc", "mdi:battery-lock", "teal", [{ type: "numeric-input", style: "slider" }]],
     ["number.min_soc", "mdi:battery-low", "orange", [{ type: "numeric-input", style: "slider" }]],
     ["number.export_limit", "mdi:transmission-tower-export", "cyan", [{ type: "numeric-input", style: "slider" }]],
+    ["switch.export_limit_enable", "mdi:transmission-tower-off", "cyan", [{ type: "toggle" }]],
     ["switch.grid_charge", "mdi:battery-charging-wireless", "purple", [{ type: "toggle" }]],
   ].map(([key, icon, color, features]) => tile(ent[key], icon, color, { features }));
   const dispatch = s("remote_status") && {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.23.dev1
+
+- New 启用出口限制 switch (0x3002) turns the export limit off again; before, every write forced the limit on and entering 0 kW meant zero export, not "no limit". Any non-zero mode set from the App shows as on.
+- Saving a TOU plan when the device's validity window has already expired starts a fresh window (today until 2099-12-31 23:59:59) instead of keeping the expired one, which made an activated plan never run. The schedule status shows 有效期已过 (validity expired).
+- A remote start the device refuses (no session after read-back, e.g. without a battery) restores the device's heartbeat timeout and escape mode, returns to idle and reports that the device did not accept it, instead of staying unconfirmed.
+- The heartbeat also accepts an Alive flag the device has already cleared, as long as the remote session is still active.
+- Identity and control-state reads follow the 30 s tier; a 10 s energy-flow tick reads only the four powers on an already verified connection. Any reconnect is still identified before data is published.
+- Polling tiers allow 1 s of slack: HA starts each poll exactly one interval after the previous start, so a 10 s point was skipped on every other tick.
+- The TOU validity end is written as 23:59:59 of its day, as the real device stores it; a midnight end read back differently and made the save fail.
+
 ## 0.8.22.dev1
 
 - A negative home load no longer shows as the home sending power out. Near zero output the real inverter reports load (0x1274) slightly below 0; the digital twin and the live flow card now show the home as 0 W (the twin notes the raw negative value), and the load sensor and statistics keep the device value.

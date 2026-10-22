@@ -92,7 +92,8 @@
 | backup_soc | 备电 SOC | 0x314A（电池 2 同步写 0x314C） | number | 0~100 % | — |
 | min_soc | 放电截止 SOC | 0x3046（电池 2 同步写 0x30B8） | number | 0~100 % | 必须 ≤ 备电 SOC 的约束待定 ⚠ |
 | grid_charge | 允许电网充电 | 0x322A | switch | 0 / 1 | — |
-| export_limit | 出口功率限制 | 0x3004 | number | 0~机型额定功率 kW | 写入前自动写 0x3002 = 1（全时段）；关闭防逆流放在选项页 |
+| export_limit | 出口功率限制 | 0x3004 | number | 0~机型额定功率 kW | 写入前自动写 0x3002 = 1（全时段）。0 kW 表示禁止馈网，不是“不限制” |
+| export_limit_enable | 启用出口限制 | 0x3002 | switch | 0 / 1 | 关闭 = 不限制馈网，保留 0x3004 的限值；设备上的其他非 0 模式显示为开启（0.8.23） |
 
 ### v0.5：2 个实体 + 2 个服务
 
@@ -101,7 +102,7 @@
 | remote_control | 远程充放电控制 | 0xC646 | switch | 打开前先写 0xC06A 超时、0xC06C 逃生模式；运行期间维持心跳 ⚠保活方式 |
 | remote_power | 远程充放电功率 | 0xC648 | number | -50~50 kW（负数充电，正数放电） |
 | — | 服务 `set_battery_power` | 0xC646 + 0xC648 | service | 参数：功率、时长；时长到期自动退出 |
-| tou_schedule | 定时充放电计划 | 0xC014~0xC042、0xC0B4~0xC0D0、0x314E | sensor | 状态是当前生效的时段，属性是完整时段表 |
+| tou_schedule | 定时充放电计划 | 0xC014~0xC042、0xC0B4~0xC0D0、0x314E | sensor | 状态是当前生效的时段（有效期已过显示“有效期已过”），属性是完整时段表；保存时若设备有效期已过，改为从当天起长期有效 |
 | — | 服务 `set_tou_schedule`、`clear_tou_schedule` + 选项页面“定时充放电” | 同上 | service / options | 整表替换；详见 [TOU_DESIGN.md](TOU_DESIGN.md)；时段相关的 time / number 实体为 0 |
 
 ### 选项页参数（不建实体）
@@ -112,7 +113,6 @@
 | 逃生模式 | 0xC06C | 1 自发自用 |
 | 最大 SOC | 0x31B6 / 0x31B8 | 不改设备值 |
 | 最大充 / 放电电流 | 0x3040 / 0x3042 | 不改设备值 |
-| 防逆流开关 | 0x3002 | 不改设备值 |
 
 ## F. 汇总
 
