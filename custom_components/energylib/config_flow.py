@@ -1,5 +1,6 @@
 """Native manual and Zeroconf configuration for one inverter per entry."""
 
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -77,6 +78,26 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.add_suggested_values_to_schema(schema, suggested)
+
+    def _connection_form(self, step: str, errors: dict[str, str]) -> ConfigFlowResult:
+        """Keep advertised logger details visible on initial display and retries."""
+        placeholders = {}
+        if step == "discovery_confirm" and self._discovery:
+            # TXT strings are untrusted text, not Markdown supplied by the device.
+            placeholders = {
+                key: re.sub(r"([\\`*_\[\]<>])", r"\\\1", value)
+                for key, value in {
+                    "logger_sn": self._discovery.logger_sn,
+                    "logger_model": self._discovery.logger_model,
+                    "logger_firmware": self._discovery.logger_fw,
+                }.items()
+            }
+        return self.async_show_form(
+            step_id=step,
+            data_schema=self._schema(self._data),
+            errors=errors,
+            description_placeholders=placeholders,
+        )
 
     async def _validate(self, data: dict[str, Any], *, automatic=False) -> DeviceIdentity:
         if data.get(CONF_PROFILE) != PROFILE:
@@ -181,7 +202,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_PROFILE: PROFILE,
             CONF_PROFILE_ID: profile_id,
         }
-        self.context["title_placeholders"] = {"name": "EnergyLIB"}
+        self.context["title_placeholders"] = {"name": f"EnergyLIB · {logger_sn}"}
         errors = {}
         try:
             await self._validate(self._data, automatic=True)
@@ -193,11 +214,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             # Allow the user to adjust unit ID/port when the advertised endpoint
             # is not ready. No config entry is created on a failed probe.
             errors["base"] = "cannot_connect"
-        return self.async_show_form(
-            step_id="discovery_confirm",
-            data_schema=self._schema(self._data),
-            errors=errors,
-        )
+        return self._connection_form("discovery_confirm", errors)
 
     async def async_step_discovery_confirm(
         self, user_input: dict[str, Any] | None = None
@@ -216,11 +233,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             }
             self._data[CONF_HOST] = self._data[CONF_HOST].strip()
             if not self._data[CONF_HOST]:
-                return self.async_show_form(
-                    step_id=step,
-                    data_schema=self._schema(self._data),
-                    errors={"base": "cannot_connect"},
-                )
+                return self._connection_form(step, {"base": "cannot_connect"})
             try:
                 await self._validate(self._data)
             except IdentityMismatch:
@@ -231,8 +244,4 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 return self.async_create_entry(title="EnergyLIB", data=self._data)
-        return self.async_show_form(
-            step_id=step,
-            data_schema=self._schema(self._data),
-            errors=errors,
-        )
+        return self._connection_form(step, errors)

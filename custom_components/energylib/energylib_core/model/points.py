@@ -51,9 +51,12 @@ class Measurement:
         return {"count": 0, "soc": 1}.get(self.kind, 2)
 
 
+# Energy-flow powers drive the flow card and the twin, so they get the fast tier.
+FLOW_INTERVAL = 10
+
 CORE = (
     tuple(
-        Measurement(k, "power", "kW")
+        Measurement(k, "power", "kW", interval=FLOW_INTERVAL)
         for k in ("solar_power", "battery_power", "load_power", "grid_power")
     )
     + tuple(

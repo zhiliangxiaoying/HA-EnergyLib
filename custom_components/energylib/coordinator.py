@@ -11,6 +11,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, REMOTE_OPERATION_ENTITIES, RETIRED_ALARM_ENTITIES
+from .energylib_core.model.points import FLOW_INTERVAL
 from .energylib_core.model.remote import RemoteDraft
 from .energylib_core.transport.modbus_tcp import EnergyLibError
 
@@ -19,8 +20,13 @@ _LOGGER = logging.getLogger(__name__)
 
 class EnergyLibCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, entry, device):
+        # Tick at the fastest tier; the runtime reads slower points only when due.
         super().__init__(
-            hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=30)
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=FLOW_INTERVAL),
         )
         self.entry, self.device = entry, device
         self.remote_enabled = False

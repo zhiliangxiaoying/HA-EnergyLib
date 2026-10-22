@@ -8,9 +8,11 @@ charge/discharge and a time-of-use schedule).
 
 [中文说明](README.zh-Hans.md)
 
-> **Development preview.** Tested with software simulators only — no physical inverter
-> has been verified yet. Controls follow the protocol but are **not hardware-verified**;
-> they stay off until you enable them. See [Testing](docs/TESTING.md) and the
+> **Development preview.** Verified on one physical inverter (Sinexcel V001B031, three-phase
+> 12 kW, through an EnergyLIB logger) and with software simulators. On that device, readings,
+> alarms and the parameter controls (SOC limits, grid charging, export limit, EMS mode, TOU)
+> were written and read back; **remote charge/discharge is not hardware-verified yet**.
+> Controls stay off until you enable them. See [Testing](docs/TESTING.md) and the
 > [open protocol questions](docs/FIRMWARE_QUESTIONS.md).
 
 ## Features

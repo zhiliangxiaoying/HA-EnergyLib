@@ -21,6 +21,7 @@ from datetime import date, datetime, timezone
 from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
+from ..transport.energylib_push import skip_logger_push
 from ..transport.modbus_tcp import DeviceException, InvalidResponse
 from .sinexcel_alarms import GRID_ALARM_BIT, describe_alarm
 
@@ -66,6 +67,12 @@ DEVICE_SIGN = {
 }
 FAR_FUTURE = int(datetime(2099, 12, 31, tzinfo=timezone.utc).timestamp())
 REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
+# Explicit level parameters only. Heartbeats, remote enable/disable and TOU table
+# blocks retain single-send semantics until their repeated-write behavior is verified.
+RETRY_SAFE_ADDRESSES = frozenset(
+    {v for k, v in CONTROL_ADDRESSES.items() if k != "remote_control"}
+    | {EXPORT_LIMIT_ENABLE, 0x30B8, 0x314C, HEARTBEAT_TIMEOUT, ESCAPE_MODE}
+)
 
 
 def floats(values):
@@ -165,7 +172,36 @@ class SinexcelProfile:
         self.tou_limits = None
 
     async def identify(self, client) -> DeviceIdentity:
+        client.unsolicited_filter = skip_logger_push
         return await EnergyLibDevice(client).identify()
+
+    async def read_discrete_inputs(self, client, address, count, *, unit_id=None):
+        """Align FC02 starts for the observed firmware, preserving logical bit addresses.
+
+        This is a device quirk, not a Modbus restriction on odd quantities. Read
+        one leading bit for an odd start and discard it. Split large requests at
+        even boundaries to keep every wire request inside the profile block limit.
+        """
+        if (
+            type(address) is not int
+            or type(count) is not int
+            or not 0 <= address < 65536
+            or not 1 <= count <= 2000
+            or address + count > 65536
+        ):
+            raise ValueError("Invalid bit range")
+        limit = min(self.bit_limit, 2000) & ~1
+        if limit < 2:
+            raise ValueError("FC02 block limit cannot support even-address reads")
+        offset = address & 1
+        start, remaining = address - offset, count + offset
+        bits = []
+        while remaining:
+            size = min(remaining, limit)
+            bits.extend(await client.read_discrete_inputs(start, size, unit_id=unit_id))
+            start += size
+            remaining -= size
+        return bits[offset : offset + count]
 
     async def _readable(self, client, blocks):
         try:
@@ -256,7 +292,7 @@ class SinexcelProfile:
             # alarm status permanently incomplete. (BMS communication is already in
             # the table at 0x1110/0x1111.)
             try:
-                await client.read_discrete_inputs(GRID_ALARM_BIT, 1)
+                await self.read_discrete_inputs(client, GRID_ALARM_BIT, 1)
             except DeviceException as err:
                 if err.code not in (1, 2):
                     raise
@@ -343,9 +379,62 @@ class SinexcelProfile:
 
     async def write_float(self, client, address, value):
         words = floats([value])
-        await client.write_registers(address, words)
+        await client.write_registers(address, words, retry_safe=address in RETRY_SAFE_ADDRESSES)
         if await client.read_holding_registers(address, 2) != words:
             raise InvalidResponse("Write read-back differs")
+
+    async def validate_write_retry(self, client, address, words, *, remote_owned=False):
+        """Recheck a fixed level target against newly probed capabilities/state."""
+        if not self.controls_supported or address not in RETRY_SAFE_ADDRESSES:
+            raise InvalidResponse("Parameter is not eligible for write retry")
+        value = decode_float(list(words), kind="control")
+        if value is None:
+            raise InvalidResponse("Invalid parameter retry value")
+        if address in (0x30B8, 0x314C) and "battery_2" not in self.capabilities:
+            raise InvalidResponse("Battery 2 is no longer available")
+        key = next((k for k, a in CONTROL_ADDRESSES.items() if a == address), None)
+        if key is not None:
+            definition = next(c for c in CONTROLS if c.key == key)
+            if definition.options:
+                if self.decode_enum(key, value) not in definition.options:
+                    raise InvalidResponse("Unsupported retry mode")
+            else:
+                low, high = definition.limits(self.max_power_kw)
+                if not low <= value <= high:
+                    raise InvalidResponse("Retry target exceeds current device limits")
+                if definition.platform == "switch" and value not in (0, 1):
+                    raise InvalidResponse("Invalid switch retry value")
+        if address in (0x3046, 0x30B8, 0x314A, 0x314C):
+            other = {0x3046: 0x314A, 0x30B8: 0x314C, 0x314A: 0x3046, 0x314C: 0x30B8}[address]
+            bound = decode_float(await client.read_holding_registers(other, 2), kind="soc")
+            if (
+                bound is None
+                or not 0 <= value <= 100
+                or (value > bound if address in (0x3046, 0x30B8) else value < bound)
+            ):
+                raise InvalidResponse("Retry target conflicts with current battery SOC limits")
+        if key == "work_mode":
+            remote = decode_float(await client.read_holding_registers(0xC646, 2), kind="control")
+            if remote != 0:
+                raise InvalidResponse("Remote session prevents mode write retry")
+        if address in (0xC648, HEARTBEAT_TIMEOUT, ESCAPE_MODE):
+            mode = decode_float(await client.read_holding_registers(0x300C, 2), kind="control")
+            if (
+                mode is None
+                or not mode.is_integer()
+                or int(mode) not in self.work_mode_codes
+                or self.decode_enum("work_mode", mode) == "time_of_use"
+            ):
+                raise InvalidResponse("Current mode prevents remote parameter retry")
+            remote = decode_float(await client.read_holding_registers(0xC646, 2), kind="control")
+            if remote not in (0, 1) or (remote == 1 and not remote_owned):
+                raise InvalidResponse("Unowned remote session prevents parameter retry")
+        if address == EXPORT_LIMIT_ENABLE and value not in (0, 1):
+            raise InvalidResponse("Invalid export-enable retry value")
+        if address in (HEARTBEAT_TIMEOUT, ESCAPE_MODE):
+            expected = REMOTE_TIMEOUT_S if address == HEARTBEAT_TIMEOUT else REMOTE_ESCAPE
+            if value != expected:
+                raise InvalidResponse("Unsupported remote retry parameter")
 
     async def apply_control(self, client, key, value):
         changes = [(CONTROL_ADDRESSES[key], self.control_values(key, value))]

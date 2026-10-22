@@ -33,15 +33,19 @@
   let scene, camera, renderer, controls, composer = null, aaPass = null, fine = false, evening = false;
   let hass = null, devices = [], device = null, registryFallback = null, registryPending = false;
   const flowRoutes = [], pins = {}, loaded = new Set();
+  const BASE_MODELS = ['home-interior.glb', 'home-energy-system.glb', 'solar-ev-system.glb', 'garden-site.glb'];
   let viewReady = false, loadFailed = false, cameraTween = null;
+  let loadCar = null;
 
   // ---------- Loading overlay ----------
   function finishLoading() {
-    if (viewReady || loadFailed || loaded.size < 5) return;
+    if (viewReady || loadFailed || !BASE_MODELS.every(name => loaded.has(name))) return;
     viewReady = true;
     requestAnimationFrame(() => {
       controls.update(); renderFrame();
       document.body.classList.remove('twin-booting'); $('twin-loading').hidden = true;
+      // Let the base scene paint before requesting and decoding the optional car.
+      requestAnimationFrame(() => setTimeout(loadCar, 0));
     });
   }
   function failLoading(message) {
@@ -154,9 +158,22 @@
   function loadModels() {
     const loader = new THREE.GLTFLoader();
     loader.setMeshoptDecoder(window.MeshoptDecoder);
-    const load = (name, failure, done) => loader.load('models/' + name + '?v=' + encodeURIComponent(VERSION), g => {
+    const load = (name, failure, done, required = true) => loader.load('models/' + name + '?v=' + encodeURIComponent(VERSION), g => {
       done(g.scene); scene.add(g.scene); loaded.add(name); finishLoading();
-    }, undefined, err => { console.error(name, err); failLoading(failure); });
+    }, undefined, err => {
+      console.error(name, err);
+      if (required) failLoading(failure);
+    });
+    // Sports car (CC BY 4.0, see NOTICE): scaled to its real length, nose +z, parked in the bay.
+    // It is decorative: loading failure must leave the already visible scene usable.
+    loadCar = () => load('sports-car.glb', '汽车视图加载失败，请重新加载', root => {
+      root.name = 'Sports_Car';
+      const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+      root.scale.setScalar(CAR.length / Math.max(size.x, size.z));
+      const fit = new THREE.Box3().setFromObject(root), centre = fit.getCenter(new THREE.Vector3());
+      root.position.set(CAR.x - centre.x, CAR.y - fit.min.y, CAR.z - centre.z);
+      shade(root, .9);
+    }, false);
     load('home-interior.glb', '家庭视图加载失败，请重新加载', root => {
       root.name = 'Home_Interior'; shade(root, .28);
       const board = root.getObjectByName('Entry_Energy_Backboard');
@@ -168,15 +185,6 @@
     });
     load('solar-ev-system.glb', '光伏与充电桩视图加载失败，请重新加载', root => { root.name = 'Solar_Charger'; shade(root, .8); });
     load('garden-site.glb', '庭院视图加载失败，请重新加载', root => { root.name = 'Garden_Site'; shade(root, .25); });
-    // Sports car (CC BY 4.0, see NOTICE): scaled to its real length, nose +z, parked in the bay.
-    load('sports-car.glb', '汽车视图加载失败，请重新加载', root => {
-      root.name = 'Sports_Car';
-      const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
-      root.scale.setScalar(CAR.length / Math.max(size.x, size.z));
-      const fit = new THREE.Box3().setFromObject(root), centre = fit.getCenter(new THREE.Vector3());
-      root.position.set(CAR.x - centre.x, CAR.y - fit.min.y, CAR.z - centre.z);
-      shade(root, .9);
-    });
   }
 
   // ---------- Grid pole and power-flow routes ----------
@@ -342,6 +350,10 @@
     return factor ? v * factor : null;
   }
 
+  // Near zero output a real inverter can report a small negative home load. A home
+  // cannot feed power out, so the flows show it as 0; the sensor keeps the raw value.
+  const displayLoad = v => v === null ? null : Math.max(v, 0);
+
   function note(key, v, text) {
     return !hass ? '等待 HA 连接' : !device ? '未找到设备' : !device.entities[key] ? '未找到实体' : v === null ? '暂无数据' : text;
   }
@@ -357,12 +369,13 @@
     $('energy-device').textContent = device ? device.name : '';
 
     const socKey = device?.entities.battery_total_soc ? 'battery_total_soc' : 'battery_soc';
-    const d = {solar: reading('solar_power'), grid: reading('grid_power'), battery: reading('battery_power'), load: reading('load_power'), soc: reading(socKey)};
+    const d = {solar: reading('solar_power'), grid: reading('grid_power'), battery: reading('battery_power'), load: displayLoad(reading('load_power')), soc: reading(socKey)};
+    const negativeLoad = reading('load_power') < -5;
     const direction = (v, pos, neg, idle) => v > 5 ? pos : v < -5 ? neg : idle;
     $('metric-solar').textContent = fmt(d.solar); $('metric-solar-note').textContent = note('solar_power', d.solar, d.solar > 5 ? '发电中' : '无输出');
     $('metric-grid').textContent = fmt(d.grid); $('metric-grid-note').textContent = note('grid_power', d.grid, direction(d.grid, '电网购电', '馈入电网', '待机'));
     $('metric-battery').textContent = fmt(d.battery); $('metric-battery-note').textContent = note('battery_power', d.battery, direction(d.battery, '放电', '充电', '待机'));
-    $('metric-load').textContent = fmt(d.load); $('metric-load-note').textContent = note('load_power', d.load, '家庭用电');
+    $('metric-load').textContent = fmt(d.load); $('metric-load-note').textContent = note('load_power', d.load, negativeLoad ? '设备上报负值，按 0 显示' : '家庭用电');
     $('metric-soc').textContent = d.soc === null ? '—' : d.soc.toFixed(0) + ' %'; $('metric-soc-note').textContent = note(socKey, d.soc, '电池总电量');
     $('soc-fill').style.width = (d.soc ?? 0) + '%';
     const running = stateOf('running_state');

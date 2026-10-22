@@ -175,7 +175,9 @@ function buildView(hass, device, t, flowCard, multiple) {
           title: t.flowTitle,
           entities: {
             solar: { entity: solar, name: t.solar, color: "#ffb300", color_icon: true, color_value: true },
-            home: { entity: load, name: t.load, icon: "mdi:home-lightning-bolt", override_state: true, color_icon: true, color_value: true },
+            // The card derives home from the flows, never below 0; a raw negative load
+            // reported near zero output must not read as the home feeding the grid.
+            home: { entity: load, name: t.load, icon: "mdi:home-lightning-bolt", color_icon: true, color_value: true },
             battery: {
               entity: battery,
               name: t.batteryShort,

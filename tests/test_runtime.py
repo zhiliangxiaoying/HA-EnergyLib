@@ -5,6 +5,7 @@ import time
 import unittest
 from dataclasses import replace
 from datetime import date, datetime, timezone
+from unittest.mock import patch
 
 from energylib_under_test.energylib_core.legacy import IdentityMismatch
 from energylib_under_test.energylib_core.model.points import CONTROLS, CORE
@@ -15,6 +16,7 @@ from energylib_under_test.energylib_core.runtime import ControlError, DeviceRunt
 from energylib_under_test.energylib_core.transport.modbus_tcp import (
     DeviceException,
     EnergyLibError,
+    InvalidResponse,
     ModbusTcpClient,
 )
 
@@ -128,6 +130,110 @@ class TouTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_rechecks_reduced_power_limit_before_resending(self):
+        self.runtime.allow_control = True
+        original = self.client._request_once
+        failed = False
+
+        async def reduced(pdu, unit):
+            nonlocal failed
+            if pdu[:3] == b"\x10\x30\x04" and not failed:
+                failed = True
+                self.model.config = replace(self.model.config, rated_kw=3)
+                self.model.tick(datetime(2026, 10, 19, 12, tzinfo=timezone.utc), 0)
+                raise InvalidResponse("Injected reconnect and lower device limit")
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", reduced):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_control("export_limit", 4)
+        self.assertEqual(self.runtime.profile.max_power_kw, 3)
+        self.assertEqual(self.client.write_retries, 0)
+        self.assertEqual(self.peer.write_count, 1)  # Enable only; no oversized limit was sent.
+
+    async def test_retry_rechecks_changed_soc_constraint_before_resending(self):
+        self.runtime.allow_control = True
+        original = self.client._request_once
+        failed = False
+
+        async def changed(pdu, unit):
+            nonlocal failed
+            if pdu[:3] == b"\x10\x31\x4a" and not failed:
+                failed = True
+                self.model.set_float(0x3046, 50)
+                raise InvalidResponse("Injected change to minimum SOC")
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", changed):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_control("backup_soc", 40)
+        self.assertEqual(self.peer.write_count, 0)
+        self.assertEqual(self.client.write_retries, 0)
+
+    async def test_heartbeat_and_remote_enable_never_repeat_uncertain_writes(self):
+        self.peer.fault = "disconnect"
+        for address in (0xC068, 0xC646):
+            await self.runtime._identity()
+            before = self.peer.write_count
+            with self.subTest(address=address), self.assertRaises(EnergyLibError):
+                await self.runtime.profile.write_float(self.client, address, 1)
+            self.assertEqual(self.peer.write_count - before, 1)
+        self.assertEqual(self.client.write_retries, 0)
+
+    async def test_poll_recovers_read_retry_and_rechecks_identity(self):
+        original = self.client._request_once
+        failed = False
+
+        async def interrupted(pdu, unit):
+            nonlocal failed
+            if pdu == b"\x03\x12\x70\x00\x02" and not failed:
+                failed = True
+                raise InvalidResponse("Injected frame error")
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", interrupted):
+            values = await self.runtime.refresh({"solar_power"})
+        self.assertIsNotNone(values["solar_power"])
+        self.assertEqual(self.client.read_retries, 1)
+        self.assertEqual(self.client.write_generation, self.client.generation)
+        self.assertEqual(self.peer.write_count, 0)
+
+    async def test_changed_device_after_read_retry_is_not_published(self):
+        original = self.client._request_once
+        failed = False
+
+        async def replaced(pdu, unit):
+            nonlocal failed
+            if pdu == b"\x03\x12\x70\x00\x02" and not failed:
+                failed = True
+                self.model.registers[0xC104] = 0x4F54
+                raise InvalidResponse("Injected endpoint replacement")
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", replaced):
+            with self.assertRaises(IdentityMismatch):
+                await self.runtime.refresh({"solar_power"})
+        self.assertNotIn("solar_power", self.runtime.values)
+        self.assertEqual(self.peer.write_count, 0)
+
+    async def test_reconnect_in_preflight_rechecks_identity_before_parameter_write(self):
+        self.runtime.allow_control = True
+        original = self.client._request_once
+        failed = False
+
+        async def interrupted(pdu, unit):
+            nonlocal failed
+            if pdu == b"\x03\x31\x4a\x00\x02" and not failed:
+                failed = True
+                raise InvalidResponse("Injected control preflight read error")
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", interrupted):
+            await self.runtime.set_control("grid_charge", True)
+        self.assertEqual(self.peer.write_count, 1)
+        self.assertEqual(self.client.write_generation, self.client.generation)
+        self.assertEqual(self.runtime.last_command, "confirmed")
+
     async def test_unowned_remote_session_is_not_reported_idle_or_resumed(self):
         self.runtime.allow_control = True
         self.model.set_float(0xC646, 1)
@@ -427,6 +533,26 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.refresh({"solar_energy", "solar_power"})
         self.assertGreater(self.runtime.last_frame_count, 3)
 
+    async def test_flow_powers_poll_every_10_s_and_other_points_every_30_s(self):
+        keys = {"solar_power", "grid_power", "grid_voltage_a"}
+        await self.runtime.refresh(keys)
+        full = self.runtime.last_frame_count
+        self.now += 10
+        await self.runtime.refresh(keys)
+        fast = self.runtime.last_frame_count
+        self.assertLess(fast, full)
+        self.model.set_float(0x1270, 4.25)
+        self.model.set_float(0x1000, 199.0)
+        self.now += 10
+        values = await self.runtime.refresh(keys)
+        self.assertEqual(self.runtime.last_frame_count, fast)
+        self.assertEqual(values["solar_power"], 4.25)
+        self.assertNotEqual(values["grid_voltage_a"], 199.0)
+        self.now += 10
+        values = await self.runtime.refresh(keys)
+        self.assertEqual(self.runtime.last_frame_count, full)
+        self.assertEqual(values["grid_voltage_a"], 199.0)
+
     async def test_partial_alarm_source_never_becomes_zero(self):
         self.peer.fault = "unit2_offline"
         self.model.bits[1][0x1048] = True
@@ -539,12 +665,23 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_second_battery_failure_reports_partial_result(self):
         self.runtime.allow_control = True
-        self.peer.fail_write_index = 2
-        with self.assertRaises(PartialWrite):
-            await self.runtime.set_control("backup_soc", 40)
+        apply = self.model.apply_write
+        with patch.object(
+            self.model, "apply_write", lambda a, w: 1 if a == 0x314C else apply(a, w)
+        ):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_control("backup_soc", 40)
         self.assertEqual(self.model.get_float(0x314A), 40)
         self.assertEqual(self.model.get_float(0x314C), 20)
         self.assertEqual(self.runtime.controls["backup_soc_2"], 20)
+
+    async def test_transient_second_battery_disconnect_recovers_parameter_only(self):
+        self.runtime.allow_control = True
+        self.peer.fail_write_index = 2
+        await self.runtime.set_control("backup_soc", 40)
+        self.assertEqual(self.peer.write_count, 3)
+        self.assertEqual(self.runtime.controls["backup_soc"], 40)
+        self.assertEqual(self.runtime.controls["backup_soc_2"], 40)
 
     async def test_second_battery_soc_constraints_checked_before_writes(self):
         self.runtime.allow_control = True
@@ -745,14 +882,14 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertNotIn(absent, keys)
 
-    async def test_rejected_and_timed_out_writes_never_get_retried(self):
+    async def test_refusals_are_not_retried_and_parameter_retries_are_bounded(self):
         self.runtime.allow_control = True
         for fault in ("reject_write", "disconnect"):
             self.peer.fault = fault
             before = self.peer.write_count
             with self.subTest(fault=fault), self.assertRaises(PartialWrite):
                 await self.runtime.set_control("grid_charge", True)
-            self.assertEqual(self.peer.write_count - before, 1)
+            self.assertEqual(self.peer.write_count - before, 1 if fault == "reject_write" else 4)
 
     async def test_concurrent_read_and_write_share_device_lock(self):
         self.runtime.allow_control = True

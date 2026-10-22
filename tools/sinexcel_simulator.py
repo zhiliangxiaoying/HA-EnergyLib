@@ -21,6 +21,7 @@ import struct
 import sys
 import time
 import types
+from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -291,6 +292,7 @@ class BenchServer:
         self.model, self.allowed_peers = model, allowed_peers
         self.fault, self.fail_write_index = fault, fail_write_index
         self.requests = self.write_count = 0
+        self.read_log = deque(maxlen=100)
         self.writers = set()
 
     async def close(self):
@@ -319,9 +321,12 @@ class BenchServer:
                     error = 11
                 elif fc in (2, 3, 4) and len(pdu) == 5:
                     address, count = struct.unpack(">HH", pdu[1:])
+                    self.read_log.append((fc, unit, address, count))
                     if fc == 2:
                         bits = self.model.bits[unit]
                         if not 1 <= count <= 2000:
+                            error = 3
+                        elif self.fault == "fc02_even_address" and address % 2:
                             error = 3
                         elif any(address + i not in bits for i in range(count)):
                             error = 2
@@ -361,6 +366,8 @@ class BenchServer:
                 if error:
                     response = bytes([fc | 0x80, error])
                 reply = struct.pack(">HHHB", tid, 0, len(response) + 1, unit) + response
+                if self.fault == "swapped_length":
+                    reply = reply[:4] + reply[4:6][::-1] + reply[6:]
                 if self.fault == "short_frame":
                     writer.write(reply[:-1])
                     await writer.drain()
@@ -465,6 +472,8 @@ if __name__ == "__main__":
             "mismatch",
             "disconnect",
             "short_frame",
+            "fc02_even_address",
+            "swapped_length",
         ),
         default="normal",
     )

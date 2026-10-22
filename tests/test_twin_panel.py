@@ -4,7 +4,9 @@ import ast
 import importlib
 import json
 import re
+import shutil
 import struct
+import subprocess
 import sys
 import unittest
 from dataclasses import dataclass
@@ -73,12 +75,40 @@ class TwinFilesTests(unittest.TestCase):
             self.assertTrue((TWIN / name).is_file(), name)
         models = re.findall(r"load\('([\w-]+\.glb)'", script)
         self.assertEqual(len(models), 5)
-        # The loading screen waits for every model.
-        self.assertIn(f"loaded.size < {len(models)}", script)
         for name in models:
             self.assertTrue((TWIN / "models" / name).is_file(), name)
         total = sum(p.stat().st_size for p in TWIN.rglob("*") if p.is_file())
         self.assertLess(total, 4 * 1024 * 1024)
+
+    @unittest.skipUnless(shutil.which("node"), "node is required for loading behavior checks")
+    def test_base_scene_paints_before_optional_car(self):
+        result = subprocess.run(
+            [
+                shutil.which("node"),
+                str(ROOT / "tests/js/run_twin_loading.mjs"),
+                str(TWIN / "twin.js"),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["result"], "passed")
+
+    @unittest.skipUnless(shutil.which("node"), "node is required for flow checks")
+    def test_negative_home_load_is_shown_as_zero(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(ROOT / "tests/js/run_twin_load.mjs"), str(TWIN / "twin.js")],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["result"], "passed")
+        source = (TWIN / "twin.js").read_text(encoding="utf-8")
+        self.assertIn("load: displayLoad(reading('load_power'))", source)
 
     def test_page_uses_no_cdn_or_unauthenticated_api(self):
         for name in ("index.html", "twin.js"):

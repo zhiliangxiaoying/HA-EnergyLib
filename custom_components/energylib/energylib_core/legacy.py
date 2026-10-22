@@ -70,13 +70,13 @@ def decode_float(words: list[int], *, kind: str) -> float | None:
 
 
 def decode_serial(words: list[int]) -> str:
-    """Decode the 24-byte, NUL-padded ASCII inverter serial number."""
+    """Decode ASCII identity, removing only trailing NUL/space padding."""
     if len(words) != 12:
         raise UnsupportedDevice("Invalid identity length")
     raw = struct.pack(">12H", *words)
-    content, _, padding = raw.partition(b"\x00")
-    if padding.strip(b"\x00"):
-        raise UnsupportedDevice("Invalid identity padding")
+    # Observed hardware uses spaces; older peers use NULs. Normalize padding
+    # without changing case or accepting whitespace inside an identity.
+    content = raw.rstrip(b"\x00 ")
     try:
         serial = content.decode("ascii")
     except UnicodeDecodeError as err:
@@ -138,6 +138,7 @@ class EnergyLibDevice:
             identity = await self._identify()
             if identity.serial != expected_serial:
                 raise IdentityMismatch("Connected device identity changed")
+            generation = getattr(self.client, "generation", None)
             values: dict[str, float | None] = {}
             for point in POINTS:
                 try:
@@ -148,4 +149,7 @@ class EnergyLibDevice:
                     values[point.key] = None
                 else:
                     values[point.key] = decode_float(words, kind=point.kind)
+            if getattr(self.client, "generation", None) != generation:
+                if (await self._identify()).serial != expected_serial:
+                    raise IdentityMismatch("Connected device identity changed")
             return values

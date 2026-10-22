@@ -13,8 +13,8 @@
         }
       },
       "discovery_confirm": {
-        "title": "Add discovered EnergyLIB",
-        "description": "Enter the inverter's Modbus TCP address (Sinexcel V001B031). Controls stay off until you enable them in the integration options.",
+        "title": "Confirm EnergyLIB device",
+        "description": "**Logger SN:** {logger_sn}\n\n**Logger model:** {logger_model}\n\n**Logger firmware:** {logger_firmware}\n\nThese details are advertised by the logger. The inverter SN is checked separately when connecting. Confirm the connection settings below. Controls are off by default.",
         "data": {
           "host": "IP address or hostname",
           "port": "Modbus TCP port",

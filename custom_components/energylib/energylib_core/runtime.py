@@ -27,6 +27,8 @@ class PartialWrite(ControlError):
 class DeviceRuntime:
     def __init__(self, client, profile_id, *, clock=time.monotonic, task_factory=None):
         self.client = client
+        self.client.verify_write_identity = self._identity
+        self.client.authorize_write_retry = self._authorize_write_retry
         self.profile = get_profile(profile_id)
         # The host (e.g. HA) can own background tasks so they are tracked and
         # cancelled on unload/shutdown; plain asyncio is the library default.
@@ -69,6 +71,7 @@ class DeviceRuntime:
         async with self._lock:
             await self._identity(expected_serial)
             await self.profile.configure(self.client, self.identity)
+            await self._verify_connection()
             self._generation = self.client.generation
 
     def _ensure_open(self):
@@ -84,6 +87,22 @@ class DeviceRuntime:
         if expected is not None and identity.serial != expected:
             raise IdentityMismatch("Endpoint identity changed")
         self.identity = identity
+        self.client.write_generation = self.client.generation
+
+    async def _verify_connection(self):
+        """A transparent read retry must not publish another device's data."""
+        if self.client.write_generation != self.client.generation:
+            await self._identity()
+
+    async def _authorize_write_retry(self, address, words):
+        """A reconnect can change limits or the constraints on a pending target."""
+        await self._prepare_locked()
+        self._gate()
+        await self.profile.validate_write_retry(
+            self.client, address, words, remote_owned=self.remote_deadline is not None
+        )
+        if self.client.generation != self._generation:
+            raise ControlError("Connection changed while validating write retry")
 
     async def _prepare_locked(self):
         """Verify identity and refresh capabilities before using a new connection."""
@@ -91,6 +110,7 @@ class DeviceRuntime:
         if self._generation == self.client.generation:
             return False
         await self.profile.configure(self.client, self.identity)
+        await self._verify_connection()
         self._generation = self.client.generation
         self._timestamps.clear()
         return True
@@ -117,12 +137,15 @@ class DeviceRuntime:
 
     async def _read(self, mapping):
         if mapping.function == 2:
-            return await self.client.read_discrete_inputs(
-                mapping.address, mapping.count, unit_id=mapping.unit
+            result = await self.profile.read_discrete_inputs(
+                self.client, mapping.address, mapping.count, unit_id=mapping.unit
             )
-        return await self.client.read_registers(
-            mapping.function, mapping.address, mapping.count, unit_id=mapping.unit
-        )
+        else:
+            result = await self.client.read_registers(
+                mapping.function, mapping.address, mapping.count, unit_id=mapping.unit
+            )
+        await self._verify_connection()
+        return result
 
     async def refresh(self, enabled, *, force=False):
         async with self._lock:
@@ -214,6 +237,7 @@ class DeviceRuntime:
                         self.remote_status = (
                             "charging" if target < 0 else "discharging" if target > 0 else "holding"
                         )
+                await self._verify_connection()
                 self.last_frame_count = self.client.requests - count
                 self._publish_remote()
                 return {k: self.values.get(k) for k in enabled}
@@ -339,6 +363,7 @@ class DeviceRuntime:
                         raise ControlError("Battery 2 minimum SOC must not exceed backup SOC")
             try:
                 await self.profile.apply_control(self.client, key, value)
+                await self._verify_connection()
                 self.last_command = "confirmed"
             except EnergyLibError as err:
                 self.last_command = "uncertain"
@@ -350,6 +375,7 @@ class DeviceRuntime:
         try:
             await self._identity()
             self.controls = await self.profile.read_controls(self.client)
+            await self._verify_connection()
         except EnergyLibError:
             self.controls = {}
 
@@ -384,12 +410,14 @@ class DeviceRuntime:
             try:
                 await self.profile.write_schedule(self.client, schedule)
                 readback = await self.profile.read_schedule(self.client)
+                await self._verify_connection()
                 if not self.profile.schedules_equal(readback, schedule):
                     raise PartialWrite("TOU read-back mismatch")
                 self.schedule = readback
                 await self.profile.apply_control(
                     self.client, "work_mode", "time_of_use" if activate else previous
                 )
+                await self._verify_connection()
                 self.last_command = "confirmed"
             except (EnergyLibError, ValueError) as err:
                 self.schedule = None
@@ -479,6 +507,7 @@ class DeviceRuntime:
                     try:
                         await self._identity()
                         await self.profile.leave_remote(self.client)
+                        await self._verify_connection()
                         # A confirmed exit resolves doubt left by a failed poll, but not
                         # by a failed heartbeat or command.
                         if self.remote_status != "unconfirmed" or self._poll_uncertain:
@@ -519,6 +548,7 @@ class DeviceRuntime:
                 try:
                     await self._identity()
                     await self.profile.leave_remote(self.client)
+                    await self._verify_connection()
                     self.last_command = "confirmed"
                     self.remote_status = "stopped"
                 except EnergyLibError:

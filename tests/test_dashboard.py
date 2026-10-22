@@ -161,6 +161,8 @@ class StrategyOutputTests(unittest.TestCase):
         expected.remove("sensor.dev1_renamed_work_mode")
         self.assertEqual(expected - refs, set())
         self.assertIn("custom:power-flow-card-plus", text(self.out["full_zh"]))
+        # Home is derived from the flows (never negative), not the raw load state.
+        self.assertNotIn("override_state", text(self.out["full_zh"]))
         self.assertIn("实时能流", text(self.out["full_zh"]))
 
     def test_read_only_device_gets_no_controls_and_no_missing_card(self):

@@ -1,9 +1,17 @@
 # Testing / 测试说明
 
-All results below come from **software simulators**. No physical inverter has been
-tested yet; nothing here is evidence of hardware compatibility.
+Unless explicitly marked as physical-device checks, results below come
+from **software simulators**. These checks do not establish full hardware compatibility.
 
-以下结果都来自**软件模拟器**，尚未在物理逆变器上测试，不能作为硬件兼容性的证据。
+除明确标注的实机检查外，以下结果来自**软件模拟器**；这些检查不代表完整硬件兼容性。
+
+## 0.8.15 – 0.8.22 验证摘要（2026-10-22）
+
+- 205 项单元 / TCP / 看板测试、Ruff、hassfest 通过；HA 2026.8.2 临时环境的 runtime、alarm、remote 三组检查通过。
+- **实机只读**：盛弘 V001B031 三相 12 kW 机型，经 EnergyLIB 采集棒的 Modbus TCP（Unit 1/2，FC02/03/04，float32 ABCD）。身份、测量值、告警和能力探测均可读；采集棒在同一连接中夹带 28 字节主动帧，由盛弘 profile 过滤；SN 以空格补齐。
+- **实机控制（逐项授权、受监督）**：备电 / 最低 SOC（含电池 2）、电网充电、出口限制、EMS 模式和 TOU 时段表的写入与回读全部一致，测试后全部恢复原值并逐项核对。
+- 远程充放电：设备未接电池，充电功率被设备拒收（回读为 0），集成报告“未确认”并停止；心跳、到期退出等仍待接入电池后验证。
+- 测试设备的负载功率（0x1274）在接近零输出时会出现小的负值，界面按 0 显示，原始数据保留，含义待厂家确认。
 
 ## 0.6.1 – 0.8.14 验证摘要（2026-10-20 ~ 2026-10-21）
 
@@ -53,7 +61,7 @@ Simulator: `tools/sinexcel_simulator.py` (V001B031 registers, writes enabled) an
 
 ## Not covered yet / 尚未覆盖
 
-- Any physical inverter, firmware or communication dongle (实机、固件、通讯棒)
+- Other inverter models, firmware and loggers; remote charge/discharge on hardware (其他机型、固件、采集棒；实机远程充放电)
 - HA starting after the device (HA 后启动) and DHCP IP changes (only port changes were tested)
 - Cross-VLAN networks, IPv6
 - Long-term energy statistics (7 days)

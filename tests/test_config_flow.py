@@ -156,6 +156,53 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"]["logger"]["sn"], "LOGGER-001")
         self.assertEqual(result["data"]["logger"]["source"], "zeroconf")
 
+    async def test_discovery_card_and_confirmation_identify_the_logger(self):
+        form = await self.flow.async_step_zeroconf(self.discovery(model="WF_ETH", fw="400.3.3"))
+        self.assertEqual(
+            self.flow.context["title_placeholders"], {"name": "EnergyLIB · LOGGER-001"}
+        )
+        self.assertEqual(
+            form["description_placeholders"],
+            {
+                "logger_sn": "LOGGER-001",
+                "logger_model": r"WF\_ETH",
+                "logger_firmware": "400.3.3",
+            },
+        )
+        self.assertNotIn(self.identity.serial, str(form["description_placeholders"]))
+
+    async def test_logger_details_survive_display_and_failed_confirmation(self):
+        self.probe.side_effect = CannotConnect("offline")
+        initial = await self.flow.async_step_zeroconf(self.discovery())
+        for values in (
+            None,
+            {"host": "192.0.2.2", "port": 8888, "unit_id": 7},
+            {"host": " ", "port": 8888, "unit_id": 7},
+        ):
+            form = await self.flow.async_step_discovery_confirm(values)
+            self.assertEqual(form["type"], "form")
+            self.assertEqual(form["description_placeholders"], initial["description_placeholders"])
+        self.assertEqual(form["errors"], {"base": "cannot_connect"})
+        self.assertEqual(self.flow.updates, [])
+
+    async def test_discovery_metadata_is_displayed_as_text_not_markdown(self):
+        form = await self.flow.async_step_zeroconf(
+            self.discovery(sn="<LOGGER>", model="[model](url)", fw="*1.0*`build`")
+        )
+        self.assertEqual(
+            form["description_placeholders"],
+            {
+                "logger_sn": r"\<LOGGER\>",
+                "logger_model": r"\[model\](url)",
+                "logger_firmware": r"\*1.0\*\`build\`",
+            },
+        )
+
+    async def test_manual_form_does_not_claim_advertised_logger_metadata(self):
+        form = await self.flow.async_step_user()
+        self.assertEqual(form["description_placeholders"], {})
+        self.assertNotIn("title_placeholders", self.flow.context)
+
     async def test_verified_dhcp_change_updates_entry_without_new_identity(self):
         entry = SimpleNamespace(
             unique_id="energylib_TEST-001",

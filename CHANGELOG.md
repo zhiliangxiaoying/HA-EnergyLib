@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.22.dev1
+
+- A negative home load no longer shows as the home sending power out. Near zero output the real inverter reports load (0x1274) slightly below 0; the digital twin and the live flow card now show the home as 0 W (the twin notes the raw negative value), and the load sensor and statistics keep the device value.
+
+## 0.8.21.dev1
+
+- Energy-flow powers (光伏总功率, battery, load and grid power) update every 10 s instead of 30 s; the coordinator ticks every 10 s and other points keep their 30 s / 60 s / 5 min tiers. A fast tick costs the identity check plus four 2-register reads.
+
+## 0.8.20.dev1
+
+- Filter the EnergyLIB logger's known 28-byte push frames (validated length, version, CRC and end byte, at frame boundaries only) that a real logger sends on the Modbus connection; unknown frames still fail normal validation. Enabled explicitly by the Sinexcel profile.
+- Parameter writes listed as safe to repeat may retry up to 3 times after a lost acknowledgement: identity check, read-back and re-validation of limits, SOC constraints, battery 2, mode and session ownership come first; heartbeats, remote enable/disable and TOU blocks stay single-send.
+- Diagnostics add filtered push frame, write retry and read-back recovery counters.
+- Kiosk launcher waits until the dashboard route is ready before opening the browser.
+
+## 0.8.19.dev1
+
+- FC02/03/04 reads retry up to 3 times (0.2 / 0.4 / 0.8 s back-off) on communication errors, reconnecting and re-verifying the inverter identity before data is published. Modbus exception responses are not retried.
+
+## 0.8.18.dev1
+
+- Accept inverter serials padded with ASCII spaces (as on real hardware) as well as NULs; only trailing padding is removed.
+
+## 0.8.17.dev1
+
+- The digital twin paints the house, energy system, solar and garden first and loads the car afterwards; a car failure no longer blocks the scene.
+
+## 0.8.16.dev1
+
+- Align Sinexcel FC02 wire requests to even starting addresses, based on physical-device read-only observations. Logical addresses, bit offsets, alarm IDs and entity IDs stay unchanged; odd quantities remain allowed. Requests stay within the profile block limit and address space. Generic Modbus transport and strict MBAP validation are unchanged.
+- Add simulator scenarios for FC02 even-address-only firmware and reversed MBAP Length bytes, with TCP regression tests for running states, alarm sources, boundaries and errors.
+
+## 0.8.15.dev1
+
+- Identify each pending discovery card by its logger SN. The confirmation page shows the advertised logger SN, model and firmware in Chinese/English, including after a failed connection or parameter correction. Inverter identity remains separately verified through Modbus; existing device and entity IDs are unchanged.
+
 ## 0.8.14.dev1
 
 - Battery 1 sensors are named 电池电量 / 电池电压 / 电池电流 again (English: Battery charge level / voltage / current); most systems have one battery. Battery 2 sensors keep the "电池 2" prefix and are still created only when battery 2 is enabled. Entity IDs are unchanged.
