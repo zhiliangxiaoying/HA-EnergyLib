@@ -21,7 +21,7 @@ globalThis.setInterval = () => 1; globalThis.clearInterval = () => {};
 await import(pathToFileURL(process.argv[2]).href); await Promise.resolve();
 const Card = classes.get("energylib-dispatch");
 const calls = [];
-const config = { device_id: "test-device", power_entity: "number.power", duration_entity: "number.minutes", status_entity: "sensor.task", work_mode_entity: "select.mode" };
+const config = { device_id: "test-device", power_entity: "number.power", duration_entity: "number.minutes", status_entity: "sensor.task", work_mode_entity: "select.mode", control_status_entity: "sensor.mode" };
 const hass = {
   language: "zh-Hans",
   states: {
@@ -29,6 +29,7 @@ const hass = {
     "number.minutes": { state: "5", attributes: {} },
     "sensor.task": { state: "idle", attributes: { remote_access_enabled: false } },
     "select.mode": { state: "self_consumption", attributes: {} },
+    "sensor.mode": { state: "self_consumption", attributes: { control_access_enabled: true } },
   },
   async callService(domain, action, data) { calls.push({ domain, action, data }); },
 };
@@ -118,4 +119,20 @@ assert.equal(card.el("operation").hidden, true);
 card.connectedCallback(); card.disconnectedCallback(); assert.equal(card.timer, null);
 delete hass.states["sensor.task"].attributes.remote_access_enabled; card.hass = hass;
 assert.equal(card.el("operation").hidden, true); assert.equal(card.el("access").disabled, true);
+// Disabling integration controls is distinct from lost communication. Even a
+// stale remote permission must not show enabled controls or issue a start.
+hass.states["sensor.mode"].attributes.control_access_enabled = false;
+hass.states["sensor.task"].attributes.remote_access_enabled = true;
+card.hass = hass;
+assert.equal(card.el("operation").hidden, true);
+assert.equal(card.el("access").disabled, true);
+assert.match(card.el("access-note").textContent, /Control access is off/);
+calls.length = 0; await card.toggleAccess(); await card.start();
+assert.equal(calls.length, 0);
+hass.language = "zh-Hans"; card.hass = hass;
+assert.match(card.el("access-note").textContent, /尚未开启控制权限/);
+hass.states["sensor.mode"].attributes.control_access_enabled = true;
+hass.states["sensor.task"].state = "unavailable";
+card.hass = hass;
+assert.match(card.el("access-note").textContent, /检查连接/);
 process.stdout.write(JSON.stringify({ result: "passed", checks: ["parameter edits never dispatch", "signed start snapshot and minutes conversion", "input boundaries", "stop and countdown", "TOU guard", "failure feedback", "Chinese and English", "timer cleanup"] }));

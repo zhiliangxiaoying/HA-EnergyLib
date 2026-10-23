@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 
 from homeassistant.exceptions import HomeAssistantError
@@ -13,6 +14,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DOMAIN, REMOTE_OPERATION_ENTITIES, RETIRED_ALARM_ENTITIES
 from .energylib_core.model.points import FLOW_INTERVAL
 from .energylib_core.model.remote import RemoteDraft
+from .energylib_core.runtime import ControlError, PartialWrite
 from .energylib_core.transport.modbus_tcp import EnergyLibError
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ class EnergyLibCoordinator(DataUpdateCoordinator):
         self.remote_enabled = False
         self._native_activation_pending = False
         self._command_lock = asyncio.Lock()
+        self.last_command_timing = None
         self._saved_alarm_revision = None
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.state")
         device.state_changed = self.async_update_listeners
@@ -239,32 +242,54 @@ class EnergyLibCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            return await self.device.refresh(self.enabled_keys())
+            data = await self.device.refresh(self.enabled_keys())
+            if self.device.poll_deferred and not self.last_update_success:
+                # Yielding to a command is not proof that an offline device
+                # recovered; keep previous unavailable states until a real read.
+                raise UpdateFailed("Waiting for control before communication recovery")
+            return data
         except (EnergyLibError, ValueError) as err:
             raise UpdateFailed("Unable to read configured inverter") from err
         finally:
             self._alarm_changes()
 
     async def async_command(self, command, value=None, **kwargs):
-        async with self._command_lock:
-            if command in (
-                "power",
-                "start_charge",
-                "start_discharge",
-                "remote_power",
-                "remote_control",
-            ):
-                if not self.remote_enabled:
-                    raise HomeAssistantError(
-                        "Enable remote charge/discharge before starting a task"
-                    )
-                if not self.remote_entities_ready:
-                    raise HomeAssistantError(
-                        "Remote entities are loading; wait for Home Assistant to finish enabling them"
-                    )
-            await self._async_command(command, value, **kwargs)
+        queued = time.monotonic()
+        # Announce even while another command owns the HA lock: background
+        # polling must not slip between already queued user actions.
+        with self.device.prioritize_control():
+            async with self._command_lock:
+                acquired = time.monotonic()
+                try:
+                    await self._async_serial_command(command, value, **kwargs)
+                finally:
+                    finished = time.monotonic()
+                    self.last_command_timing = {
+                        "command": command,
+                        "queue_ms": round((acquired - queued) * 1000, 1),
+                        "service_ms": round((finished - acquired) * 1000, 1),
+                        "total_ms": round((finished - queued) * 1000, 1),
+                    }
+
+    async def _async_serial_command(self, command, value=None, **kwargs):
+        if command in (
+            "power",
+            "start_charge",
+            "start_discharge",
+            "remote_power",
+            "remote_control",
+        ):
+            if not self.remote_enabled:
+                raise HomeAssistantError("Enable remote charge/discharge before starting a task")
+            if not self.remote_entities_ready:
+                raise HomeAssistantError(
+                    "Remote entities are loading; wait for Home Assistant to finish enabling them"
+                )
+        await self._async_command(command, value, **kwargs)
 
     async def _async_command(self, command, value=None, **kwargs):
+        completed = False
+        rejected = False
         try:
             if command == "schedule":
                 await self.device.set_schedule(value, **kwargs)
@@ -281,10 +306,32 @@ class EnergyLibCoordinator(DataUpdateCoordinator):
                 await self.device.stop_remote()
             else:
                 await self.device.set_control(command, value)
+            completed = True
         except (EnergyLibError, ValueError) as err:
+            # Basic ControlError reaches here before any write. Once a write
+            # starts the runtime wraps failures as PartialWrite instead.
+            rejected = isinstance(err, ControlError) and not isinstance(err, PartialWrite)
+            if rejected:
+                self.device.last_command = "rejected"
             raise HomeAssistantError(str(err)) from err
         finally:
-            self.device._timestamps.clear()
-            # Commands must publish their read-back before the service returns;
-            # the polling debouncer can otherwise leave controls stale for 10s.
-            await self.async_refresh()
+            basic = command in self.device.profile.control_keys and command not in (
+                "remote_power",
+                "remote_control",
+            )
+            if (
+                (completed or rejected)
+                and basic
+                and self.last_update_success
+                and self.data is not None
+                and self.device.controls
+            ):
+                # The runtime already read back the control state. Notify now,
+                # keeping the normal polling timer and measurement timestamps.
+                # async_set_updated_data would postpone that timer on each edit.
+                self.data = {key: self.device.values.get(key) for key in self.data}
+                self.async_update_listeners()
+            else:
+                # Failures, recovery, TOU and dispatch still require full refresh.
+                self.device._timestamps.clear()
+                await self.async_refresh()

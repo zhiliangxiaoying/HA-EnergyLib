@@ -11,8 +11,9 @@ import tempfile
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
-from .sinexcel_simulator import BenchConfig, BenchModel, BenchServer
+from .sinexcel_simulator import CONTROL_ADDRESSES, BenchConfig, BenchModel, BenchServer
 
 
 class StaticPaths:
@@ -129,6 +130,23 @@ async def check():
         assert hass.states.get(before_id).attributes["state_class"] == "total_increasing"
         assert hass.states.get(before_id).state not in ("unknown", "unavailable")
         results.append("v1 migration preserves entity_id, device_id and energy metadata")
+        from custom_components.energylib.entity import EnergyLibEntity
+
+        original_language = hass.config.language
+        try:
+            version = legacy.runtime_data.device.identity.arm_firmware_display
+            for language, label in (("zh-Hans", "逆变器"), ("en", "Inverter")):
+                hass.config.language = language
+                firmware_entity = EnergyLibEntity(legacy.runtime_data, "solar_energy")
+                assert firmware_entity.device_info["sw_version"] == f"{label} {version}"
+                assert firmware_entity.device_info["identifiers"] == {
+                    ("energylib", legacy.unique_id)
+                }
+        finally:
+            hass.config.language = original_language
+        results.append(
+            "firmware display distinguishes inverter in Chinese/English without changing identity"
+        )
         from homeassistant.components.frontend import DATA_PANELS
 
         from custom_components.energylib.dashboard import async_register_dashboard
@@ -158,6 +176,8 @@ async def check():
         enabled = [e for e in entities if e.disabled_by is None]
         assert len(enabled) == 14, [(e.entity_id, e.disabled_by) for e in entities]
         assert not any(e.domain in ("number", "switch", "select") for e in entities)
+        read_mode = next(e for e in entities if e.translation_key == "work_mode")
+        assert hass.states.get(read_mode.entity_id).attributes["control_access_enabled"] is False
         lab_device = devices.async_get_device_by_identifier(
             ("energylib", lab.unique_id), lab.entry_id
         )
@@ -186,9 +206,21 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        assert len(controls) == 9 and all(e.disabled_by is not None for e in controls)
+        assert len(controls) == 9
+        basic = {
+            "work_mode",
+            "backup_soc",
+            "min_soc",
+            "export_limit",
+            "grid_charge",
+            "export_limit_enable",
+        }
+        assert {e.translation_key for e in controls if e.disabled_by is None} == basic
+        assert hass.states.get(read_mode.entity_id).attributes["control_access_enabled"] is True
+        assert not lab.runtime_data.remote_enabled
+        assert lab_peer.write_count == 0, "Enabling basic controls must not write the inverter"
         results.append(
-            "native options enable controls; six advanced controls disabled; operation settings ready, remote permission off"
+            "native options enable six basic controls without device writes; remote permission and operation helpers remain disabled"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))
@@ -204,6 +236,196 @@ async def check():
             )
             assert float(hass.states.get(backup_control.entity_id).state) == value
         results.append("consecutive native control actions publish readback before returning")
+
+        coordinator = lab.runtime_data
+        await coordinator._command_lock.acquire()
+        try:
+            waiting = asyncio.create_task(coordinator.async_command("grid_charge", True))
+            await asyncio.sleep(0)
+            assert coordinator.device._pending_controls == 1
+            before = coordinator.device.client.requests
+            await coordinator.device.refresh({"solar_power"}, force=True)
+            assert coordinator.device.client.requests == before
+            from homeassistant.helpers.update_coordinator import UpdateFailed
+
+            coordinator.last_update_success = False
+            try:
+                await coordinator._async_update_data()
+            except UpdateFailed:
+                pass
+            else:
+                raise AssertionError("Deferred cached data reported communication recovery")
+            finally:
+                coordinator.last_update_success = True
+        finally:
+            coordinator._command_lock.release()
+        await waiting
+        assert coordinator.device._pending_controls == 0
+        assert coordinator.device.controls["grid_charge"] == 1
+        assert coordinator.last_command_timing["total_ms"] >= 0
+        results.append("commands queued at the HA lock take priority over every background read")
+
+        before_writes = lab_peer.write_count
+        before_frames = lab.runtime_data.device.client.requests
+        try:
+            await lab.runtime_data.async_command("min_soc", 101)
+        except HomeAssistantError:
+            pass
+        else:
+            raise AssertionError("SOC range was not enforced")
+        assert lab_peer.write_count == before_writes
+        assert lab.runtime_data.device.client.requests == before_frames
+        assert lab.runtime_data.device.last_command == "rejected"
+        assert lab.runtime_data.last_command_timing["command"] == "min_soc"
+        results.append(
+            "pre-write rejection causes no writes or full recovery poll before next command"
+        )
+
+        for key, value, address in (("backup_soc", 35, 0x314A), ("min_soc", 12, 0x3046)):
+            soc_control = next(e for e in controls if e.translation_key == key)
+            lab_peer.read_log.clear()
+            before_frames = lab.runtime_data.device.client.requests
+            before_writes = lab_peer.write_count
+            await hass.services.async_call(
+                "number",
+                "set_value",
+                {"entity_id": soc_control.entity_id, "value": value},
+                blocking=True,
+            )
+            assert lab.runtime_data.device.client.requests - before_frames == 2
+            assert lab_peer.write_count - before_writes == 1
+            assert list(lab_peer.read_log) == [(3, 1, address, 2)]
+            assert hass.states.get(soc_control.entity_id).state == str(float(value))
+        results.append("SOC number services write then read back once, with no dependency pre-read")
+
+        export_control = next(e for e in controls if e.translation_key == "export_limit")
+        lab_peer.read_log.clear()
+        enable_before = lab_model.get_float(CONTROL_ADDRESSES["export_limit_enable"])
+        before_frames = lab.runtime_data.device.client.requests
+        await hass.services.async_call(
+            "number",
+            "set_value",
+            {"entity_id": export_control.entity_id, "value": 2.3},
+            blocking=True,
+        )
+        command_frames = lab.runtime_data.device.client.requests - before_frames
+        assert command_frames == 2
+        assert lab.runtime_data.device.last_control_timing["requests"] == 2
+        assert lab_model.get_float(CONTROL_ADDRESSES["export_limit_enable"]) == enable_before
+        assert lab.runtime_data.last_command_timing["total_ms"] >= 0
+        shown = hass.states.get(export_control.entity_id)
+        assert shown.state == "2.3" and shown.attributes["step"] == 0.1
+        assert shown.attributes["max"] == lab_model.config.rated_kw
+        # Display formatting must not round the authoritative protocol read-back.
+        assert lab.runtime_data.device.controls["export_limit"] == lab_model.get_float(
+            CONTROL_ADDRESSES["export_limit"]
+        )
+        assert lab.runtime_data.device.controls["export_limit"] != 2.3
+        assert not any(
+            address in (0x1240, 0x1270, 0x1272, 0x1274, 0x1276)
+            for _, _, address, _ in lab_peer.read_log
+        )
+        results.append(
+            "number readback uses 0.1 kW precision without changing raw float32; confirmed edits do not read unrelated telemetry"
+        )
+
+        for key, address, domain, service, data in (
+            ("work_mode", 0x300C, "select", "select_option", {"option": "backup"}),
+            ("grid_charge", 0x322A, "switch", "turn_off", {}),
+            ("export_limit_enable", 0x3002, "switch", "turn_off", {}),
+        ):
+            control = next(e for e in controls if e.translation_key == key)
+            lab_peer.read_log.clear()
+            before_frames = lab.runtime_data.device.client.requests
+            before_writes = lab_peer.write_count
+            await hass.services.async_call(
+                domain, service, {"entity_id": control.entity_id, **data}, blocking=True
+            )
+            assert lab.runtime_data.device.client.requests - before_frames == 2
+            assert lab_peer.write_count - before_writes == 1
+            assert list(lab_peer.read_log) == [(3, 1, address, 2)]
+        results.append("EMS mode and switches also use one write and one exact target readback")
+
+        flow_keys = {"solar_power", "battery_power", "load_power", "grid_power"}
+        await lab.runtime_data.device.refresh(flow_keys, force=True)
+        for key in flow_keys:
+            lab.runtime_data.device._timestamps.pop(key, None)
+        lab_peer.read_log.clear()
+        values = await lab.runtime_data.device.refresh(flow_keys)
+        assert list(lab_peer.read_log) == [(3, 1, 0x1270, 8)]
+        assert all(values[key] is not None for key in flow_keys)
+        results.append("four live flow powers use one known contiguous FC03 response")
+
+        # Measure the full poll the previous command path forced after read-back.
+        before_frames = lab.runtime_data.device.client.requests
+        lab.runtime_data.device._timestamps.clear()
+        await lab.runtime_data.async_refresh()
+        avoided_refresh_frames = lab.runtime_data.device.client.requests - before_frames
+        assert avoided_refresh_frames > 0
+
+        mode_control = next(e for e in controls if e.translation_key == "work_mode")
+        await hass.services.async_call(
+            "select",
+            "select_option",
+            {"entity_id": mode_control.entity_id, "option": "backup"},
+            blocking=True,
+        )
+        assert hass.states.get(read_mode.entity_id).state == "backup"
+        results.append(
+            "confirmed EMS edit updates both writable and read-only mode before returning"
+        )
+
+        lab_peer.fault = "reject_write"
+        lab_peer.read_log.clear()
+        try:
+            await hass.services.async_call(
+                "number",
+                "set_value",
+                {"entity_id": export_control.entity_id, "value": 3.1},
+                blocking=True,
+            )
+        except HomeAssistantError:
+            pass
+        else:
+            raise AssertionError("Rejected write reported success")
+        finally:
+            lab_peer.fault = "normal"
+        assert hass.states.get(export_control.entity_id).state == "2.3"
+        assert any(address == 0x1240 for _, _, address, _ in lab_peer.read_log)
+        results.append(
+            "rejected edits retain authoritative value and use the full recovery refresh"
+        )
+
+        client = lab.runtime_data.device.client
+        original_request = client._request_once
+        applied = asyncio.Event()
+
+        async def hold_control_ack(pdu, unit):
+            response = await original_request(pdu, unit)
+            if pdu[:3] == b"\x10\x32\x2a":
+                applied.set()
+                await asyncio.Event().wait()
+            return response
+
+        before_writes = lab_peer.write_count
+        with patch.object(client, "_request_once", hold_control_ack):
+            cancelled = asyncio.create_task(lab.runtime_data.async_command("grid_charge", False))
+            await asyncio.wait_for(applied.wait(), 2)
+            cancelled.cancel()
+            try:
+                await cancelled
+            except asyncio.CancelledError:
+                pass
+            else:
+                raise AssertionError("Cancelled command was reported as completed")
+        assert lab_peer.write_count == before_writes + 1
+        assert lab.runtime_data.device.last_command == "uncertain"
+        assert lab.runtime_data.device.controls["grid_charge"] == 0
+        assert lab.runtime_data.device._pending_controls == 0
+        assert not lab.runtime_data.device._control_tasks
+        results.append(
+            "cancelled write remains uncertain; HA recovers actual state without resending"
+        )
 
         await hass.services.async_call(
             "energylib",
@@ -398,7 +620,19 @@ async def check():
         assert not await async_migrate_entry(hass, device_collision)
         assert devices.async_get(original.id).identifiers == {("energylib", "LAB-DEVICE-CONFLICT")}
         results.append("config, entity and device collisions abort before any migration mutation")
-        print(json.dumps({"result": "passed", "checks": results}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "result": "passed",
+                    "checks": results,
+                    "control_requests": {
+                        "confirmed_export_edit": command_frames,
+                        "avoided_full_refresh": avoided_refresh_frames,
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
     finally:
         for e in list(hass.config_entries.async_entries("energylib")):
             if e.state is ConfigEntryState.LOADED:

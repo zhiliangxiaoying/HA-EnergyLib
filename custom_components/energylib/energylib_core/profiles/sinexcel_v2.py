@@ -22,6 +22,7 @@ from datetime import date, datetime, timezone
 from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
+from ..planner import ReadBlock, plan_reads
 from ..transport.energylib_push import skip_logger_push
 from ..transport.modbus_tcp import DeviceException, EnergyLibError, InvalidResponse
 from .sinexcel_alarms import GRID_ALARM_BIT, describe_alarm
@@ -174,6 +175,44 @@ class SinexcelProfile:
         self.control_keys = frozenset()
         self.max_power_kw = None
         self.tou_limits = None
+        self._flow_block_enabled = True
+
+    def plan_reads(self, mappings):
+        """Keep the four adjacent live powers in one response when all are due."""
+        mappings = set(mappings)
+        flow = tuple(
+            sorted(
+                (
+                    m
+                    for m in mappings
+                    if m.function == 3
+                    and m.count == 2
+                    and m.address in (0x1270, 0x1272, 0x1274, 0x1276)
+                ),
+                key=lambda m: m.address,
+            )
+        )
+        if (
+            self._flow_block_enabled
+            and len(flow) == 4
+            and len({m.unit for m in flow}) == 1
+            and len({m.address for m in flow}) == 4
+        ):
+            blocks = plan_reads(
+                mappings - set(flow), register_limit=self.register_limit, bit_limit=self.bit_limit
+            )
+            blocks.append(ReadBlock(3, flow[0].unit, 0x1270, 8, flow))
+            return sorted(blocks, key=lambda b: (b.function, b.unit, b.address))
+        return plan_reads(mappings, register_limit=self.register_limit, bit_limit=self.bit_limit)
+
+    def can_fallback_read(self, block, code):
+        """A definitive unsupported flow block disables batching until re-probe."""
+        if block.function == 3 and block.address == 0x1270 and block.count == 8:
+            if code in (1, 2, 3, 11):
+                self._flow_block_enabled = False
+                return True
+            return False
+        return code in (1, 2, 11)
 
     async def identify(self, client) -> DeviceIdentity:
         client.unsolicited_filter = skip_logger_push
@@ -218,6 +257,7 @@ class SinexcelProfile:
         return True
 
     async def configure(self, client, identity):
+        self._flow_block_enabled = True
         self.capabilities = {"battery"}
         if identity.machine_type == 0:
             self.capabilities.add("three_phase")
@@ -351,21 +391,40 @@ class SinexcelProfile:
             return RUNNING_STATES[code] if code < 4 else "other"
         return None
 
-    async def read_controls(self, client):
+    def control_read_keys(self, key, *, preflight=False):
+        """Read related state on demand; normal edits have no preflight reads."""
+        if preflight:
+            return set()
+        if key == "work_mode":
+            return {"work_mode", "remote_control"}
+        if key in ("min_soc", "backup_soc"):
+            keys = {"min_soc", "backup_soc"}
+            if "battery_2" in self.capabilities:
+                keys.update({"min_soc_2", "backup_soc_2"})
+            return keys
+        return {key}
+
+    async def read_controls(self, client, keys=None):
         result = {}
-        for key, address in CONTROL_ADDRESSES.items():
-            raw = decode_float(await client.read_holding_registers(address, 2), kind="control")
-            result[key] = self.decode_enum(key, raw) if key == "work_mode" else raw
+        addresses = dict(CONTROL_ADDRESSES)
         if "battery_2" in self.capabilities:
-            for key, address in (("min_soc_2", 0x30B8), ("backup_soc_2", 0x314C)):
-                result[key] = decode_float(
-                    await client.read_holding_registers(address, 2), kind="soc"
-                )
+            addresses.update(min_soc_2=0x30B8, backup_soc_2=0x314C)
+        if keys is not None and not set(keys) <= addresses.keys():
+            raise InvalidResponse("Unsupported control read")
+        for key, address in addresses.items():
+            if keys is not None and key not in keys:
+                continue
+            raw = decode_float(
+                await client.read_holding_registers(address, 2),
+                kind="soc" if key in ("min_soc_2", "backup_soc_2") else "control",
+            )
+            result[key] = self.decode_enum(key, raw) if key == "work_mode" else raw
         if any(v is None for v in result.values()):
             raise InvalidResponse("Control state is incomplete")
-        result["export_limit_enable"] = float(result["export_limit_enable"] != 0)
+        if "export_limit_enable" in result:
+            result["export_limit_enable"] = float(result["export_limit_enable"] != 0)
         for key in ("grid_charge", "remote_control"):
-            if result[key] not in (0, 1):
+            if key in result and result[key] not in (0, 1):
                 raise InvalidResponse("Invalid switch state")
         return result
 
@@ -391,8 +450,10 @@ class SinexcelProfile:
     async def write_float(self, client, address, value):
         words = floats([value])
         await client.write_registers(address, words, retry_safe=address in RETRY_SAFE_ADDRESSES)
-        if await client.read_holding_registers(address, 2) != words:
+        actual = await client.read_holding_registers(address, 2)
+        if actual != words:
             raise InvalidResponse("Write read-back differs")
+        return decode_float(actual, kind="control")
 
     async def validate_write_retry(self, client, address, words, *, remote_owned=False):
         """Recheck a fixed level target against newly probed capabilities/state."""
@@ -448,13 +509,14 @@ class SinexcelProfile:
                 raise InvalidResponse("Unsupported remote retry parameter")
 
     async def apply_control(self, client, key, value):
-        changes = [(CONTROL_ADDRESSES[key], self.control_values(key, value))]
+        changes = [(key, CONTROL_ADDRESSES[key], self.control_values(key, value))]
         if key in ("min_soc", "backup_soc") and "battery_2" in self.capabilities:
-            changes.append((0x30B8 if key == "min_soc" else 0x314C, float(value)))
-        if key == "export_limit":
-            changes.insert(0, (EXPORT_LIMIT_ENABLE, 1.0))  # 1 = all-day export limit
-        for address, value in changes:
-            await self.write_float(client, address, value)
+            changes.append((key + "_2", 0x30B8 if key == "min_soc" else 0x314C, float(value)))
+        confirmed = {}
+        for name, address, value in changes:
+            raw = await self.write_float(client, address, value)
+            confirmed[name] = self.decode_enum(name, raw) if name == "work_mode" else raw
+        return confirmed
 
     async def write_schedule(self, client, schedule):
         blocks = encode_schedule(schedule, datetime.now().date())

@@ -1,5 +1,7 @@
 """Opt-in numeric controls with authoritative read-back."""
 
+from decimal import Decimal
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import EntityCategory
 
@@ -26,13 +28,17 @@ class EnergyLibNumber(EnergyLibControl, NumberEntity):
         self._attr_native_min_value = low
         self._attr_native_max_value = high
         self._attr_native_step = definition.step
+        self._display_digits = max(0, -Decimal(str(definition.step)).as_tuple().exponent)
         self._attr_native_unit_of_measurement = (
             "kW" if definition.key in ("remote_power", "export_limit") else "%"
         )
 
     @property
     def native_value(self):
-        return self.value
+        # Float32 read-back can be 6.800000190734863 for a 6.8 kW setting.
+        # Format the HA control state to its step; keep runtime verification raw.
+        value = self.control_value
+        return None if value is None else round(value, self._display_digits)
 
     async def async_set_native_value(self, value):
         await self.coordinator.async_command(self.key, value)

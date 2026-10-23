@@ -1,9 +1,12 @@
 # Testing / 测试说明
 
-Unless explicitly marked as physical-device checks, results below come
-from **software simulators**. These checks do not establish full hardware compatibility.
+## 0.8.23 – 0.8.36 验证摘要（2026-10-22 ~ 2026-10-23）
 
-除明确标注的实机检查外，以下结果来自**软件模拟器**；这些检查不代表完整硬件兼容性。
+- 230 项单元 / TCP / 看板测试、Ruff、hassfest 通过；HA 2026.8.2 隔离环境的 runtime、alarm、remote、discovery 检查通过，自动写入测试只在回环模拟器中进行。
+- 基础参数设置的请求路径见 [请求流程说明](CONTROL_REQUESTS.zh-Hans.md)：健康连接上每项为 1 次写入 + 1 次严格回读，双电池 SOC 逐路执行；设置优先于后台轮询。
+- 实机只读核对：27 项数值传感器和 8 项配置值与 HA 一致，连续观察轮询正常。实机参数写入只在逐项授权的测试中进行，测试后恢复原值。
+- 实机发现并已处理：出口限制可单独关闭；TOU 设备有效期已过时保存会从当天起续期（结束时间按设备的 23:59:59 存储）；设备拒绝远程启动时还原看门狗参数并回到空闲；能流卡片电池方向修正；负载为负时暂停能流动画并保留原始读数。
+- 仍未关闭：低功率时光伏总功率 / 总发电量少计、负载负值的含义（待厂家确认）；远程充放电需接入电池后验证。
 
 ## 0.8.15 – 0.8.22 验证摘要（2026-10-22）
 

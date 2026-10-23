@@ -97,7 +97,7 @@ class TwinFilesTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["result"], "passed")
 
     @unittest.skipUnless(shutil.which("node"), "node is required for flow checks")
-    def test_negative_home_load_is_shown_as_zero(self):
+    def test_twin_pauses_invalid_flows_and_preserves_raw_load(self):
         result = subprocess.run(
             [shutil.which("node"), str(ROOT / "tests/js/run_twin_load.mjs"), str(TWIN / "twin.js")],
             capture_output=True,

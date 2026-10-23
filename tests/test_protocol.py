@@ -10,6 +10,7 @@ from unittest.mock import patch
 from energylib_under_test.energylib_core.transport import modbus_tcp as transport
 from energylib_under_test.energylib_core.transport.energylib_push import crc16, skip_logger_push
 from energylib_under_test.protocol.device import (
+    DeviceIdentity,
     EnergyLibDevice,
     IdentityMismatch,
     UnsupportedDevice,
@@ -37,6 +38,19 @@ def serial_words(serial="TEST-INVERTER-001", padding=b"\0"):
 
 
 class DecodingTests(unittest.TestCase):
+    def test_inverter_firmware_display_preserves_decoded_identity(self):
+        for word, decoded, display in (
+            (0x0088, "8.8", "V8.08"),
+            (0x0080, "8.0", "V8.00"),
+            (0x008F, "8.15", "V8.15"),
+            (0x0652, "101.2", "V101.02"),
+        ):
+            with self.subTest(word=word):
+                identity = DeviceIdentity("TEST-INVERTER", 0, "100.1", decode_version(word))
+                self.assertEqual(identity.arm_firmware_display, display)
+                self.assertEqual(identity.arm_version, decoded)
+                self.assertEqual(identity.protocol_version, "100.1")
+
     def test_byte_order_and_units_are_not_rescaled(self):
         self.assertEqual(decode_float([0x3F80, 0], kind="power"), 1.0)
         self.assertEqual(decode_float(float_words(-3.5), kind="power"), -3.5)

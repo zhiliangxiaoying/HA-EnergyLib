@@ -149,7 +149,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await self.runtime.set_control("export_limit", 4)
         self.assertEqual(self.runtime.profile.max_power_kw, 3)
         self.assertEqual(self.client.write_retries, 0)
-        self.assertEqual(self.peer.write_count, 1)  # Enable only; no oversized limit was sent.
+        self.assertEqual(self.peer.write_count, 0)  # No oversized limit was sent.
 
     async def test_retry_rechecks_changed_soc_constraint_before_resending(self):
         self.runtime.allow_control = True
@@ -216,20 +216,19 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("solar_power", self.runtime.values)
         self.assertEqual(self.peer.write_count, 0)
 
-    async def test_reconnect_in_preflight_rechecks_identity_before_parameter_write(self):
+    async def test_reconnect_rechecks_identity_before_parameter_write(self):
         self.runtime.allow_control = True
+        await self.client.close()
         original = self.client._request_once
-        failed = False
+        calls = []
 
-        async def interrupted(pdu, unit):
-            nonlocal failed
-            if pdu == b"\x03\x31\x4a\x00\x02" and not failed:
-                failed = True
-                raise InvalidResponse("Injected control preflight read error")
+        async def record(pdu, unit):
+            calls.append((pdu[0], int.from_bytes(pdu[1:3], "big")))
             return await original(pdu, unit)
 
-        with patch.object(self.client, "_request_once", interrupted):
-            await self.runtime.set_control("grid_charge", True)
+        with patch.object(self.client, "_request_once", record):
+            await self.runtime.set_control("work_mode", "backup")
+        self.assertLess(calls.index((3, 0xC102)), calls.index((16, 0x300C)))
         self.assertEqual(self.peer.write_count, 1)
         self.assertEqual(self.client.write_generation, self.client.generation)
         self.assertEqual(self.runtime.last_command, "confirmed")
@@ -323,7 +322,13 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_export_limit_can_be_switched_off_without_zero_export(self):
         self.runtime.allow_control = True
+        await self.runtime.set_control("export_limit_enable", False)
+        before = self.peer.write_count
         await self.runtime.set_control("export_limit", 5)
+        self.assertEqual(self.peer.write_count - before, 1)
+        self.assertEqual((self.model.get_float(0x3002), self.model.get_float(0x3004)), (0, 5))
+        self.assertEqual(self.runtime.controls["export_limit_enable"], 0)
+        await self.runtime.set_control("export_limit_enable", True)
         self.assertEqual((self.model.get_float(0x3002), self.model.get_float(0x3004)), (1, 5))
         self.assertEqual(self.runtime.controls["export_limit_enable"], 1)
         await self.runtime.set_control("export_limit_enable", False)
@@ -623,6 +628,79 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(self.runtime.last_frame_count, fast)
         self.assertEqual(values["grid_voltage_a"], 199.0)
 
+    async def test_four_flow_powers_share_one_response_during_fast_changes(self):
+        keys = {"solar_power", "battery_power", "load_power", "grid_power"}
+        await self.runtime.refresh(keys, force=True)
+        self.now += 10
+        for address, value in ((0x1270, 1.5), (0x1272, -0.3), (0x1274, 0.2), (0x1276, 1.6)):
+            self.model.set_float(address, value)
+        self.peer.read_log.clear()
+        original = self.client._request_once
+
+        async def changing(pdu, unit):
+            response = await original(pdu, unit)
+            if pdu[0] == 3:
+                for address, value in ((0x1270, 3), (0x1272, 0), (0x1274, 0.1), (0x1276, 2.9)):
+                    self.model.set_float(address, value)
+            return response
+
+        with patch.object(self.client, "_request_once", changing):
+            values = await self.runtime.refresh(keys)
+        self.assertEqual(list(self.peer.read_log), [(3, 1, 0x1270, 8)])
+        self.assertAlmostEqual(values["solar_power"], 1.5)
+        self.assertAlmostEqual(values["battery_power"], 0.3)
+        self.assertAlmostEqual(values["load_power"], 0.2)
+        self.assertAlmostEqual(values["grid_power"], -1.6)
+        self.assertAlmostEqual(
+            values["solar_power"]
+            + values["battery_power"]
+            + values["grid_power"]
+            - values["load_power"],
+            0,
+            places=6,
+        )
+
+    async def test_unsupported_flow_block_falls_back_once_then_reprobes_on_reconnect(self):
+        keys = {"solar_power", "battery_power", "load_power", "grid_power"}
+        await self.runtime.refresh(keys, force=True)
+        self.peer.fault = "flow_single_only"
+        self.now += 10
+        self.peer.read_log.clear()
+        values = await self.runtime.refresh(keys)
+        self.assertTrue(all(values[k] is not None for k in keys))
+        self.assertEqual(
+            list(self.peer.read_log),
+            [(3, 1, 0x1270, 8)] + [(3, 1, a, 2) for a in range(0x1270, 0x1278, 2)],
+        )
+        self.now += 10
+        self.peer.read_log.clear()
+        await self.runtime.refresh(keys)
+        self.assertEqual(list(self.peer.read_log), [(3, 1, a, 2) for a in range(0x1270, 0x1278, 2)])
+        self.assertEqual(self.client.read_retries, 0)
+        self.peer.fault = "normal"
+        await self.client.close()
+        self.peer.read_log.clear()
+        await self.runtime.refresh(keys)
+        self.assertIn((3, 1, 0x1270, 8), self.peer.read_log)
+
+    async def test_malformed_flow_block_is_rejected_without_silent_single_point_fallback(self):
+        keys = {"solar_power", "battery_power", "load_power", "grid_power"}
+        await self.runtime.refresh(keys, force=True)
+        previous = dict(self.runtime.values)
+        self.now += 10
+        self.peer.read_log.clear()
+        self.peer.fault = "short_frame"
+        with self.assertRaises(EnergyLibError):
+            await self.runtime.refresh(keys)
+        self.assertTrue(self.runtime.profile._flow_block_enabled)
+        self.assertEqual(list(self.peer.read_log), [(3, 1, 0x1270, 8)] * 4)
+        self.assertEqual(self.runtime.values["solar_power"], previous["solar_power"])
+
+    async def test_unrelated_quantity_errors_do_not_enable_read_fallback(self):
+        block = plan_reads([Mapping("voltage", 0x1000)])[0]
+        self.assertFalse(self.runtime.profile.can_fallback_read(block, 3))
+        self.assertTrue(self.runtime.profile._flow_block_enabled)
+
     async def test_a_tick_a_few_ms_early_still_reads_the_flow_powers(self):
         await self.runtime.refresh({"solar_power"})
         self.model.set_float(0x1270, 3.5)
@@ -655,6 +733,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_changed_serial_refuses_all_writes(self):
         self.runtime.allow_control = True
         self.model.registers[0xC104] = 0x4F54
+        await self.client.close()
         with self.assertRaises(IdentityMismatch):
             await self.runtime.set_control("grid_charge", True)
         self.assertEqual(self.peer.write_count, 0)
@@ -667,7 +746,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             ("backup_soc", -1),
             ("backup_soc", float("inf")),
             ("backup_soc", True),
-            ("min_soc", 30),
+            ("min_soc", 101),
             ("work_mode", "remote"),
         ):
             with self.subTest(key=key, value=value), self.assertRaises(ControlError):
@@ -678,22 +757,49 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.model.get_float(0x314C), 35)
         self.assertEqual(self.runtime.controls["backup_soc"], 35)
 
-    async def test_existing_soc_conflict_only_blocks_soc_writes(self):
+    async def test_soc_conflict_is_rejected_from_cached_values_without_reads(self):
         self.runtime.allow_control = True
         # Device already has min SOC above backup SOC, e.g. changed from the App.
         for address, value in ((0x3046, 50), (0x30B8, 50), (0x314A, 30), (0x314C, 30)):
             self.model.set_float(address, value)
+        # A conflict elsewhere must not block unrelated controls.
         await self.runtime.set_control("grid_charge", True)
         self.assertEqual(self.runtime.controls["grid_charge"], 1)
         await self.runtime.set_control("export_limit", 2)
         self.assertEqual(self.runtime.controls["export_limit"], 2)
-        before = self.peer.write_count
-        with self.assertRaises(ControlError):
+        writes, requests = self.peer.write_count, self.client.requests
+        with self.assertRaises(ControlError) as caught:
             await self.runtime.set_control("backup_soc", 40)
-        self.assertEqual(self.peer.write_count, before)
+        self.assertNotIsInstance(caught.exception, PartialWrite)
+        # Judged from the cached read-back: no write and no extra read.
+        self.assertEqual((self.peer.write_count, self.client.requests), (writes, requests))
+        self.assertEqual(self.runtime.controls["backup_soc"], 30)
         # Raising backup above minimum resolves the conflict and is accepted.
         await self.runtime.set_control("backup_soc", 60)
         self.assertEqual(self.runtime.controls["backup_soc"], 60)
+        self.assertEqual(self.model.get_float(0x314C), 60)
+        # Battery 2 is checked against its own cached minimum.
+        self.model.set_float(0x30B8, 70)
+        await self.runtime.refresh(set(), force=True)
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("backup_soc", 65)
+
+    async def test_mode_change_checks_remote_session_from_cache_or_one_read(self):
+        self.runtime.allow_control = True
+        self.model.set_float(0xC646, 1)  # session started from the App
+        self.runtime.controls = {}
+        requests = self.client.requests
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("work_mode", "backup")
+        self.assertEqual(self.client.requests - requests, 1)  # one read, no write
+        self.assertEqual(self.model.get_float(0x300C), 0)
+        self.model.set_float(0xC646, 0)
+        await self.runtime.refresh(set(), force=True)
+        requests = self.client.requests
+        await self.runtime.set_control("work_mode", "backup")
+        self.assertEqual(self.runtime.controls["work_mode"], "backup")
+        # With a cached state the edit is just the write and its read-back.
+        self.assertEqual(self.client.requests - requests, 2)
 
     async def test_power_controls_follow_profile_rating(self):
         self.runtime.allow_control = True
@@ -772,14 +878,21 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.runtime.controls["backup_soc"], 40)
         self.assertEqual(self.runtime.controls["backup_soc_2"], 40)
 
-    async def test_second_battery_soc_constraints_checked_before_writes(self):
+    async def test_second_battery_soc_rejection_retains_actual_partial_result(self):
         self.runtime.allow_control = True
         self.model.set_float(0x30B8, 50)
         self.model.set_float(0x314C, 60)
         before = self.peer.write_count
-        with self.assertRaises(ControlError):
-            await self.runtime.set_control("backup_soc", 40)
-        self.assertEqual(self.peer.write_count, before)
+        apply = self.model.apply_write
+        with patch.object(
+            self.model, "apply_write", lambda a, w: 3 if a == 0x314C else apply(a, w)
+        ):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_control("backup_soc", 40)
+        self.assertEqual(self.peer.write_count, before + 2)
+        self.assertEqual(self.runtime.last_command, "uncertain")
+        self.assertEqual(self.runtime.controls["backup_soc"], 40)
+        self.assertEqual(self.runtime.controls["backup_soc_2"], 60)
 
     async def test_schedule_roundtrip_clear_and_mode_preservation(self):
         self.runtime.allow_control = True
@@ -987,6 +1100,225 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(self.runtime.controls["grid_charge"], 1)
         self.assertEqual(self.runtime.last_command, "confirmed")
+
+    async def test_basic_control_reads_only_dependencies_and_preserves_poll_deadline(self):
+        self.runtime.allow_control = True
+        await self.runtime.refresh({"work_mode", "solar_power"}, force=True)
+        deadline = self.runtime._timestamps["controls"]
+        for key, value, expected, frames in (
+            ("export_limit", 2.3, {0x3004}, 2),
+            ("grid_charge", True, {0x322A}, 2),
+            ("backup_soc", 35, {0x314A, 0x314C}, 4),
+            ("min_soc", 12, {0x3046, 0x30B8}, 4),
+            ("work_mode", "backup", {0x300C}, 2),
+        ):
+            with self.subTest(key=key):
+                self.peer.read_log.clear()
+                before = self.client.requests
+                await self.runtime.set_control(key, value)
+                reads = {address for _, _, address, _ in self.peer.read_log}
+                self.assertEqual(reads, expected)
+                self.assertEqual(self.client.requests - before, frames)
+                self.assertEqual(self.runtime.last_control_timing["requests"], frames)
+                self.assertEqual(self.runtime._timestamps["controls"], deadline)
+        self.assertEqual(self.runtime.values["work_mode"], "backup")
+
+    async def test_basic_edits_start_with_write_then_exact_target_readback(self):
+        self.runtime.allow_control = True
+        for batteries in (1, 2):
+            self.model.set_float(0x3036, int(batteries == 2))
+            await self.runtime.initialize()
+            await self.runtime.refresh(set(), force=True)
+            for key, value, addresses in (
+                ("backup_soc", 35, (0x314A, 0x314C)),
+                ("min_soc", 12, (0x3046, 0x30B8)),
+                ("work_mode", "backup", (0x300C,)),
+                ("export_limit", 2.3, (0x3004,)),
+                ("export_limit_enable", True, (0x3002,)),
+                ("grid_charge", True, (0x322A,)),
+            ):
+                calls = []
+                original = self.client._request_once
+
+                async def record(pdu, unit):
+                    calls.append((pdu[0], int.from_bytes(pdu[1:3], "big")))
+                    return await original(pdu, unit)
+
+                with self.subTest(batteries=batteries, key=key):
+                    with patch.object(self.client, "_request_once", record):
+                        await self.runtime.set_control(key, value)
+                    self.assertEqual(
+                        calls,
+                        [(fc, address) for address in addresses[:batteries] for fc in (16, 3)],
+                    )
+                    self.assertEqual(
+                        self.runtime.last_control_timing["requests"], len(addresses[:batteries]) * 2
+                    )
+                    if key == "export_limit":
+                        self.assertAlmostEqual(self.runtime.controls[key], value, places=5)
+                    else:
+                        self.assertEqual(self.runtime.controls[key], value)
+
+    async def test_waiting_control_preempts_poll_between_requests_and_resumes_due_points(self):
+        self.runtime.allow_control = True
+        await self.runtime.refresh({"solar_power", "load_power"}, force=True)
+        previous = dict(self.runtime.values)
+        self.now += 10
+        started, release = asyncio.Event(), asyncio.Event()
+        original = self.runtime._read
+        calls = []
+
+        async def held_read(mapping):
+            calls.append(mapping.address)
+            if len(calls) == 1:
+                started.set()
+                await release.wait()
+            return await original(mapping)
+
+        with patch.object(self.runtime, "_read", held_read):
+            poll = asyncio.create_task(self.runtime.refresh({"solar_power", "load_power"}))
+            await started.wait()
+            command = asyncio.create_task(self.runtime.set_control("grid_charge", True))
+            await asyncio.sleep(0)
+            self.assertEqual(self.runtime._pending_controls, 1)
+            release.set()
+            snapshot = await poll
+            await command
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(snapshot, {k: previous[k] for k in snapshot})
+        self.assertEqual(self.runtime._pending_controls, 0)
+        self.peer.read_log.clear()
+        await self.runtime.refresh({"solar_power", "load_power"})
+        self.assertEqual({a for _, _, a, _ in self.peer.read_log}, {0x1270, 0x1274})
+
+    async def test_cancelled_queued_control_does_not_leave_poll_preemption_active(self):
+        self.runtime.allow_control = True
+        await self.runtime._lock.acquire()
+        command = asyncio.create_task(self.runtime.set_control("grid_charge", True))
+        await asyncio.sleep(0)
+        command.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await command
+        self.runtime._lock.release()
+        self.assertEqual(self.runtime._pending_controls, 0)
+        self.assertEqual(self.peer.write_count, 0)
+        self.assertIsNotNone((await self.runtime.refresh({"solar_power"}))["solar_power"])
+
+    async def test_priority_reaches_internal_identity_alarm_control_and_schedule_reads(self):
+        self.runtime.allow_control = True
+        for enabled, target in (
+            ({"solar_power"}, 0x2000),
+            ({"alarm_status"}, 0x1048),
+            (set(), 0x300C),
+            ({"tou_schedule"}, 0xC014),
+        ):
+            with self.subTest(target=hex(target)):
+                await self.runtime.refresh(enabled, force=True)
+                self.now += 300
+                old_controls = dict(self.runtime.controls)
+                started, release = asyncio.Event(), asyncio.Event()
+                original = self.client._request_once
+                poll_reads = []
+
+                async def held(pdu, unit):
+                    address = int.from_bytes(pdu[1:3], "big")
+                    if self.runtime._poll_task is asyncio.current_task():
+                        poll_reads.append(address)
+                        if address == target:
+                            started.set()
+                            await release.wait()
+                    return await original(pdu, unit)
+
+                with patch.object(self.client, "_request_once", held):
+                    poll = asyncio.create_task(self.runtime.refresh(enabled))
+                    await asyncio.wait_for(started.wait(), 2)
+                    command = asyncio.create_task(self.runtime.set_control("grid_charge", True))
+                    await asyncio.sleep(0)
+                    release.set()
+                    await poll
+                    # No second background request follows the held exchange.
+                    self.assertEqual(poll_reads[-1], target)
+                    self.assertEqual(poll_reads.count(target), 1)
+                    self.assertEqual(self.runtime.controls, old_controls)
+                    await command
+                self.assertEqual(self.runtime._pending_controls, 0)
+                self.assertEqual(self.runtime._control_tasks, {})
+                self.assertIsNone(self.runtime._poll_task)
+                self.assertEqual(self.client.read_retries, 0)
+
+    async def test_command_owned_recovery_poll_is_not_suppressed_by_its_priority(self):
+        self.runtime.allow_control = True
+        with self.runtime.prioritize_control():
+            before = self.client.requests
+            result = await self.runtime.refresh({"solar_power"}, force=True)
+            self.assertGreater(self.client.requests, before)
+            self.assertIsNotNone(result["solar_power"])
+        self.assertEqual(self.runtime._pending_controls, 0)
+        self.assertFalse(self.runtime._control_tasks)
+
+    async def test_target_read_failure_after_write_is_not_reported_confirmed(self):
+        self.runtime.allow_control = True
+        await self.runtime.refresh({"work_mode"}, force=True)
+        original = self.client.read_holding_registers
+        failed = False
+
+        async def missing_target(address, count, **kwargs):
+            nonlocal failed
+            if address == 0x322A and not failed:
+                failed = True
+                raise InvalidResponse("Injected write read-back failure")
+            return await original(address, count, **kwargs)
+
+        with patch.object(self.client, "read_holding_registers", missing_target):
+            with self.assertRaises(PartialWrite):
+                await self.runtime.set_control("grid_charge", True)
+        self.assertEqual(self.runtime.last_command, "uncertain")
+        # Recovery reads the actual device instead of inventing the requested value.
+        self.assertEqual(self.runtime.controls["grid_charge"], 1)
+
+    async def test_cancelled_after_write_does_not_keep_stale_confirmed_control_state(self):
+        self.runtime.allow_control = True
+        await self.runtime.refresh({"work_mode"}, force=True)
+        self.assertEqual(self.runtime.controls["grid_charge"], 0)
+        applied = asyncio.Event()
+        original = self.client._request_once
+
+        async def hold_ack(pdu, unit):
+            response = await original(pdu, unit)
+            if pdu[0] == 16:
+                applied.set()
+                await asyncio.Event().wait()
+            return response
+
+        with patch.object(self.client, "_request_once", hold_ack):
+            command = asyncio.create_task(self.runtime.set_control("grid_charge", True))
+            await asyncio.wait_for(applied.wait(), 2)
+            command.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await command
+        self.assertEqual(self.model.get_float(0x322A), 1)
+        self.assertEqual(self.runtime.last_command, "uncertain")
+        self.assertNotIn("grid_charge", self.runtime.controls)
+        self.assertEqual(self.peer.write_count, 1)
+        self.assertEqual(self.client.write_retries, 0)
+        self.assertEqual(self.runtime._pending_controls, 0)
+        self.assertFalse(self.runtime._control_tasks)
+        await self.runtime.refresh({"work_mode"})
+        self.assertEqual(self.runtime.controls["grid_charge"], 1)
+        self.assertEqual(self.peer.write_count, 1)
+        before = self.client.requests
+        await self.runtime.set_control("grid_charge", False)
+        self.assertEqual(self.client.requests - before, 2)
+
+    async def test_mode_rejects_known_active_remote_without_any_requests(self):
+        self.runtime.allow_control = True
+        self.model.set_float(0xC646, 1)
+        await self.runtime.refresh(set(), force=True)
+        self.peer.read_log.clear()
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("work_mode", "backup")
+        self.assertEqual(self.peer.write_count, 0)
+        self.assertEqual(list(self.peer.read_log), [])
 
     async def test_missing_control_readback_blocks_mutation(self):
         self.runtime.allow_control = True

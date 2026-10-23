@@ -3,6 +3,7 @@
 import asyncio
 import math
 import time
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -11,7 +12,6 @@ from .model.alarms import ALARM_KEYS, AlarmTracker
 from .model.points import CONTROLS, MEASUREMENTS
 from .model.remote import REMOTE_KEYS, RemoteDraft
 from .model.tou import TouSchedule
-from .planner import plan_reads
 from .profiles import get_profile
 from .transport.modbus_tcp import DeviceException, EnergyLibError
 
@@ -29,17 +29,27 @@ class PartialWrite(ControlError):
     """A command may be partially applied: inspect authoritative read-back."""
 
 
+class _PollDeferred(Exception):
+    """Cooperative yield at a completed read boundary, never a transport failure."""
+
+
 class DeviceRuntime:
     def __init__(self, client, profile_id, *, clock=time.monotonic, task_factory=None):
         self.client = client
         self.client.verify_write_identity = self._identity
         self.client.authorize_write_retry = self._authorize_write_retry
+        self.client.read_checkpoint = self._poll_read_checkpoint
         self.profile = get_profile(profile_id)
         # The host (e.g. HA) can own background tasks so they are tracked and
         # cancelled on unload/shutdown; plain asyncio is the library default.
         self._task_factory = task_factory or asyncio.create_task
         self.identity = None
         self._lock = asyncio.Lock()
+        self._pending_controls = 0
+        self._control_tasks = {}
+        self._poll_task = None
+        self.last_control_timing = None
+        self.poll_deferred = False
         self._clock = clock
         self._timestamps = {}
         self.values = {}
@@ -165,8 +175,11 @@ class DeviceRuntime:
 
     async def refresh(self, enabled, *, force=False):
         async with self._lock:
+            self._poll_task = asyncio.current_task()
+            self.poll_deferred = False
             count = self.client.requests
             try:
+                self._poll_read_checkpoint()
                 now = self._clock()
                 # Identity and control state change rarely: check them on the 30 s
                 # tier, not on every fast energy-flow tick.
@@ -202,16 +215,13 @@ class DeviceRuntime:
                 }
                 maps = [m for k in due for m in self.profile.mappings.get(k, ())]
                 raw = {}
-                blocks = plan_reads(
-                    maps,
-                    register_limit=self.profile.register_limit,
-                    bit_limit=self.profile.bit_limit,
-                )
+                blocks = self.profile.plan_reads(maps)
                 for block in blocks:
+                    self._poll_read_checkpoint()
                     try:
                         words = await self._read(block)
                     except DeviceException as err:
-                        if err.code not in (1, 2, 11):
+                        if not self.profile.can_fallback_read(block, err.code):
                             raise
                         # Only a definitive per-map response can isolate unsupported points.
                         for mapping in block.mappings:
@@ -225,6 +235,7 @@ class DeviceRuntime:
                         for mapping in block.mappings:
                             offset = mapping.address - block.address
                             raw[mapping] = words[offset : offset + mapping.count]
+                self._poll_read_checkpoint()
                 for key in due:
                     if key == "tou_schedule":
                         self.schedule = await self.profile.read_schedule(self.client)
@@ -255,6 +266,7 @@ class DeviceRuntime:
                         >= SLOW_TIER - TIER_SLACK
                     )
                 ):
+                    self._poll_read_checkpoint()
                     self.controls = await self.profile.read_controls(self.client)
                     self._timestamps["controls"] = now
                     if (
@@ -272,6 +284,14 @@ class DeviceRuntime:
                 self.last_frame_count = self.client.requests - count
                 self._publish_remote()
                 return {k: self.values.get(k) for k in enabled}
+            except _PollDeferred:
+                # Includes profile-internal alarm/control/TOU/identity reads.
+                # The in-flight exchange finished; keep unfinished tiers due.
+                self.last_frame_count = self.client.requests - count
+                self.poll_deferred = True
+                self._publish_alarms()
+                self._publish_remote()
+                return {k: self.values.get(k) for k in enabled}
             except BaseException:
                 self._timestamps.clear()  # Recovery must not publish stale slow-tier values.
                 self._identity_checked = -math.inf  # Re-verify on the next poll.
@@ -284,6 +304,8 @@ class DeviceRuntime:
                     self.remote_status = "unconfirmed"
                     self._publish_remote()
                 raise
+            finally:
+                self._poll_task = None
 
     def _publish_alarms(self):
         values, attributes = self.alarms.snapshot(self.profile.mappings.get("active_alarms", ()))
@@ -348,6 +370,59 @@ class DeviceRuntime:
     async def _write_float(self, address, value):
         await self.profile.write_float(self.client, address, value)
 
+    def _poll_read_checkpoint(self):
+        task = asyncio.current_task()
+        if self._pending_controls and self._poll_task is task and task not in self._control_tasks:
+            raise _PollDeferred
+
+    @contextmanager
+    def prioritize_control(self):
+        """Announce queued commands before any HA/device lock is acquired."""
+        self._pending_controls += 1
+        task = asyncio.current_task()
+        self._control_tasks[task] = self._control_tasks.get(task, 0) + 1
+        try:
+            yield
+        finally:
+            self._pending_controls -= 1
+            self._control_tasks[task] -= 1
+            if not self._control_tasks[task]:
+                del self._control_tasks[task]
+
+    @asynccontextmanager
+    async def _control_lock(self):
+        queued = time.monotonic()
+        with self.prioritize_control():
+            async with self._lock:
+                acquired, requests = time.monotonic(), self.client.requests
+                try:
+                    yield
+                finally:
+                    finished = time.monotonic()
+                    self.last_control_timing = {
+                        "queue_ms": round((acquired - queued) * 1000, 1),
+                        "operation_ms": round((finished - acquired) * 1000, 1),
+                        "total_ms": round((finished - queued) * 1000, 1),
+                        "requests": self.client.requests - requests,
+                    }
+
+    def _check_soc_order(self, key, value):
+        """Minimum SOC must not exceed backup SOC, judged from cached values only.
+
+        An unknown counterpart (empty cache) is left to the write read-back; a
+        device already in conflict (set from the App) only blocks SOC writes.
+        """
+        pairs = [("min_soc", "backup_soc", "Minimum SOC must not exceed backup SOC")]
+        if "battery_2" in self.profile.capabilities:
+            pairs.append(
+                ("min_soc_2", "backup_soc_2", "Battery 2 minimum SOC must not exceed backup SOC")
+            )
+        for min_key, backup_key, message in pairs:
+            minimum = value if key == "min_soc" else self.controls.get(min_key)
+            backup = value if key == "backup_soc" else self.controls.get(backup_key)
+            if minimum is not None and backup is not None and minimum > backup:
+                raise ControlError(message)
+
     async def set_control(self, key, value):
         self._gate()
         if key not in self.profile.control_keys:
@@ -358,8 +433,10 @@ class DeviceRuntime:
             if value:
                 return await self.set_battery_power(0, 300)
             return await self.stop_remote()
-        async with self._lock:
-            await self._prepare_locked()
+        async with self._control_lock():
+            # A live connection is already pinned to its verified identity.
+            # Re-identify/re-probe on reconnect, not before every parameter edit.
+            await self._prepare_locked(verify=False)
             self._gate()
             if key not in self.profile.control_keys:
                 raise ControlError("Unsupported control")
@@ -378,36 +455,64 @@ class DeviceRuntime:
                     raise ControlError("Profile does not declare a rated power") from err
                 if not math.isfinite(value) or not low <= value <= high:
                     raise ControlError("Value outside limits")
-            actual = await self.profile.read_controls(self.client)
-            if actual["remote_control"] and key == "work_mode":
+            if key == "work_mode" and self.remote_deadline is None:
+                remote = self.controls.get("remote_control")
+                if remote is None:
+                    # Only right after start-up/recovery: one read, so a session
+                    # started from the App is never overridden blindly.
+                    remote = (await self.profile.read_controls(self.client, {"remote_control"}))[
+                        "remote_control"
+                    ]
+                if remote:
+                    raise ControlError("Stop remote control first")
+            elif key == "work_mode":
                 raise ControlError("Stop remote control first")
-            # Only SOC writes can create or fix a min/backup conflict; a device
-            # already in conflict (e.g. set from the App) must not block others.
             if key in ("min_soc", "backup_soc"):
-                minimum = value if key == "min_soc" else actual["min_soc"]
-                backup = value if key == "backup_soc" else actual["backup_soc"]
-                if minimum is None or backup is None or minimum > backup:
-                    raise ControlError("Minimum SOC must not exceed backup SOC")
-                if "battery_2" in self.profile.capabilities:
-                    minimum_2 = value if key == "min_soc" else actual["min_soc_2"]
-                    backup_2 = value if key == "backup_soc" else actual["backup_soc_2"]
-                    if minimum_2 is None or backup_2 is None or minimum_2 > backup_2:
-                        raise ControlError("Battery 2 minimum SOC must not exceed backup SOC")
+                self._check_soc_order(key, value)
+            # Basic edits have no dependency pre-read: the checks above use cached
+            # control state (refreshed by every read-back and the 30 s tier).
+            # Confirm every target through exact raw read-back.
             try:
-                await self.profile.apply_control(self.client, key, value)
+                confirmed = await self.profile.apply_control(self.client, key, value)
                 await self._verify_connection()
+                if not self.controls:
+                    # Bootstrap still needs a full snapshot. Normal edits reuse
+                    # the exact raw read-back already obtained for each write.
+                    confirmed = await self.profile.read_controls(self.client)
+                    await self._verify_connection()
+                    self._timestamps["controls"] = self._clock()
+                self.controls.update(confirmed)
+                if "work_mode" in confirmed:
+                    self.values["work_mode"] = confirmed["work_mode"]
+                    self._timestamps["work_mode"] = self._clock()
                 self.last_command = "confirmed"
+                self._publish_remote()
+            except asyncio.CancelledError:
+                # The device may already have applied a write whose confirmation
+                # was interrupted. Invalidate cached controls, never resend on
+                # cancellation; the next poll reads the authoritative state.
+                self.last_command = "uncertain"
+                self.controls = {}
+                self._timestamps.pop("controls", None)
+                self._publish_remote()
+                raise
             except EnergyLibError as err:
                 self.last_command = "uncertain"
-                raise PartialWrite("Command failed; some parameters may have changed") from err
-            finally:
                 await self._update_controls_best_effort()
+                raise PartialWrite("Command failed; some parameters may have changed") from err
 
     async def _update_controls_best_effort(self):
         try:
             await self._identity()
             self.controls = await self.profile.read_controls(self.client)
             await self._verify_connection()
+            now = self._clock()
+            self._timestamps["controls"] = now
+            # This read-back also confirms the mode sensor; do not leave the
+            # read-only mode stale until its 60-second polling tier is due.
+            self.values["work_mode"] = self.controls["work_mode"]
+            self._timestamps["work_mode"] = now
+            self._publish_remote()
         except EnergyLibError:
             self.controls = {}
 

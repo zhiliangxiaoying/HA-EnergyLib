@@ -23,6 +23,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "rated_power_kw": r.profile.max_power_kw,
         "control_enabled": r.allow_control,
         "last_command": r.last_command,
+        "last_control_timing": r.last_control_timing,
+        "last_command_timing": c.last_command_timing,
         "available_points": sorted(k for k, v in (c.data or {}).items() if v is not None)
         if c.last_update_success
         else [],

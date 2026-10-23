@@ -370,12 +370,20 @@
 
     const socKey = device?.entities.battery_total_soc ? 'battery_total_soc' : 'battery_soc';
     const d = {solar: reading('solar_power'), grid: reading('grid_power'), battery: reading('battery_power'), load: displayLoad(reading('load_power')), soc: reading(socKey)};
-    const negativeLoad = reading('load_power') < -5;
+    const rawLoad = reading('load_power');
+    const negativeLoad = rawLoad !== null && rawLoad < 0;
+    const powerComplete = [d.solar, d.grid, d.battery, rawLoad].every(v => v !== null);
+    const flowReady = powerComplete && !negativeLoad;
+    if (hass && device) {
+      notice.hidden = flowReady;
+      notice.textContent = negativeLoad ? '设备上报家庭负载为负值，已暂停能流动画。请核对计量方向和接线，下方保留原始读数。' : '部分功率数据暂不可用，能流动画已暂停；数据恢复后自动继续。';
+    }
     const direction = (v, pos, neg, idle) => v > 5 ? pos : v < -5 ? neg : idle;
     $('metric-solar').textContent = fmt(d.solar); $('metric-solar-note').textContent = note('solar_power', d.solar, d.solar > 5 ? '发电中' : '无输出');
     $('metric-grid').textContent = fmt(d.grid); $('metric-grid-note').textContent = note('grid_power', d.grid, direction(d.grid, '电网购电', '馈入电网', '待机'));
     $('metric-battery').textContent = fmt(d.battery); $('metric-battery-note').textContent = note('battery_power', d.battery, direction(d.battery, '放电', '充电', '待机'));
-    $('metric-load').textContent = fmt(d.load); $('metric-load-note').textContent = note('load_power', d.load, negativeLoad ? '设备上报负值，按 0 显示' : '家庭用电');
+    const loadText = negativeLoad ? '-' + fmt(rawLoad) : fmt(d.load);
+    $('metric-load').textContent = loadText; $('metric-load-note').textContent = note('load_power', rawLoad, negativeLoad ? '设备上报负值，计量待核对' : '家庭用电');
     $('metric-soc').textContent = d.soc === null ? '—' : d.soc.toFixed(0) + ' %'; $('metric-soc-note').textContent = note(socKey, d.soc, '电池总电量');
     $('soc-fill').style.width = (d.soc ?? 0) + '%';
     const running = stateOf('running_state');
@@ -384,20 +392,20 @@
     $('flow-inverter-val').textContent = running ? $('metric-state').textContent : '—';
 
     const connected = Object.values(d).filter(v => v !== null).length;
-    $('energy-data-summary').textContent = '设备数据 · ' + (connected ? connected + '/5 项可用' : '等待连接');
-    $('energy-badge').textContent = connected ? connected + '/5 项可用' : '数据待连接';
-    $('energy-badge').style.color = connected ? '#7cddb0' : '#98b5b8';
-    $('flow-scenario').textContent = connected ? [d.solar > 5 ? '光伏发电' : '光伏无输出', direction(d.battery, '储能放电', '储能充电', '储能待机'), direction(d.grid, '电网购电', '馈入电网', '电网待机')].join(' · ') : '等待能源设备数据';
+    $('energy-data-summary').textContent = '设备数据 · ' + (connected ? connected + (flowReady ? '/5 项可用' : '/5 项有读数') : '等待连接');
+    $('energy-badge').textContent = negativeLoad ? '计量待核对' : !powerComplete && connected ? '数据不完整' : connected ? connected + '/5 项可用' : '数据待连接';
+    $('energy-badge').style.color = !flowReady && connected ? '#f7b731' : connected ? '#7cddb0' : '#98b5b8';
+    $('flow-scenario').textContent = negativeLoad ? '负载读数异常 · 能流已暂停' : !flowReady ? '等待完整功率数据' : [d.solar > 5 ? '光伏发电' : '光伏无输出', direction(d.battery, '储能放电', '储能充电', '储能待机'), direction(d.grid, '电网购电', '馈入电网', '电网待机')].join(' · ');
     $('flow-solar-val').textContent = fmt(d.solar); $('flow-grid-val').textContent = fmt(d.grid);
-    $('flow-battery-val').textContent = fmt(d.battery); $('flow-load-val').textContent = fmt(d.load);
+    $('flow-battery-val').textContent = fmt(d.battery); $('flow-load-val').textContent = loadText;
     $('flow-battery-direction').textContent = d.battery === null ? '待接入' : direction(d.battery, '放电 ↑', '充电 ↓', '待机');
-    $('energy-explanation').textContent = connected ? '光带与箭头按功率方向移动；灰线表示待机或暂无数据。' : '连接 EnergyLIB 设备后，这里会显示功率流向。';
+    $('energy-explanation').textContent = !flowReady && connected ? '能流动画已暂停，灰线仅表示接线示意，不代表正在充放电或上网。' : connected ? '光带与箭头按功率方向移动；灰线表示待机或暂无数据。' : '连接 EnergyLIB 设备后，这里会显示功率流向。';
     const stamps = KEYS.map(k => stateOf(k)?.last_updated).filter(Boolean).sort();
     $('energy-updated').textContent = stamps.length ? '更新时间：' + new Date(stamps.at(-1)).toLocaleString('zh-CN', {hour12: false}) : hass ? '等待设备数据' : '';
 
     const vectors = [['solar', d.solar, 'M46 67 L46 105 L117 105', 'M117 105 L46 105 L46 67'], ['grid', d.grid, 'M254 67 L254 105 L183 105', 'M183 105 L254 105 L254 67'], ['home', d.load, 'M150 127 L150 161', 'M150 161 L150 127'], ['battery', d.battery, 'M46 161 L46 123 L117 113', 'M117 113 L46 123 L46 161']];
     for (const [id, v, forward, reverse] of vectors) {
-      const active = v !== null && Math.abs(v) > 5, svg = $('svg-' + id);
+      const active = flowReady && v !== null && Math.abs(v) > 5, svg = $('svg-' + id);
       svg.classList.toggle('inactive', !active); svg.setAttribute('d', v !== null && v < 0 ? reverse : forward);
       svg.setAttribute('marker-end', active ? 'url(#flow-arrow-' + id + ')' : 'none');
       const route = flowRoutes.find(r => r.id === id);

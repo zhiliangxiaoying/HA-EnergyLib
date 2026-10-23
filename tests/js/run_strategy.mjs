@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const [, , strategyPath] = process.argv;
-const { scenarios } = JSON.parse(readFileSync(0, "utf8"));
+const { scenarios, version = "strategy-test-1" } = JSON.parse(readFileSync(0, "utf8"));
 
 let flowInstalled = false;
 const defined = new Map();
@@ -20,10 +20,13 @@ globalThis.customElements = {
 const realSetTimeout = globalThis.setTimeout;
 globalThis.setTimeout = (fn, ms, ...args) => realSetTimeout(fn, Math.min(ms, 10), ...args);
 
-await import(pathToFileURL(strategyPath).href);
+const moduleUrl = pathToFileURL(strategyPath);
+moduleUrl.searchParams.set("v", version);
+await import(moduleUrl.href);
 await Promise.resolve(); // let the deferred definition run
 const strategy = defined.get("ll-strategy-dashboard-energylib");
-const out = { registered: window.customStrategies };
+const twinStrategy = defined.get("ll-strategy-view-energylib-twin");
+const out = { registered: window.customStrategies, standaloneTwin: await twinStrategy.generate() };
 for (const s of scenarios) {
   flowInstalled = s.flow;
   out[s.name] = await strategy.generate({ type: "custom:energylib" }, s.hass);

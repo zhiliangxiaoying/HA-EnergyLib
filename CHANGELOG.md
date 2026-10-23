@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.8.36.dev1
+
+- Restore the minimum ≤ backup SOC check (battery 2 checked separately) using cached control values: a conflicting edit is rejected before any write, with no extra read. An unknown counterpart (empty cache) is left to the write read-back.
+- An EMS mode change during a remote session is blocked from the cached state as before; only when the control cache is empty (start-up or recovery) one read of 0xC646 prevents overriding a session started from the App. Normal edits stay a single write plus its read-back.
+- Point list: the export limit value no longer turns the limit switch on (separate since 0.8.33).
+
+## 0.8.33.dev1
+
+- When a basic parameter action is cancelled after a write starts, mark its result uncertain and invalidate cached control values until authoritative polling recovers them. Do not resend the cancelled write; preserve the normal two-request path for subsequent healthy independent parameter actions.
+
+## 0.8.32.dev1
+
+- Reject invalid basic control parameters without blocking the next command on a full telemetry refresh when no write started and the coordinator is healthy. Write/transport failures still recover through full read-back. Record the command key with HA timing so a previous basic action cannot be mistaken for a later TOU/remote operation.
+
+## 0.8.31.dev1
+
+- Make export power and its enable switch independent. Editing the power no longer also enables the limit; keep the existing switch state. On a healthy initialized connection this requires one write plus one strict read-back (two requests).
+
+## 0.8.30.dev1
+
+- Reuse each control write's exact verified raw read-back instead of rereading the target. SOC preflight reads only the opposite bound for each battery. Reuse the identity pinned to a healthy connection; reconnects still require identity/capability verification. Constraints, mode conflicts and failure recovery remain.
+- Announce commands before the HA command lock and let background polls yield between every transport read, including profile-internal identity, alarms, controls, schedules and retry boundaries. Never interrupt an in-flight exchange or command-owned recovery; deferred polling cannot declare an offline device recovered. Diagnostics include HA command queue and service time.
+
+## 0.8.29.dev1
+
+- Reduce successful basic parameter actions to targeted dependency and read-back reads, retaining fresh identity verification, SOC constraints for both batteries, remote/EMS conflicts, exact write read-back and guarded retries. Unrelated control state remains on the regular polling tier; failed writes still use full recovery reads.
+- Let pending basic controls end a telemetry poll between requests; unfinished measurements remain due rather than blocking the command behind a whole poll. Diagnostics separate queue time, operation time and request count without recording targets or identities.
+
+## 0.8.28.dev1
+
+- Remove the shared control getter's collision with HA NumberEntity.value and format native numeric read-backs to their configured step (export limit: 0.1 kW), avoiding float32 tails such as `6.800000190734863` in device and overview controls; protocol verification retains the raw value.
+- Publish successful basic control read-back immediately instead of clearing every polling tier and waiting for another full telemetry cycle. Preserve the normal polling timer, refresh the read-only EMS state from verified controls, and retain full refresh on failures/recovery and TOU/dispatch actions.
+
+## 0.8.27.dev1
+
+- Add a standalone `custom:energylib-twin` view strategy using the same generated iframe and current asset hash as the EnergyLIB dashboard. Existing standalone views can keep their path without pinning an old iframe version in dashboard storage.
+
+## 0.8.26.dev1
+
+- Apply the overview's invalid-load protection to the digital twin: negative home load or missing power readings pause both SVG and 3D flow animations. Show the signed raw load and a metering warning, recover automatically when valid data returns, and preserve measurement/statistic values and control settings.
+
+## 0.8.25.dev1
+
+- Match Power Flow Card Plus's battery sign convention to the integration (+discharge), retain faint inactive paths and show small flows in watts. Pause the diagram on negative home load instead of inferring nonexistent battery/grid branches; retain the raw measurements and statistics, explain the condition, and resume when valid.
+- Basic EMS/SOC/grid-charging/export controls are enabled by default once integration control access is explicitly allowed. Existing user-disabled entities retain their setting. Remote permission, input helpers and buttons remain disabled by default.
+- The read-only EMS sensor exposes integration control permission, letting the remote card distinguish closed access from communication loss.
+
+## 0.8.24.dev1
+
+- Device firmware explicitly identifies the inverter and pads the ARM branch to two digits: `8.8` displays as `逆变器 V8.08` in Chinese or `Inverter V8.08` in English, using HA's system language. Raw version decoding, logger metadata, device/entity identifiers and statistics are unchanged.
+
 ## 0.8.23.dev1
 
 - New 启用出口限制 switch (0x3002) turns the export limit off again; before, every write forced the limit on and entering 0 kW meant zero export, not "no limit". Any non-zero mode set from the App shows as on.

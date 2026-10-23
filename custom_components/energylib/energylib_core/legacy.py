@@ -30,6 +30,12 @@ class DeviceIdentity:
     protocol_version: str
     arm_version: str
 
+    @property
+    def arm_firmware_display(self) -> str:
+        """Keep the decoded version intact; pad the branch for user display."""
+        main, branch = self.arm_version.split(".")
+        return f"V{main}.{int(branch):02d}"
+
 
 @dataclass(frozen=True)
 class Point:

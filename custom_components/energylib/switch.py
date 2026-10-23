@@ -50,7 +50,7 @@ class EnergyLibSwitch(EnergyLibControl, SwitchEntity):
 
     @property
     def is_on(self):
-        return bool(self.value)
+        return bool(self.control_value)
 
     async def async_turn_on(self, **kwargs):
         await self.coordinator.async_command(self.key, True)

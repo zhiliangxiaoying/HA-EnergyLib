@@ -21,6 +21,7 @@ const TEXT = {
     flow: "Live energy flow",
     flowTitle: "Power flow",
     flowMissing: "Some power values are unavailable; the flow appears again once the device reports.",
+    negativeLoad: "The device reports negative home load, so flow animation is paused to avoid inventing a source. Raw readings below are retained. Check metering direction and wiring.",
     battery: "Battery",
     soc: "State of charge",
     todayCharge: "Charged today",
@@ -69,6 +70,7 @@ const TEXT = {
     flow: "实时能流",
     flowTitle: "实时功率流向",
     flowMissing: "部分功率数据暂不可用，恢复连接后自动显示流向。",
+    negativeLoad: "设备上报家庭负载为负值，已暂停能流动画，避免推算出不存在的能量来源。下方保留原始读数，请核对设备计量方向和接线。",
     battery: "储能电池",
     soc: "电池电量",
     todayCharge: "今日充电",
@@ -171,23 +173,31 @@ function buildView(hass, device, t, flowCard, multiple) {
         type: "conditional",
         conditions: power.map((entity) => ({ condition: "state", entity, state_not: ["unavailable", "unknown"] })),
         card: {
+          type: "custom:energylib-flow",
+          load_entity: load,
+          warning: t.negativeLoad,
+          unavailable: t.flowMissing,
+          card: {
           type: "custom:power-flow-card-plus",
           title: t.flowTitle,
           entities: {
             solar: { entity: solar, name: t.solar, color: "#ffb300", color_icon: true, color_value: true },
-            // The card derives home from the flows, never below 0; a raw negative load
-            // reported near zero output must not read as the home feeding the grid.
-            home: { entity: load, name: t.load, icon: "mdi:home-lightning-bolt", color_icon: true, color_value: true },
+            // Show the inverter's measured load, not the card's flow-derived
+            // residual. The outer guard still withholds negative/invalid loads.
+            home: { entity: load, override_state: true, name: t.load, icon: "mdi:home-lightning-bolt", color_icon: true, color_value: true },
             battery: {
               entity: battery,
               name: t.batteryShort,
               state_of_charge: s("battery_total_soc"),
+              // EnergyLIB: positive = discharge. The card defaults to positive = charge.
+              invert_state: true,
               display_state: "one_way",
               color_icon: "color_dynamically",
               color_circle: "color_dynamically",
             },
             grid: {
               entity: grid,
+              invert_state: false,
               name: t.grid,
               display_state: "one_way",
               color_icon: "color_dynamically",
@@ -197,9 +207,10 @@ function buildView(hass, device, t, flowCard, multiple) {
           clickable_entities: true,
           kilo_decimals: 2,
           base_decimals: 0,
-          kilo_threshold: 0,
+          kilo_threshold: 1000,
           use_new_flow_rate_model: true,
-          display_zero_lines: { mode: "hide" },
+          display_zero_lines: { mode: "transparency", transparency: 70 },
+          },
         },
       },
       {
@@ -257,6 +268,7 @@ function buildView(hass, device, t, flowCard, multiple) {
     type: "custom:energylib-dispatch", device_id: device.id,
     power_entity: ent["number.remote_target_power"], duration_entity: ent["number.remote_duration"],
     status_entity: s("remote_status"),
+    control_status_entity: s("work_mode"),
     work_mode_entity: ent["select.work_mode"] || s("work_mode"),
   };
   const statusCards = compact([
@@ -372,6 +384,17 @@ function buildView(hass, device, t, flowCard, multiple) {
   };
 }
 
+// A standalone view uses the same content hash as the generated dashboard.
+// Do not persist a versioned iframe URL in a user's dashboard configuration.
+class EnergyLibTwinViewStrategy extends HTMLElement {
+  static async generate() {
+    return {
+      type: "panel",
+      cards: [{ type: "iframe", url: TWIN_URL, aspect_ratio: "56%" }],
+    };
+  }
+}
+
 class EnergyLibDashboardStrategy extends HTMLElement {
   static async generate(config, hass) {
     const t = (hass.locale?.language || hass.language || "en").startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -387,8 +410,7 @@ class EnergyLibDashboardStrategy extends HTMLElement {
     const twin = {
       title: t.twin,
       path: "twin",
-      type: "panel",
-      cards: [{ type: "iframe", url: TWIN_URL, aspect_ratio: "56%" }],
+      ...await EnergyLibTwinViewStrategy.generate(),
     };
     return {
       title: "EnergyLIB",
@@ -403,9 +425,11 @@ class EnergyLibDashboardStrategy extends HTMLElement {
 const STRATEGY_TAG = "ll-strategy-dashboard-energylib";
 customElements.whenDefined("home-assistant").then(() => {
   if (!customElements.get(STRATEGY_TAG)) customElements.define(STRATEGY_TAG, EnergyLibDashboardStrategy);
+  if (!customElements.get("ll-strategy-view-energylib-twin")) customElements.define("ll-strategy-view-energylib-twin", EnergyLibTwinViewStrategy);
   if (!customElements.get("energylib-alarms")) customElements.define("energylib-alarms", EnergyLibAlarmCard);
   if (!customElements.get("energylib-dispatch")) customElements.define("energylib-dispatch", EnergyLibDispatchCard);
   if (!customElements.get("energylib-remote-task")) customElements.define("energylib-remote-task", EnergyLibRemoteTaskCard);
+  if (!customElements.get("energylib-flow")) customElements.define("energylib-flow", EnergyLibFlowCard);
 });
 window.customStrategies = window.customStrategies || [];
 if (!window.customStrategies.some((s) => s.type === "energylib")) {
@@ -421,29 +445,31 @@ if (!window.customStrategies.some((s) => s.type === "energylib")) {
 // Exposed for in-browser checks; not part of the HA strategy API.
 window.energyLibDashboard = { buildView, deviceEntities, energyLibDevices, TEXT };
 
-// HA sorts native device rows by localized name. Pin only this integration's
-// enabled EMS selector; keep HA's keyed rendering, controls and other rows intact.
-// If the native card API changes, leave its normal rendering untouched.
-customElements.whenDefined("ha-device-entities-card").then(() => {
-  const prototype = customElements.get("ha-device-entities-card")?.prototype;
-  const marker = Symbol.for("energylib.ems-mode-first");
-  if (!prototype || prototype[marker] || typeof prototype._renderEntities !== "function") return;
-  const render = prototype._renderEntities;
-  prototype._renderEntities = function (entries) {
-    if (!Array.isArray(entries)) return render.call(this, entries);
-    const isEms = (entry) => {
-      if (typeof entry?.entity_id !== "string") return false;
-      const registered = this.hass?.entities?.[entry.entity_id] || entry;
-      return entry.entity_id?.startsWith("select.") && registered.platform === "energylib"
-        && registered.translation_key === "work_mode" && entry.entity_category === "config" && !entry.disabled_by;
-    };
-    if (!entries.some(isEms)) return render.call(this, entries);
-    return render.call(this, [...entries].sort((a, b) => Number(isEms(b)) - Number(isEms(a))));
-  };
-  Object.defineProperty(prototype, marker, { value: true });
-});
-
 // Use textContent for device-provided values; no raw HTML or entity-name assumptions.
+class EnergyLibFlowCard extends HTMLElement {
+  setConfig(config) {
+    this.config = config;
+    this.flow = document.createElement(FLOW_CARD);
+    this.flow.setConfig(config.card);
+    this.notice = document.createElement("ha-card");
+    this.notice.style.cssText = "padding:16px;line-height:1.6";
+  }
+  set hass(hass) {
+    const raw = hass.states[this.config.load_entity]?.state;
+    const valid = raw !== undefined && raw !== null && raw !== "" && Number.isFinite(Number(raw));
+    let node;
+    if (valid && Number(raw) >= 0) {
+      this.flow.hass = hass;
+      node = this.flow;
+    } else {
+      this.notice.textContent = valid ? this.config.warning : this.config.unavailable;
+      node = this.notice;
+    }
+    if (this.firstChild !== node) this.replaceChildren(node);
+  }
+  getCardSize() { return 4; }
+}
+
 class EnergyLibAlarmCard extends HTMLElement {
   setConfig(config) { this.config = config; }
   getCardSize() { return 5; }
@@ -639,6 +665,7 @@ class EnergyLibDispatchCard extends HTMLElement {
       invalid: "请填写大于 0 的功率，以及 1～1440 的整数分钟。", powerLimit: "功率不能超过设备允许值",
       tou: "当前正在使用定时充放电，退出后才能手动操作。", leaveTou: "退出定时模式", unavailable: "设备或操作参数暂不可用，请检查连接。",
       access: "允许远程充放电", enable: "已关闭", disable: "已开启", offNote: "开启后恢复操作实体；点击开始才执行充放电。", onNote: "操作实体已启用。关闭时会先停止正在执行的任务。", syncing: "正在启用操作实体，请稍候。HA 完成加载后才能开始任务。",
+      controlsOff: "尚未开启控制权限。请在集成配置 → 控制权限中开启“允许控制”；充放电权限仍需单独开启。",
     } : {
       title: "Forced battery charge / discharge", charge: "Charge", discharge: "Discharge", power: "Power", duration: "Duration", minutes: "min",
       startCharge: "Start charging", startDischarge: "Start discharging", update: "Start with new settings", stop: "Stop", busy: "Working…",
@@ -649,6 +676,7 @@ class EnergyLibDispatchCard extends HTMLElement {
       invalid: "Enter positive power and a whole duration of 1–1440 minutes.", powerLimit: "Power exceeds the device limit",
       tou: "Time-of-use is active. Exit it before manual operation.", leaveTou: "Exit time-of-use mode", unavailable: "Device or operation settings unavailable. Check the connection.",
       access: "Allow remote charge / discharge", enable: "Off", disable: "On", offNote: "Enable to restore operation entities; press Start to run a task.", onNote: "Operation entities enabled. Disabling first stops any active task.", syncing: "Enabling operation entities. Wait for Home Assistant to load them before starting a task.",
+      controlsOff: "Control access is off. Enable Allow control in the integration options; remote charge/discharge still requires its separate opt-in.",
     };
   }
   snapshot(allowZero = false) {
@@ -679,7 +707,7 @@ class EnergyLibDispatchCard extends HTMLElement {
     this.queue = this.queue.catch(() => {}).then(() => this.saveValues(snapshot)).catch((error) => this.showError(error));
   }
   async start() {
-    if (this.busy || !this.accessEnabled || this._hass.states[this.config.status_entity]?.attributes.entities_ready === false) return;
+    if (this.busy || this.controlsDisabled || !this.accessEnabled || this._hass.states[this.config.status_entity]?.attributes.entities_ready === false) return;
     let snapshot;
     try { snapshot = this.snapshot(); } catch (error) { this.showError(error); return; }
     clearTimeout(this.saveTimer); this.busy = true; this.el("error").hidden = true; this.render();
@@ -720,8 +748,11 @@ class EnergyLibDispatchCard extends HTMLElement {
     return typeof value === "boolean" ? value : null;
   }
   get accessEnabled() { return this.accessState === true; }
+  get controlsDisabled() {
+    return this._hass?.states[this.config.control_status_entity]?.attributes.control_access_enabled === false;
+  }
   async toggleAccess() {
-    if (this.busy || this.accessState === null) return;
+    if (this.busy || this.controlsDisabled || this.accessState === null) return;
     this.busy = true; clearTimeout(this.saveTimer); this.el("access-error").hidden = true; this.render();
     try {
       await this.queue.catch(() => {});
@@ -737,13 +768,13 @@ class EnergyLibDispatchCard extends HTMLElement {
     const status = state?.state || "unknown";
     const accessKnown = this.accessState !== null && state && !["unknown", "unavailable"].includes(state.state);
     const syncing = this.accessEnabled && attrs.entities_ready === false;
-    this.el("operation").hidden = !this.accessEnabled;
+    this.el("operation").hidden = this.controlsDisabled || !this.accessEnabled;
     this.el("access-label").textContent = t.access;
     this.el("access").textContent = this.busy ? t.busy : this.accessEnabled ? t.disable : t.enable;
     this.el("access").setAttribute("aria-checked", String(this.accessEnabled));
     this.el("access").setAttribute("aria-label", t.access);
-    this.el("access").disabled = this.busy || !accessKnown;
-    this.el("access-note").textContent = !accessKnown ? t.unavailable : syncing ? t.syncing : this.accessEnabled ? t.onNote : t.offNote;
+    this.el("access").disabled = this.busy || this.controlsDisabled || !accessKnown;
+    this.el("access-note").textContent = this.controlsDisabled ? t.controlsOff : !accessKnown ? t.unavailable : syncing ? t.syncing : this.accessEnabled ? t.onNote : t.offNote;
     const running = ["charging", "discharging", "holding"].includes(status);
     const stoppable = running || status === "unconfirmed";
     const settings = this.settings;
@@ -767,7 +798,7 @@ class EnergyLibDispatchCard extends HTMLElement {
     this.el("leave-tou").hidden = !tou || !this.config.work_mode_entity?.startsWith("select.");
     this.el("leave-tou").disabled = this.busy; text("leave-tou", t.leaveTou);
     let valid = false; try { this.snapshot(); valid = true; } catch { /* inline constraints; no command */ }
-    this.el("start").disabled = this.busy || !this.accessEnabled || syncing || !available || !valid || tou;
+    this.el("start").disabled = this.busy || this.controlsDisabled || !this.accessEnabled || syncing || !available || !valid || tou;
     text("start", this.busy ? t.busy : running ? t.update : this.direction === "charge" ? t.startCharge : t.startDischarge);
     this.el("stop").disabled = this.busy; this.el("stop").hidden = !stoppable; text("stop", t.stop);
     this.el("actions").classList.toggle("running", stoppable);

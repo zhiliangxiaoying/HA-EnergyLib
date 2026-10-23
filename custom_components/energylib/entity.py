@@ -13,17 +13,22 @@ class EnergyLibEntity(CoordinatorEntity):
         super().__init__(coordinator)
         self.key = key
         runtime = coordinator.device
+        # Device registry fields are shared by all users, so use HA's system
+        # language rather than a particular browser's locale.
+        label = "逆变器" if coordinator.hass.config.language.startswith("zh") else "Inverter"
         self._attr_unique_id = f"{runtime.unique_id}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, runtime.unique_id)},
             name=runtime.device_name,
             manufacturer=runtime.profile.manufacturer,
-            sw_version=runtime.identity.arm_version,
+            sw_version=f"{label} {runtime.identity.arm_firmware_display}",
         )
 
 
 class EnergyLibControl(EnergyLibEntity):
-    _attr_entity_registry_enabled_default = False
+    # These basic controls are created only after integration-wide opt-in.
+    # Remote permission, drafts and action buttons have their own disabled defaults.
+    _attr_entity_registry_enabled_default = True
 
     @property
     def available(self):
@@ -36,7 +41,7 @@ class EnergyLibControl(EnergyLibEntity):
         )
 
     @property
-    def value(self):
+    def control_value(self):
         return self.coordinator.device.controls.get(self.key)
 
     @property
@@ -46,7 +51,7 @@ class EnergyLibControl(EnergyLibEntity):
         second = self.key + "_2"
         if second in runtime.controls:
             result["battery_2_value"] = runtime.controls[second]
-            result["batteries_match"] = runtime.controls[second] == self.value
+            result["batteries_match"] = runtime.controls[second] == self.control_value
         return result
 
 

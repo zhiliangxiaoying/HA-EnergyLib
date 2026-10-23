@@ -335,6 +335,13 @@ class BenchServer:
                             for i in range(count):
                                 data[i // 8] |= int(bits[address + i]) << (i % 8)
                             response = bytes([fc, len(data)]) + data
+                    elif (
+                        self.fault == "flow_single_only"
+                        and fc == 3
+                        and address == 0x1270
+                        and count == 8
+                    ):
+                        error = 3
                     elif not 1 <= count <= self.model.config.max_registers:
                         error = 3
                     elif unit != 1 or any(
@@ -472,6 +479,7 @@ if __name__ == "__main__":
             "mismatch",
             "disconnect",
             "short_frame",
+            "flow_single_only",
             "fc02_even_address",
             "swapped_length",
         ),

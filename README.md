@@ -96,8 +96,10 @@ integration converts them.
 ## Controls (opt-in)
 
 1. *Settings → Devices & services → EnergyLIB → Configure → Control access* → enable **Allow control**.
-2. The battery operation panel appears once controls are allowed and the device
-   answers the required registers. Advanced settings stay optional.
+2. Once controls are allowed and the device answers the required registers, new
+   basic EMS/SOC/grid-charging/export controls are enabled by default. Existing
+   user-disabled entities keep that preference. Battery dispatch still needs its
+   separate remote permission; remote helpers remain disabled by default.
 
 | Entity | Purpose |
 |---|---|

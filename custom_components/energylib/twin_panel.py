@@ -1,6 +1,6 @@
 """Bundled digital twin: serve its static files for the EnergyLIB dashboard.
 
-The twin is the first tab of the EnergyLIB dashboard (an iframe card, see
+The twin follows Overview in the EnergyLIB dashboard (an iframe card, see
 frontend/energylib-dashboard.js). The page reads EnergyLIB entities from the
 parent frontend's hass object, so it needs no configuration, credentials or
 REST calls of its own.

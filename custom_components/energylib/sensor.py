@@ -78,6 +78,13 @@ class EnergyLibSensor(EnergyLibEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
+        if self.key == "work_mode":
+            runtime = self.coordinator.device
+            return {
+                **(runtime.attributes.get(self.key) or {}),
+                "control_access_enabled": runtime.allow_control,
+                "controls_supported": runtime.profile.controls_supported,
+            }
         if self.key == "alarm_status":
             return {
                 **self.coordinator.device.attributes.get(self.key, {}),

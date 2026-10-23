@@ -23,7 +23,7 @@ class EnergyLibSelect(EnergyLibControl, SelectEntity):
 
     @property
     def current_option(self):
-        return self.value
+        return self.control_value
 
     async def async_select_option(self, option):
         await self.coordinator.async_command(self.key, option)

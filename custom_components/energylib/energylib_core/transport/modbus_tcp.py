@@ -51,6 +51,7 @@ class ModbusTcpClient:
         self.filtered_push_frames = 0
         self.verify_write_identity = None
         self.authorize_write_retry = None
+        self.read_checkpoint = None  # Optional owner callback between complete requests.
         self.write_retries = 0
         self.write_readback_recoveries = 0
         self._write_lock = asyncio.Lock()
@@ -142,6 +143,8 @@ class ModbusTcpClient:
             # Keep all attempts and byte-count validation under the same lock.
             # A queued request must not consume bytes from a failed transaction.
             for attempt in range(len(READ_RETRY_DELAYS) + 1):
+                if read_size is not None and self.read_checkpoint is not None:
+                    self.read_checkpoint()
                 try:
                     response = await self._request_once(pdu, unit_id)
                     if read_size is not None and (

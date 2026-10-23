@@ -67,7 +67,7 @@ def text(value):
 
 @unittest.skipUnless(NODE, "node is required to execute the dashboard strategy")
 class StrategyOutputTests(unittest.TestCase):
-    def test_native_ems_mode_priority_is_scoped_and_stable(self):
+    def test_native_device_rendering_is_not_patched(self):
         result = subprocess.run(
             [NODE, str(ROOT / "tests/js/run_ems_priority.mjs"), str(STRATEGY)],
             capture_output=True,
@@ -157,13 +157,40 @@ class StrategyOutputTests(unittest.TestCase):
         }
         expected.add("sensor.dev1_renamed_tou_schedule")
         expected.add("sensor.dev1_renamed_remote_status")
-        # With controls, the work mode select replaces the read-only sensor.
-        expected.remove("sensor.dev1_renamed_work_mode")
+        # Read-only mode also supplies the explicit control-permission status.
         self.assertEqual(expected - refs, set())
         self.assertIn("custom:power-flow-card-plus", text(self.out["full_zh"]))
-        # Home is derived from the flows (never negative), not the raw load state.
-        self.assertNotIn("override_state", text(self.out["full_zh"]))
         self.assertIn("实时能流", text(self.out["full_zh"]))
+
+    def test_flow_direction_matches_standard_power_signs(self):
+        cards = self.out["full_zh"]["views"][0]["sections"][0]["cards"]
+        guard = next(
+            c["card"] for c in cards if c.get("card", {}).get("type") == "custom:energylib-flow"
+        )
+        flow = guard["card"]
+        # Card defaults are +battery charge, +grid import. EnergyLIB battery is
+        # +discharge, while its grid is already +import. Only battery is inverted.
+        self.assertIs(flow["entities"]["battery"]["invert_state"], True)
+        self.assertIs(flow["entities"]["grid"]["invert_state"], False)
+        self.assertEqual(flow["display_zero_lines"]["mode"], "transparency")
+        self.assertEqual(flow["kilo_threshold"], 1000)
+        self.assertIn("已暂停能流动画", guard["warning"])
+        self.assertEqual(guard["load_entity"], "sensor.dev1_renamed_load_power")
+        # An asynchronous flow residual can differ from measured home load.
+        # Display the supplied measurement; the guard rejects negative loads.
+        self.assertEqual(flow["entities"]["home"]["entity"], guard["load_entity"])
+        self.assertIs(flow["entities"]["home"]["override_state"], True)
+
+    def test_flow_guard_pauses_invalid_load_and_recovers(self):
+        result = subprocess.run(
+            [NODE, str(ROOT / "tests/js/run_flow_guard.mjs"), str(STRATEGY)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(json.loads(result.stdout)["result"], "passed")
 
     def test_read_only_device_gets_no_controls_and_no_missing_card(self):
         page = self.out["read_only_en"]
@@ -245,6 +272,29 @@ class StrategyOutputTests(unittest.TestCase):
         # Text tabs: a view icon would replace the title in the tab bar.
         self.assertFalse([v for v in self.out["full_zh"]["views"] if "icon" in v])
         self.assertNotIn("twin", text(self.out["empty"]))
+
+    def test_standalone_twin_and_dashboard_follow_current_resource_version(self):
+        standalone = self.out["standaloneTwin"]
+        generated = self.out["full_zh"]["views"][-1]
+        self.assertEqual(standalone["type"], "panel")
+        self.assertEqual(standalone["cards"], generated["cards"])
+        self.assertEqual(
+            standalone["cards"][0]["url"],
+            "/energylib_twin/index.html?v=strategy-test-1",
+        )
+        result = subprocess.run(
+            [NODE, str(ROOT / "tests/js/run_strategy.mjs"), str(STRATEGY)],
+            input=json.dumps({"scenarios": [], "version": "strategy-test-2"}),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
+        )
+        self.assertEqual(
+            json.loads(result.stdout)["standaloneTwin"]["cards"][0]["url"],
+            "/energylib_twin/index.html?v=strategy-test-2",
+        )
 
 
 class StrategyServingTests(unittest.TestCase):
