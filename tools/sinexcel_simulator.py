@@ -36,10 +36,14 @@ _sx = importlib.import_module("energylib_bench.energylib_core.profiles.sinexcel_
 _tou = importlib.import_module("energylib_bench.energylib_core.model.tou")
 
 CONTROL_ADDRESSES = _sx.CONTROL_ADDRESSES
+ADVANCED_CONTROL_ADDRESSES = _sx.ADVANCED_CONTROL_ADDRESSES
+BATTERY_2_ADDRESSES = _sx.BATTERY_2_ADDRESSES
 SCHEDULE_BLOCKS = _sx.SCHEDULE_BLOCKS
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = _sx.HEARTBEAT, _sx.HEARTBEAT_TIMEOUT, _sx.ESCAPE_MODE
 PARAMETER_BLOCKS = {
     **{a: 2 for a in CONTROL_ADDRESSES.values()},
+    **{a: 2 for a in ADVANCED_CONTROL_ADDRESSES.values()},
+    **{a: 2 for a in BATTERY_2_ADDRESSES.values()},
     0x3002: 2,
     0x314C: 2,
     0x30B8: 2,
@@ -92,6 +96,13 @@ class BenchModel:
         for address, value in (
             (0x314C, 20),
             (0x30B8, 10),
+            # Protocol defaults: max SOC 100 %, three-phase max charge/discharge 25 A.
+            (0x31B6, 100),
+            (0x31B8, 100),
+            (0x3040, 25),
+            (0x3042, 25),
+            (0x30B2, 25),
+            (0x30B4, 25),
             (0x3002, 0),
             (0x314E, 0),
             (HEARTBEAT, 0),  # 0 = Dead until an EMS writes 1 (Alive)
@@ -221,6 +232,15 @@ class BenchModel:
             0xC264: self.config.port_use,
             0xB000: int(self.config.bms),
             0xB108: 97,
+            # Battery cabinet 1 BMS view (engineering units, as the integration assumes).
+            0xB10A: 3.331,
+            0xB10C: 3.302,
+            0xB112: 27.5,
+            0xB114: 24.0,
+            0xB11A: 50.0,
+            0xB11C: 60.0,
+            0xB15C: 10.24,
+            0xB15E: round(10.24 * self.base.soc / 100, 3),
             # Sinexcel convention on the wire: battery + = charging, grid + = feed-in.
             0x1272: -battery,
             0x1276: -grid,

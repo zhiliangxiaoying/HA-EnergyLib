@@ -205,6 +205,30 @@
       "battery_soh": {
         "name": "电池健康度"
       },
+      "battery_capacity": {
+        "name": "电池装机容量"
+      },
+      "battery_remaining_energy": {
+        "name": "电池剩余能量"
+      },
+      "battery_cell_voltage_max": {
+        "name": "电池单体最高电压"
+      },
+      "battery_cell_voltage_min": {
+        "name": "电池单体最低电压"
+      },
+      "battery_cell_temperature_max": {
+        "name": "电池单体最高温度"
+      },
+      "battery_cell_temperature_min": {
+        "name": "电池单体最低温度"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS 充电电流限值"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS 放电电流限值"
+      },
       "battery_2_soc": {
         "name": "电池 2 电量"
       },
@@ -318,6 +342,15 @@
       },
       "export_limit": {
         "name": "出口功率限制"
+      },
+      "max_soc": {
+        "name": "最高 SOC"
+      },
+      "max_charge_current": {
+        "name": "最大充电电流"
+      },
+      "max_discharge_current": {
+        "name": "最大放电电流"
       },
       "remote_power": {
         "name": "旧版远程功率（立即执行5分钟）"

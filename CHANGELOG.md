@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.37.dev1
+
+- Battery cabinet data from the BMS (created only when a BMS is reported, disabled by default): installed capacity and remaining energy (kWh), maximum/minimum cell voltage and temperature, BMS charge/discharge current limits (0xB10A-0xB15E). Values are read as float engineering units like the other points; scaling still needs a BMS-equipped device to confirm.
+- Advanced battery limits: maximum SOC (0x31B6, 50-100 %), maximum charge current (0x3040) and maximum discharge current (0x3042, 0-300 A), each offered only when the device answers it and written to battery 2 as well (0x31B8/0x30B2/0x30B4). Entities start disabled and appear in the overview controls once enabled. Maximum SOC below backup SOC is rejected from cached values.
+- Fix the overview TOU card template raising UndefinedError in the HA log while the device is offline.
+
 ## 0.8.36.dev1
 
 - Restore the minimum ≤ backup SOC check (battery 2 checked separately) using cached control values: a conflicting edit is rejected before any write, with no extra read. An unknown counterpart (empty cache) is left to the write read-back.

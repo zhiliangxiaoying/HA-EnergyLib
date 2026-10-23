@@ -420,6 +420,66 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.server.wait_closed()
         await self.peer.close()
 
+    async def test_bms_cabinet_points_decode_only_with_a_bms(self):
+        keys = {
+            "battery_capacity",
+            "battery_remaining_energy",
+            "battery_cell_voltage_max",
+            "battery_cell_voltage_min",
+            "battery_cell_temperature_max",
+            "battery_cell_temperature_min",
+            "bms_charge_current_limit",
+            "bms_discharge_current_limit",
+        }
+        self.assertTrue(keys <= {p.key for p in self.runtime.points()})
+        values = await self.runtime.refresh(keys)
+        self.assertAlmostEqual(values["battery_cell_voltage_max"], 3.331, places=3)
+        self.assertAlmostEqual(values["battery_cell_voltage_min"], 3.302, places=3)
+        self.assertAlmostEqual(values["battery_cell_temperature_max"], 27.5, places=3)
+        self.assertAlmostEqual(values["bms_discharge_current_limit"], 60.0, places=3)
+        self.assertAlmostEqual(values["battery_capacity"], 10.24, places=3)
+        self.assertGreaterEqual(values["battery_remaining_energy"], 0)
+        # Without a BMS the cabinet points are never created or read.
+        self.model.set_float(0xB000, 0)
+        self.client.generation += 1  # next poll re-probes capabilities
+        await self.runtime.refresh(set(), force=True)
+        self.assertFalse(keys & {p.key for p in self.runtime.points()})
+
+    async def test_advanced_battery_limits_write_both_batteries_with_read_back(self):
+        self.runtime.allow_control = True
+        for key in ("max_soc", "max_charge_current", "max_discharge_current"):
+            self.assertIn(key, self.runtime.profile.control_keys)
+        writes = self.peer.write_count
+        await self.runtime.set_control("max_charge_current", 30.5)
+        self.assertEqual((self.model.get_float(0x3040), self.model.get_float(0x30B2)), (30.5, 30.5))
+        self.assertEqual(self.peer.write_count - writes, 2)  # battery 1 + battery 2
+        self.assertEqual(self.runtime.controls["max_charge_current_2"], 30.5)
+        await self.runtime.set_control("max_soc", 95)
+        self.assertEqual((self.model.get_float(0x31B6), self.model.get_float(0x31B8)), (95, 95))
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("max_charge_current", 301)  # outside 0-300 A
+        # Backup SOC (20 %) must not exceed the maximum: rejected without a write.
+        writes = self.peer.write_count
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("max_soc", 15)
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("backup_soc", 96)
+        self.assertEqual(self.peer.write_count, writes)
+
+    async def test_device_without_advanced_limits_keeps_basic_controls(self):
+        original = self.model.registers.copy()
+        for address in (0x31B6, 0x31B8):
+            for offset in (0, 1):
+                self.model.registers.pop(address + offset)
+        self.client.generation += 1
+        await self.runtime.refresh(set(), force=True)
+        keys = self.runtime.profile.control_keys
+        self.assertNotIn("max_soc", keys)
+        self.assertIn("max_charge_current", keys)
+        self.assertIn("backup_soc", keys)
+        self.assertTrue(self.runtime.profile.controls_supported)
+        self.model.registers.update(original)
+
     async def test_fourteen_core_points_capabilities_and_no_holes(self):
         values = await self.runtime.refresh({p.key for p in CORE})
         self.assertEqual(len(values), 14)

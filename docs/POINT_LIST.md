@@ -56,6 +56,11 @@
 | battery_voltage | 电池电压 | 0x120C | 03 / 1 | V | — |
 | battery_current | 电池电流 | 0x120E | 03 / 1 | A | ⚠方向 |
 | battery_soh | 电池 SOH | 0xB108 | 03 / 1 | % | BMS 在线（0xB000=1） |
+| battery_capacity | 电池装机容量 | 0xB15C | 03 / 1 | kWh | 0.8.37；BMS 在线（0xB000=1）才创建，默认禁用 |
+| battery_remaining_energy | 电池剩余能量 | 0xB15E | 03 / 1 | kWh | 同上 |
+| battery_cell_voltage_max / _min | 电池单体最高 / 最低电压 | 0xB10A / 0xB10C | 03 / 1 | V | 同上；协议标 0.001V，按 float 工程值读取，待接 BMS 实机核对 ⚠ |
+| battery_cell_temperature_max / _min | 电池单体最高 / 最低温度 | 0xB112 / 0xB114 | 03 / 1 | °C | 同上；协议标 0.01℃，同样待实机核对 ⚠ |
+| bms_charge_current_limit / bms_discharge_current_limit | BMS 充 / 放电电流限值 | 0xB11A / 0xB11C | 03 / 1 | A | 同上；协议标 0.01A，待实机核对 ⚠ |
 | battery_2_soc | 电池 2 SOC | 0x121C | 03 / 1 | % | 电池 2 启用 |
 | battery_2_power | 电池 2 功率 | 0x121A | 03 / 1 | kW | 电池 2 启用 |
 | battery_2_voltage | 电池 2 电压 | 0x1216 | 03 / 1 | V | 电池 2 启用 |
@@ -93,6 +98,9 @@
 | min_soc | 放电截止 SOC | 0x3046（电池 2 同步写 0x30B8） | number | 0~100 % | 集成按缓存值拒绝“最低 > 备电”的写入（电池 2 分别比较）；设备自身是否约束待确认 ⚠ |
 | grid_charge | 允许电网充电 | 0x322A | switch | 0 / 1 | — |
 | export_limit | 出口功率限制 | 0x3004 | number | 0~机型额定功率 kW | 只写限值，不自动打开限制开关（0.8.33 起与 0x3002 分开）。限制开启时 0 kW 表示禁止馈网，不是“不限制” |
+| max_soc | 最高 SOC | 0x31B6（电池 2 同步写 0x31B8） | number | 50~100 % | 0.8.37；设备能读到才提供，实体默认禁用；须 ≥ 备电 SOC |
+| max_charge_current | 最大充电电流 | 0x3040（电池 2 同步写 0x30B2） | number | 0~300 A | 0.8.37；设备能读到才提供，实体默认禁用 |
+| max_discharge_current | 最大放电电流 | 0x3042（电池 2 同步写 0x30B4） | number | 0~300 A | 0.8.37；设备能读到才提供，实体默认禁用 |
 | export_limit_enable | 启用出口限制 | 0x3002 | switch | 0 / 1 | 关闭 = 不限制馈网，保留 0x3004 的限值；设备上的其他非 0 模式显示为开启（0.8.23） |
 
 ### v0.5：2 个实体 + 2 个服务

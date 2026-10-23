@@ -160,6 +160,10 @@ class StrategyOutputTests(unittest.TestCase):
         # Read-only mode also supplies the explicit control-permission status.
         self.assertEqual(expected - refs, set())
         self.assertIn("custom:power-flow-card-plus", text(self.out["full_zh"]))
+        # An offline TOU sensor has no plan attributes: HA's strict templates
+        # must not dereference them directly (UndefinedError in the HA log).
+        self.assertNotIn("s.attributes.periods", text(self.out["full_zh"]))
+        self.assertIn("s.attributes.get('periods', [])", text(self.out["full_zh"]))
         self.assertIn("实时能流", text(self.out["full_zh"]))
 
     def test_flow_direction_matches_standard_power_signs(self):

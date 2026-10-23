@@ -263,6 +263,10 @@ function buildView(hass, device, t, flowCard, multiple) {
     ["number.export_limit", "mdi:transmission-tower-export", "cyan", [{ type: "numeric-input", style: "slider" }]],
     ["switch.export_limit_enable", "mdi:transmission-tower-off", "cyan", [{ type: "toggle" }]],
     ["switch.grid_charge", "mdi:battery-charging-wireless", "purple", [{ type: "toggle" }]],
+    // Advanced battery limits start disabled; they appear once enabled on the device page.
+    ["number.max_soc", "mdi:battery-arrow-up", "green", [{ type: "numeric-input", style: "slider" }]],
+    ["number.max_charge_current", "mdi:current-dc", "teal", [{ type: "numeric-input", style: "slider" }]],
+    ["number.max_discharge_current", "mdi:current-dc", "orange", [{ type: "numeric-input", style: "slider" }]],
   ].map(([key, icon, color, features]) => tile(ent[key], icon, color, { features }));
   const dispatch = s("remote_status") && {
     type: "custom:energylib-dispatch", device_id: device.id,
@@ -335,10 +339,13 @@ function buildView(hass, device, t, flowCard, multiple) {
     tou && {
       type: "markdown",
       content:
+        // Offline or before the first read the sensor has no plan attributes;
+        // .get() keeps HA's strict template rendering from raising errors.
         `{% set s = states['${tou}'] %}{% set wd = ${wd} %}` +
-        `{% if s and s.attributes.periods %}{% for p in s.attributes.periods %}- ` +
+        `{% set periods = s.attributes.get('periods', []) if s else [] %}` +
+        `{% if periods %}{% for p in periods %}- ` +
         `{{ '${t.charge}' if p.type == 'charge' else '${t.discharge}' }} {{ p.start }}–{{ p.end }}, {{ p.power }} kW\n` +
-        `{% endfor %}\n${t.activeDays}: {% for d in s.attributes.weekdays %}{{ wd.get(d, d) }}{{ ', ' if not loop.last }}{% endfor %}` +
+        `{% endfor %}\n${t.activeDays}: {% for d in s.attributes.get('weekdays', []) %}{{ wd.get(d, d) }}{{ ', ' if not loop.last }}{% endfor %}` +
         `{% else %}${t.noPeriods}{% endif %}`,
     },
     {

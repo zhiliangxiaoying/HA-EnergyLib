@@ -206,7 +206,8 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        assert len(controls) == 9
+        # 6 basic + remote access/drafts + 3 advanced battery limits (default disabled).
+        assert len(controls) == 12
         basic = {
             "work_mode",
             "backup_soc",
@@ -216,11 +217,14 @@ async def check():
             "export_limit_enable",
         }
         assert {e.translation_key for e in controls if e.disabled_by is None} == basic
+        advanced = {"max_soc", "max_charge_current", "max_discharge_current"}
+        assert {e.translation_key for e in controls} >= advanced
+        assert all(e.disabled_by is not None for e in controls if e.translation_key in advanced)
         assert hass.states.get(read_mode.entity_id).attributes["control_access_enabled"] is True
         assert not lab.runtime_data.remote_enabled
         assert lab_peer.write_count == 0, "Enabling basic controls must not write the inverter"
         results.append(
-            "native options enable six basic controls without device writes; remote permission and operation helpers remain disabled"
+            "native options enable six basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))

@@ -407,20 +407,25 @@ class DeviceRuntime:
                     }
 
     def _check_soc_order(self, key, value):
-        """Minimum SOC must not exceed backup SOC, judged from cached values only.
+        """Minimum <= backup <= maximum SOC, judged from cached values only.
 
-        An unknown counterpart (empty cache) is left to the write read-back; a
-        device already in conflict (set from the App) only blocks SOC writes.
+        An unknown counterpart (empty cache or a limit the device does not offer)
+        is left to the write read-back; a device already in conflict (set from
+        the App) only blocks SOC writes.
         """
-        pairs = [("min_soc", "backup_soc", "Minimum SOC must not exceed backup SOC")]
+        pairs = [
+            ("min_soc", "backup_soc", "Minimum SOC must not exceed backup SOC"),
+            ("backup_soc", "max_soc", "Backup SOC must not exceed maximum SOC"),
+        ]
         if "battery_2" in self.profile.capabilities:
-            pairs.append(
-                ("min_soc_2", "backup_soc_2", "Battery 2 minimum SOC must not exceed backup SOC")
-            )
-        for min_key, backup_key, message in pairs:
-            minimum = value if key == "min_soc" else self.controls.get(min_key)
-            backup = value if key == "backup_soc" else self.controls.get(backup_key)
-            if minimum is not None and backup is not None and minimum > backup:
+            pairs += [
+                (low + "_2", high + "_2", "Battery 2 " + message[0].lower() + message[1:])
+                for low, high, message in pairs
+            ]
+        for low_key, high_key, message in pairs:
+            low = value if low_key.removesuffix("_2") == key else self.controls.get(low_key)
+            high = value if high_key.removesuffix("_2") == key else self.controls.get(high_key)
+            if low is not None and high is not None and low > high:
                 raise ControlError(message)
 
     async def set_control(self, key, value):
@@ -467,7 +472,7 @@ class DeviceRuntime:
                     raise ControlError("Stop remote control first")
             elif key == "work_mode":
                 raise ControlError("Stop remote control first")
-            if key in ("min_soc", "backup_soc"):
+            if key in ("min_soc", "backup_soc", "max_soc"):
                 self._check_soc_order(key, value)
             # Basic edits have no dependency pre-read: the checks above use cached
             # control state (refreshed by every read-back and the 30 s tier).

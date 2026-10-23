@@ -11,6 +11,7 @@ PARALLEL_UPDATES = 0
 CLASSES = {
     "power": SensorDeviceClass.POWER,
     "energy": SensorDeviceClass.ENERGY,
+    "energy_storage": SensorDeviceClass.ENERGY_STORAGE,
     "soc": SensorDeviceClass.BATTERY,
     "voltage": SensorDeviceClass.VOLTAGE,
     "current": SensorDeviceClass.CURRENT,

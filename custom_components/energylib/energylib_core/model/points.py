@@ -44,10 +44,13 @@ class Measurement:
     capabilities: frozenset[str] = frozenset()
     interval: int = 30
     options: tuple[str, ...] = ()
+    digits: int | None = None  # Display decimals when the kind default is too coarse.
 
     @property
     def precision(self) -> int:
         """Suggested display decimals; counts are whole numbers."""
+        if self.digits is not None:
+            return self.digits
         return {"count": 0, "soc": 1}.get(self.kind, 2)
 
 
@@ -91,6 +94,21 @@ OPTIONAL = (
         Measurement("battery_2_power", "power", "kW", False, frozenset({"battery_2"})),
         Measurement("battery_2_voltage", "voltage", "V", False, frozenset({"battery_2"})),
         Measurement("battery_2_current", "current", "A", False, frozenset({"battery_2"})),
+    )
+    # Battery cabinet 1 as reported by the BMS (0xB10A-0xB15E). Created only for a
+    # device that reports a BMS; floats in engineering units like the other points.
+    + tuple(
+        Measurement(key, kind, unit, False, frozenset({"bms"}), digits=digits)
+        for key, kind, unit, digits in (
+            ("battery_capacity", "energy_storage", "kWh", 1),
+            ("battery_remaining_energy", "energy_storage", "kWh", 1),
+            ("battery_cell_voltage_max", "voltage", "V", 3),
+            ("battery_cell_voltage_min", "voltage", "V", 3),
+            ("battery_cell_temperature_max", "temperature", "°C", 1),
+            ("battery_cell_temperature_min", "temperature", "°C", 1),
+            ("bms_charge_current_limit", "current", "A", 1),
+            ("bms_discharge_current_limit", "current", "A", 1),
+        )
     )
     + tuple(
         Measurement(f"pv{i}_power", "power", "kW", False, frozenset({f"pv{i}"}))
@@ -139,6 +157,9 @@ class Control:
     options: tuple[str, ...] = ()
     # "unipolar" = [0, rated], "bipolar" = [-rated, rated]; rated comes from the profile.
     power_range: str | None = None
+    # Advanced battery limits: offered only if the device answers them, and their
+    # entities start disabled so the default control set stays small.
+    advanced: bool = False
 
     def limits(self, max_power_kw):
         """Return (minimum, maximum); power ranges never use a model-wide default."""
@@ -170,6 +191,9 @@ CONTROLS = (
     Control("export_limit_enable", "switch", maximum=1),
     Control("remote_control", "switch", maximum=1),
     Control("remote_power", "number", step=0.1, power_range="bipolar"),
+    Control("max_soc", "number", minimum=50, maximum=100, advanced=True),
+    Control("max_charge_current", "number", maximum=300, step=0.1, advanced=True),
+    Control("max_discharge_current", "number", maximum=300, step=0.1, advanced=True),
 )
 DRAFTS = (
     Control("remote_target_power", "number", step=0.1, power_range="unipolar"),

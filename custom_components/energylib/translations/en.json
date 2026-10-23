@@ -205,6 +205,30 @@
       "battery_soh": {
         "name": "Battery health"
       },
+      "battery_capacity": {
+        "name": "Battery installed capacity"
+      },
+      "battery_remaining_energy": {
+        "name": "Battery remaining energy"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Battery max cell voltage"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Battery min cell voltage"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Battery max cell temperature"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Battery min cell temperature"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS charge current limit"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS discharge current limit"
+      },
       "battery_2_soc": {
         "name": "Battery 2 state of charge"
       },
@@ -318,6 +342,15 @@
       },
       "export_limit": {
         "name": "Export limit"
+      },
+      "max_soc": {
+        "name": "Maximum SOC"
+      },
+      "max_charge_current": {
+        "name": "Maximum charge current"
+      },
+      "max_discharge_current": {
+        "name": "Maximum discharge current"
       },
       "remote_power": {
         "name": "Legacy remote power (immediate, 5 minutes)"

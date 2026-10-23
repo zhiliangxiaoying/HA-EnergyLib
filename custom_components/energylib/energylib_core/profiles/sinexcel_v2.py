@@ -52,6 +52,20 @@ CONTROL_ADDRESSES = {
     "remote_control": 0xC646,
     "remote_power": 0xC648,
 }
+# Advanced battery limits (PDF p68/p72/p81): offered per key only when readable.
+ADVANCED_CONTROL_ADDRESSES = {
+    "max_soc": 0x31B6,  # [50, 101] %
+    "max_charge_current": 0x3040,  # [0, 300] A
+    "max_discharge_current": 0x3042,  # [0, 300] A
+}
+# Battery 2 copies, written together with battery 1 when battery 2 is enabled.
+BATTERY_2_ADDRESSES = {
+    "min_soc": 0x30B8,
+    "backup_soc": 0x314C,
+    "max_soc": 0x31B8,
+    "max_charge_current": 0x30B2,
+    "max_discharge_current": 0x30B4,
+}
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = 0xC068, 0xC06A, 0xC06C
 OUTSIDE_MODE = 0x314E
 RATED_POWER = 0x2008
@@ -76,7 +90,9 @@ REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
 # blocks retain single-send semantics until their repeated-write behavior is verified.
 RETRY_SAFE_ADDRESSES = frozenset(
     {v for k, v in CONTROL_ADDRESSES.items() if k != "remote_control"}
-    | {EXPORT_LIMIT_ENABLE, 0x30B8, 0x314C, HEARTBEAT_TIMEOUT, ESCAPE_MODE}
+    | set(ADVANCED_CONTROL_ADDRESSES.values())
+    | set(BATTERY_2_ADDRESSES.values())
+    | {EXPORT_LIMIT_ENABLE, HEARTBEAT_TIMEOUT, ESCAPE_MODE}
 )
 
 
@@ -176,6 +192,7 @@ class SinexcelProfile:
         self.max_power_kw = None
         self.tou_limits = None
         self._flow_block_enabled = True
+        self.control_addresses = dict(CONTROL_ADDRESSES)
 
     def plan_reads(self, mappings):
         """Keep the four adjacent live powers in one response when all are due."""
@@ -310,6 +327,15 @@ class SinexcelProfile:
             "battery_voltage": 0x120C,
             "battery_current": 0x120E,
             "battery_soh": 0xB108,
+            # Battery cabinet 1 (PDF p122-p126); BMS capability only.
+            "battery_cell_voltage_max": 0xB10A,
+            "battery_cell_voltage_min": 0xB10C,
+            "battery_cell_temperature_max": 0xB112,
+            "battery_cell_temperature_min": 0xB114,
+            "bms_charge_current_limit": 0xB11A,
+            "bms_discharge_current_limit": 0xB11C,
+            "battery_capacity": 0xB15C,  # installed total, kWh
+            "battery_remaining_energy": 0xB15E,  # remaining total, kWh
             "battery_2_soc": 0x121C,
             "battery_2_power": 0x121A,
             "battery_2_voltage": 0x1216,  # PDF p99: battery 2 voltage (V)
@@ -372,9 +398,18 @@ class SinexcelProfile:
         ]
         if "battery_2" in self.capabilities:
             registers += [0x30B8, 0x314C]
+        self.control_addresses = dict(CONTROL_ADDRESSES)
         if self.max_power_kw and await self._readable(client, [(a, 2) for a in registers]):
             self.controls_supported = True
-            self.control_keys = frozenset(c.key for c in CONTROLS)
+            for key, address in ADVANCED_CONTROL_ADDRESSES.items():
+                blocks = [(address, 2)]
+                if "battery_2" in self.capabilities:
+                    blocks.append((BATTERY_2_ADDRESSES[key], 2))
+                if await self._readable(client, blocks):
+                    self.control_addresses[key] = address
+            self.control_keys = frozenset(
+                c.key for c in CONTROLS if c.key in self.control_addresses
+            )
             self.capabilities.update("ctrl_" + key for key in self.control_keys)
             if await self._readable(client, [*SCHEDULE_BLOCKS, (OUTSIDE_MODE, 2)]):
                 self.tou_limits = TouLimits(max_power_kw=self.max_power_kw)
@@ -402,13 +437,17 @@ class SinexcelProfile:
             if "battery_2" in self.capabilities:
                 keys.update({"min_soc_2", "backup_soc_2"})
             return keys
+        if key in BATTERY_2_ADDRESSES and "battery_2" in self.capabilities:
+            return {key, key + "_2"}
         return {key}
 
     async def read_controls(self, client, keys=None):
         result = {}
-        addresses = dict(CONTROL_ADDRESSES)
+        addresses = dict(self.control_addresses)
         if "battery_2" in self.capabilities:
-            addresses.update(min_soc_2=0x30B8, backup_soc_2=0x314C)
+            addresses.update(
+                {k + "_2": a for k, a in BATTERY_2_ADDRESSES.items() if k in addresses}
+            )
         if keys is not None and not set(keys) <= addresses.keys():
             raise InvalidResponse("Unsupported control read")
         for key, address in addresses.items():
@@ -462,9 +501,14 @@ class SinexcelProfile:
         value = decode_float(list(words), kind="control")
         if value is None:
             raise InvalidResponse("Invalid parameter retry value")
-        if address in (0x30B8, 0x314C) and "battery_2" not in self.capabilities:
+        if address in BATTERY_2_ADDRESSES.values() and "battery_2" not in self.capabilities:
             raise InvalidResponse("Battery 2 is no longer available")
-        key = next((k for k, a in CONTROL_ADDRESSES.items() if a == address), None)
+        key = next((k for k, a in self.control_addresses.items() if a == address), None)
+        if key is None:
+            # A battery 2 copy shares its battery 1 key's range.
+            key = next((k for k, a in BATTERY_2_ADDRESSES.items() if a == address), None)
+        if key is not None and key not in self.control_keys:
+            raise InvalidResponse("Parameter is no longer offered by the device")
         if key is not None:
             definition = next(c for c in CONTROLS if c.key == key)
             if definition.options:
@@ -509,9 +553,9 @@ class SinexcelProfile:
                 raise InvalidResponse("Unsupported remote retry parameter")
 
     async def apply_control(self, client, key, value):
-        changes = [(key, CONTROL_ADDRESSES[key], self.control_values(key, value))]
-        if key in ("min_soc", "backup_soc") and "battery_2" in self.capabilities:
-            changes.append((key + "_2", 0x30B8 if key == "min_soc" else 0x314C, float(value)))
+        changes = [(key, self.control_addresses[key], self.control_values(key, value))]
+        if key in BATTERY_2_ADDRESSES and "battery_2" in self.capabilities:
+            changes.append((key + "_2", BATTERY_2_ADDRESSES[key], float(value)))
         confirmed = {}
         for name, address, value in changes:
             raw = await self.write_float(client, address, value)
