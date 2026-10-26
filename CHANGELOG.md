@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.40.dev1
+
+- Fix the work mode being forced back to self-consumption about 60 s after a remote charge/discharge task ended: the device's EMS watchdog stays armed after manual control is off, and our heartbeat timeout (60 s) and escape mode (1, self-consumption) were left in place. Leaving remote control now restores the device's own watchdog settings recorded at the first start (a renewal keeps them); with unknown originals after a restart, our settings are neutralised with escape 0 ("keep running"). Found on hardware: feed-in priority set right after a stop was reverted at exactly last heartbeat + 60 s.
+- The simulator's watchdog now stays armed after manual control is off, like the device.
+
 ## 0.8.39.dev1
 
 - Fix remote charge/discharge never starting on real hardware: V001B031 accepts the manual-control power (0xC648) only while manual control (0xC646) is enabled, so enable is now written first (the device answers exception 3 or ignores the power otherwise).

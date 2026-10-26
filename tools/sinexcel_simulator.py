@@ -152,10 +152,15 @@ class BenchModel:
     def tick(self, now, seconds):
         self.last_now = now
         seconds = max(0, min(seconds, 5))
-        if self.get_float(0xC646) and (
-            self.last_heartbeat is None
-            or self.clock() - self.last_heartbeat >= self.get_float(HEARTBEAT_TIMEOUT)
+        timeout = self.get_float(HEARTBEAT_TIMEOUT)
+        # Like the real device (2026-10-26) the watchdog stays armed once an EMS has
+        # sent a heartbeat, even after manual control is off: it fires once.
+        if (self.get_float(0xC646) and self.last_heartbeat is None) or (
+            self.last_heartbeat is not None
+            and timeout > 0
+            and self.clock() - self.last_heartbeat >= timeout
         ):
+            self.last_heartbeat = None
             self.set_float(HEARTBEAT, 0)  # Dead
             escape = self.get_float(ESCAPE_MODE)
             if escape in (1, 2):  # 1: self-consumption, 2: stop; 0 keeps running

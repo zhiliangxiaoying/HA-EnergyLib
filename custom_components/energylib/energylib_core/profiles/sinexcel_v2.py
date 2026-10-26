@@ -194,6 +194,9 @@ class SinexcelProfile:
         self.tou_limits = None
         self._flow_block_enabled = True
         self.control_addresses = dict(CONTROL_ADDRESSES)
+        # The device's own watchdog settings, kept from the first remote start until
+        # the session is left (a renewal must not record our own 60 s / escape 1).
+        self._saved_watchdog = None
 
     def plan_reads(self, mappings):
         """Keep the four adjacent live powers in one response when all are due."""
@@ -610,9 +613,11 @@ class SinexcelProfile:
         (otherwise it reads back unchanged or answers exception 3), and enabling
         switches the work mode to 4 (manual), which leave_remote undoes.
         """
-        saved = {
-            a: await client.read_holding_registers(a, 2) for a in (HEARTBEAT_TIMEOUT, ESCAPE_MODE)
-        }
+        if self._saved_watchdog is None:
+            self._saved_watchdog = {
+                a: await client.read_holding_registers(a, 2)
+                for a in (HEARTBEAT_TIMEOUT, ESCAPE_MODE)
+            }
         try:
             for address, value in (
                 (HEARTBEAT_TIMEOUT, REMOTE_TIMEOUT_S),
@@ -629,9 +634,29 @@ class SinexcelProfile:
                 remote = await client.read_holding_registers(CONTROL_ADDRESSES["remote_control"], 2)
                 if decode_float(remote, kind="control") != 0:
                     await self.leave_remote(client, restore_mode)
-                for address, words in saved.items():
-                    await client.write_registers(address, words)
+                else:
+                    await self._restore_watchdog(client)
             raise
+
+    async def _restore_watchdog(self, client):
+        """Give the device back its watchdog settings once no session is active.
+
+        Verified on hardware (2026-10-26): the watchdog stays armed after manual
+        control is off, so 60 s after the last heartbeat it forced self-consumption
+        over a mode chosen meanwhile. Unknown originals (e.g. after a restart) with
+        our own settings still in place get escape 0, "keep running".
+        """
+        saved, self._saved_watchdog = self._saved_watchdog, None
+        if saved is not None:
+            for address, words in saved.items():
+                await client.write_registers(address, words)
+            return
+        timeout, escape = [
+            decode_float(await client.read_holding_registers(a, 2), kind="control")
+            for a in (HEARTBEAT_TIMEOUT, ESCAPE_MODE)
+        ]
+        if timeout == REMOTE_TIMEOUT_S and escape == REMOTE_ESCAPE:
+            await self.write_float(client, ESCAPE_MODE, 0)
 
     async def heartbeat(self, client, value):
         # Assumption (Q3): writing 1.0 (Alive) to 0xC068 refreshes the EMS watchdog.
@@ -660,3 +685,4 @@ class SinexcelProfile:
         if mode == REMOTE_MODE_CODE:
             code = self.control_values("work_mode", restore_mode)
             await self.write_float(client, CONTROL_ADDRESSES["work_mode"], code)
+        await self._restore_watchdog(client)

@@ -1145,6 +1145,32 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.model.get_float(0x300C), 3)
         self.assertEqual(self.runtime.remote_status, "completed")
 
+    async def test_leaving_remote_restores_watchdog_so_a_later_mode_survives(self):
+        # Hardware 2026-10-26: with our 60 s / escape 1 left in place, the device
+        # forced self-consumption 60 s after the last heartbeat, over feed-in priority.
+        self.runtime.allow_control = True
+        self.model.set_float(0xC06A, 0)
+        self.model.set_float(0xC06C, 0)
+        await self.runtime.set_battery_power(1, 300)
+        await self.runtime.set_battery_power(-1, 300)  # a renewal keeps the originals
+        await self.runtime.stop_remote()
+        self.assertEqual((self.model.get_float(0xC06A), self.model.get_float(0xC06C)), (0, 0))
+        await self.runtime.set_control("work_mode", "feed_in_priority")
+        self.now += 61
+        self.model.tick(datetime(2026, 10, 26, 14, 34), 1)
+        self.assertEqual(self.model.get_float(0x300C), 6)  # not forced back to 0
+
+    async def test_unknown_watchdog_originals_are_neutralised_on_exit(self):
+        # After a restart the originals are unknown; our own 60 s / escape 1 must
+        # not stay armed, so escape becomes 0 ("keep running").
+        self.runtime.allow_control = True
+        self.model.set_float(0xC06A, 60)
+        self.model.set_float(0xC06C, 1)
+        self.model.set_float(0xC646, 1)  # unowned session left from before the restart
+        await self.runtime.stop_remote()
+        self.assertEqual(self.model.get_float(0xC646), 0)
+        self.assertEqual(self.model.get_float(0xC06C), 0)
+
     async def test_failed_power_write_leaves_manual_mode_and_restores(self):
         self.runtime.allow_control = True
         original = self.model.apply_write

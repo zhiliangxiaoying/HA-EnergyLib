@@ -15,7 +15,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/zhiliangxiaoying/HA-EnergyLib/issues",
   "requirements": [],
-  "version": "0.8.39.dev1",
+  "version": "0.8.40.dev1",
   "zeroconf": [
     "_energylib._tcp.local."
   ]
