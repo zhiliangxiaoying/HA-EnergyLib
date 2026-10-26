@@ -16,6 +16,9 @@ from .profiles import get_profile
 from .transport.modbus_tcp import DeviceException, EnergyLibError
 
 SLOW_TIER = 30  # seconds: alarms, identity and control state
+# Hardware can change without a reconnect (a battery/BMS connected later): re-probe
+# capabilities on this tier so the host can add or remove entities.
+CAPABILITY_TIER = 600
 # HA starts each poll exactly one interval after the previous start, a few ms
 # before a point's tier has fully elapsed; without slack every other tick is lost.
 TIER_SLACK = 1.0
@@ -64,6 +67,9 @@ class DeviceRuntime:
         self._heartbeat = 0
         self._generation = -1
         self._identity_checked = -math.inf
+        self._capabilities_checked = -math.inf
+        self._known_capabilities = None  # From the last completed probe only.
+        self.capabilities_changed = False  # The host reloads to add/remove entities.
         self._closed = False
         self.last_frame_count = 0
         self.alarms = AlarmTracker(self.profile.describe_alarm)
@@ -89,6 +95,19 @@ class DeviceRuntime:
             await self.profile.configure(self.client, self.identity)
             await self._verify_connection()
             self._generation = self.client.generation
+            self._capabilities_probed()
+
+    def _capabilities_probed(self):
+        """Record a completed probe; flag a change so the host can rebuild entities.
+
+        Compared with the last completed probe, so a probe interrupted half-way
+        (which resets the profile's sets first) never looks like a change.
+        """
+        current = frozenset(self.profile.capabilities)
+        if self._known_capabilities is not None and current != self._known_capabilities:
+            self.capabilities_changed = True
+        self._known_capabilities = current
+        self._capabilities_checked = self._clock()
 
     def _ensure_open(self):
         if self._closed:
@@ -138,6 +157,7 @@ class DeviceRuntime:
         await self.profile.configure(self.client, self.identity)
         await self._verify_connection()
         self._generation = self.client.generation
+        self._capabilities_probed()
         self._timestamps.clear()
         return True
 
@@ -186,6 +206,10 @@ class DeviceRuntime:
                 verify = force or now - self._identity_checked >= SLOW_TIER - TIER_SLACK
                 if await self._prepare_locked(verify=verify):
                     force = True
+                elif now - self._capabilities_checked >= CAPABILITY_TIER - TIER_SLACK:
+                    await self.profile.configure(self.client, self.identity)
+                    await self._verify_connection()
+                    self._capabilities_probed()
                 supported = {p.key for p in self.points()}
                 enabled = set(enabled) & supported
                 # Every enabled summary depends on exactly the same source reads.

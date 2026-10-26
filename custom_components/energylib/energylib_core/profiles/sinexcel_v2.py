@@ -301,6 +301,18 @@ class SinexcelProfile:
         self.single_battery_confirmed = probes["battery_2"] == 0
         if probes["bms"] == 1:
             self.capabilities.add("bms")
+            # A BMS may not report cabinet capacity (the first real one reads 0 kWh);
+            # a 0 kWh sensor would mislead, so the capacity pair needs a real value.
+            try:
+                capacity = decode_float(
+                    await client.read_holding_registers(0xB15C, 2), kind="capability"
+                )
+            except DeviceException as err:
+                if err.code not in (1, 2):
+                    raise
+                capacity = None
+            if capacity is not None and capacity > 0:
+                self.capabilities.add("bms_capacity")
         if probes["port_use"] in (1, 2):
             self.capabilities.add("generator")
         elif probes["port_use"] == 4:

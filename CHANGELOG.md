@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.38.dev1
+
+- Verified on hardware with a battery connected: battery power/current signs (device + = charging, HA shows charging as negative), SOC, cell voltage and temperature, BMS current limits and SOH. BMS cabinet floats are engineering units (V, °C, A), as assumed.
+- Capacity sensors (installed / remaining kWh) are created only when the BMS reports a capacity above 0; the first real BMS reports 0.
+- Fix the live flow card drawing a charging battery as discharging: the card's default battery sign already matches EnergyLIB (positive = discharge), so `invert_state` is off again (found on hardware).
+- Device capabilities are re-probed every 10 minutes on the same connection (and on every reconnect); a change, such as a battery/BMS connected later, reloads the integration so entities are added or removed without a manual reload.
+
 ## 0.8.37.dev1
 
 - Battery cabinet data from the BMS (created only when a BMS is reported, disabled by default): installed capacity and remaining energy (kWh), maximum/minimum cell voltage and temperature, BMS charge/discharge current limits (0xB10A-0xB15E). Values are read as float engineering units like the other points; scaling still needs a BMS-equipped device to confirm.

@@ -445,6 +445,38 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.refresh(set(), force=True)
         self.assertFalse(keys & {p.key for p in self.runtime.points()})
 
+    async def test_capacity_sensors_need_a_reported_capacity(self):
+        self.assertIn("battery_capacity", {p.key for p in self.runtime.points()})
+        # The first real BMS reports 0 kWh: no misleading 0 kWh capacity entities.
+        self.model.set_float(0xB15C, 0)
+        self.now += 600
+        await self.runtime.refresh(set())
+        keys = {p.key for p in self.runtime.points()}
+        self.assertNotIn("battery_capacity", keys)
+        self.assertNotIn("battery_remaining_energy", keys)
+        self.assertIn("battery_cell_voltage_max", keys)
+
+    async def test_hardware_change_without_reconnect_is_detected_every_10_min(self):
+        self.model.set_float(0xB000, 0)  # e.g. BMS cable unplugged
+        generation = self.client.generation
+        self.now += 300
+        await self.runtime.refresh({"solar_power"})
+        self.assertFalse(self.runtime.capabilities_changed)  # not due yet
+        self.now += 300
+        await self.runtime.refresh({"solar_power"})
+        self.assertEqual(self.client.generation, generation)  # same connection
+        self.assertTrue(self.runtime.capabilities_changed)
+        self.assertNotIn("bms", self.runtime.profile.capabilities)
+        self.runtime.capabilities_changed = False  # the host consumed the change
+        self.now += 600
+        await self.runtime.refresh({"solar_power"})
+        self.assertFalse(self.runtime.capabilities_changed)  # unchanged since
+        self.model.set_float(0xB000, 1)  # battery/BMS connected later
+        self.now += 600
+        await self.runtime.refresh({"solar_power"})
+        self.assertTrue(self.runtime.capabilities_changed)
+        self.assertIn("bms", self.runtime.profile.capabilities)
+
     async def test_advanced_battery_limits_write_both_batteries_with_read_back(self):
         self.runtime.allow_control = True
         for key in ("max_soc", "max_charge_current", "max_discharge_current"):

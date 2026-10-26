@@ -247,6 +247,11 @@ class EnergyLibCoordinator(DataUpdateCoordinator):
                 # Yielding to a command is not proof that an offline device
                 # recovered; keep previous unavailable states until a real read.
                 raise UpdateFailed("Waiting for control before communication recovery")
+            if self.device.capabilities_changed:
+                # E.g. a battery/BMS connected later: rebuild entities via a reload.
+                self.device.capabilities_changed = False
+                _LOGGER.info("EnergyLIB device capabilities changed; reloading entities")
+                self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
             return data
         except (EnergyLibError, ValueError) as err:
             raise UpdateFailed("Unable to read configured inverter") from err

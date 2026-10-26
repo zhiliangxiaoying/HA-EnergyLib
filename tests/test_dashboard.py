@@ -172,9 +172,9 @@ class StrategyOutputTests(unittest.TestCase):
             c["card"] for c in cards if c.get("card", {}).get("type") == "custom:energylib-flow"
         )
         flow = guard["card"]
-        # Card defaults are +battery charge, +grid import. EnergyLIB battery is
-        # +discharge, while its grid is already +import. Only battery is inverted.
-        self.assertIs(flow["entities"]["battery"]["invert_state"], True)
+        # Card defaults are +battery discharge, +grid import, the same as EnergyLIB.
+        # Hardware check: an inverted battery drew charging as discharging.
+        self.assertIs(flow["entities"]["battery"]["invert_state"], False)
         self.assertIs(flow["entities"]["grid"]["invert_state"], False)
         self.assertEqual(flow["display_zero_lines"]["mode"], "transparency")
         self.assertEqual(flow["kilo_threshold"], 1000)

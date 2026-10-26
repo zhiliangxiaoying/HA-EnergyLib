@@ -56,11 +56,11 @@
 | battery_voltage | 电池电压 | 0x120C | 03 / 1 | V | — |
 | battery_current | 电池电流 | 0x120E | 03 / 1 | A | ⚠方向 |
 | battery_soh | 电池 SOH | 0xB108 | 03 / 1 | % | BMS 在线（0xB000=1） |
-| battery_capacity | 电池装机容量 | 0xB15C | 03 / 1 | kWh | 0.8.37；BMS 在线（0xB000=1）才创建，默认禁用 |
-| battery_remaining_energy | 电池剩余能量 | 0xB15E | 03 / 1 | kWh | 同上 |
-| battery_cell_voltage_max / _min | 电池单体最高 / 最低电压 | 0xB10A / 0xB10C | 03 / 1 | V | 同上；协议标 0.001V，按 float 工程值读取，待接 BMS 实机核对 ⚠ |
-| battery_cell_temperature_max / _min | 电池单体最高 / 最低温度 | 0xB112 / 0xB114 | 03 / 1 | °C | 同上；协议标 0.01℃，同样待实机核对 ⚠ |
-| bms_charge_current_limit / bms_discharge_current_limit | BMS 充 / 放电电流限值 | 0xB11A / 0xB11C | 03 / 1 | A | 同上；协议标 0.01A，待实机核对 ⚠ |
+| battery_capacity | 电池装机容量 | 0xB15C | 03 / 1 | kWh | 0.8.37；BMS 在线（0xB000=1）且容量 > 0 才创建（0.8.38），默认禁用；首台实机 BMS 读到 0 |
+| battery_remaining_energy | 电池剩余能量 | 0xB15E | 03 / 1 | kWh | 与装机容量同条件 |
+| battery_cell_voltage_max / _min | 电池单体最高 / 最低电压 | 0xB10A / 0xB10C | 03 / 1 | V | BMS 在线才创建；协议标 0.001V 为显示精度，实机确认按 float 工程值（V）读取（2026-10-26） |
+| battery_cell_temperature_max / _min | 电池单体最高 / 最低温度 | 0xB112 / 0xB114 | 03 / 1 | °C | 同上；实机确认为 °C 浮点值 |
+| bms_charge_current_limit / bms_discharge_current_limit | BMS 充 / 放电电流限值 | 0xB11A / 0xB11C | 03 / 1 | A | 同上；实机确认为 A 浮点值 |
 | battery_2_soc | 电池 2 SOC | 0x121C | 03 / 1 | % | 电池 2 启用 |
 | battery_2_power | 电池 2 功率 | 0x121A | 03 / 1 | kW | 电池 2 启用 |
 | battery_2_voltage | 电池 2 电压 | 0x1216 | 03 / 1 | V | 电池 2 启用 |

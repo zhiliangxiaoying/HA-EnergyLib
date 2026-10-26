@@ -189,8 +189,10 @@ function buildView(hass, device, t, flowCard, multiple) {
               entity: battery,
               name: t.batteryShort,
               state_of_charge: s("battery_total_soc"),
-              // EnergyLIB: positive = discharge. The card defaults to positive = charge.
-              invert_state: true,
+              // EnergyLIB: positive = discharge, which is also the card's default.
+              // Verified on hardware 2026-10-26: inverting drew a charging battery
+              // (-1.62 kW) as discharging to the home.
+              invert_state: false,
               display_state: "one_way",
               color_icon: "color_dynamically",
               color_circle: "color_dynamically",

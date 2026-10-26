@@ -98,10 +98,14 @@ OPTIONAL = (
     # Battery cabinet 1 as reported by the BMS (0xB10A-0xB15E). Created only for a
     # device that reports a BMS; floats in engineering units like the other points.
     + tuple(
+        Measurement(
+            key, "energy_storage", "kWh", False, frozenset({"bms", "bms_capacity"}), digits=1
+        )
+        for key in ("battery_capacity", "battery_remaining_energy")
+    )
+    + tuple(
         Measurement(key, kind, unit, False, frozenset({"bms"}), digits=digits)
         for key, kind, unit, digits in (
-            ("battery_capacity", "energy_storage", "kWh", 1),
-            ("battery_remaining_energy", "energy_storage", "kWh", 1),
             ("battery_cell_voltage_max", "voltage", "V", 3),
             ("battery_cell_voltage_min", "voltage", "V", 3),
             ("battery_cell_temperature_max", "temperature", "°C", 1),
