@@ -1114,12 +1114,52 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_heartbeat_uses_protocol_register_and_watchdog_escape(self):
         self.runtime.allow_control = True
         await self.runtime.set_battery_power(-1, 300)
-        self.assertEqual(self.model.get_float(0xC068), 1)  # EMS Alive
+        # Like the real device, the Alive flag is consumed at once (reads 0); the
+        # heartbeat counts because the session is still on.
+        self.assertEqual(self.model.last_heartbeat, self.now)
+        self.assertEqual(self.model.get_float(0xC646), 1)
         self.assertEqual(self.model.get_float(0xC06C), 1)  # escape: self-consumption
         self.now += 61
         self.model.tick(datetime(2026, 10, 19, 12), 1)
         self.assertEqual(self.model.get_float(0xC068), 0)  # Dead after timeout
         self.assertEqual(self.model.get_float(0xC646), 0)
+
+    async def test_remote_enables_manual_mode_first_and_restores_the_mode(self):
+        self.runtime.allow_control = True
+        await self.runtime.set_control("work_mode", "backup")
+        await self.runtime.set_battery_power(1.5, 300)
+        # 0xC648 is accepted only once 0xC646 = 1; the device is now in mode 4.
+        self.assertEqual((self.model.get_float(0xC646), self.model.get_float(0xC648)), (1, 1.5))
+        self.assertEqual(self.model.get_float(0x300C), 4)
+        self.assertEqual(self.runtime.remote_status, "discharging")
+        await self.runtime.stop_remote()
+        # Exit clears the setpoint and gives back the mode used before the session.
+        self.assertEqual((self.model.get_float(0xC646), self.model.get_float(0xC648)), (0, 0))
+        self.assertEqual(self.model.get_float(0x300C), 3)  # backup
+        self.assertEqual(self.runtime.controls["work_mode"], "backup")
+        # Expiry restores it too; a renewal keeps the mode recorded at the start.
+        await self.runtime.set_battery_power(-1, 2)
+        await self.runtime.set_battery_power(-1.2, 2)
+        self.now += 3
+        await asyncio.wait_for(asyncio.shield(self.runtime._lease_task), 15)
+        self.assertEqual(self.model.get_float(0x300C), 3)
+        self.assertEqual(self.runtime.remote_status, "completed")
+
+    async def test_failed_power_write_leaves_manual_mode_and_restores(self):
+        self.runtime.allow_control = True
+        original = self.model.apply_write
+
+        def refuse_power(address, words):
+            if address == 0xC648 and self.model.get_float(0xC646):
+                return None  # acknowledged, not applied: read-back differs
+            return original(address, words)
+
+        with patch.object(self.model, "apply_write", refuse_power):
+            with self.assertRaises(ControlError):
+                await self.runtime.set_battery_power(1, 60)
+        self.assertEqual(self.model.get_float(0xC646), 0)
+        self.assertEqual(self.model.get_float(0x300C), 0)  # back to self-consumption
+        self.assertEqual(self.runtime.remote_status, "idle")
 
     async def test_tou_dates_are_protocol_timestamps(self):
         self.runtime.allow_control = True

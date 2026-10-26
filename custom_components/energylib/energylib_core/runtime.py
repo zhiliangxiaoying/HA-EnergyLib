@@ -78,6 +78,9 @@ class DeviceRuntime:
         self.remote_end_time = None
         self.remote_target = None
         self._poll_uncertain = False  # "unconfirmed" caused only by a failed poll
+        # Mode to restore when leaving remote control: entering switches the device
+        # to its manual mode, which it keeps after the session ends.
+        self._remote_restore_mode = None
         self.state_changed = None
 
     @property
@@ -619,9 +622,16 @@ class DeviceRuntime:
                 raise ControlError("Leave TOU before starting remote control")
             if actual["remote_control"] and self.remote_deadline is None:
                 raise ControlError("An unowned remote session must first be stopped")
+            if self.remote_deadline is None:
+                # A renewal keeps the mode recorded when the session started.
+                mode = actual["work_mode"]
+                options = self.control_options(next(c for c in CONTROLS if c.key == "work_mode"))
+                self._remote_restore_mode = (
+                    mode if mode in options and mode != "time_of_use" else "self_consumption"
+                )
             failure = None
             try:
-                await self.profile.enter_remote(self.client, power_kw)
+                await self.profile.enter_remote(self.client, power_kw, self._restore_mode())
                 await self._send_heartbeat()
                 self.remote_deadline = self._clock() + duration
                 self.remote_end_time = datetime.now(timezone.utc) + timedelta(seconds=duration)
@@ -659,6 +669,10 @@ class DeviceRuntime:
                     "Remote request uncertain; watchdog remains authoritative"
                 ) from failure
 
+    def _restore_mode(self):
+        """Unknown after a restart (an unowned session): self-consumption, like the escape."""
+        return self._remote_restore_mode or "self_consumption"
+
     async def _send_heartbeat(self):
         self._heartbeat = (self._heartbeat + 1) & 0xFFFF
         await self.profile.heartbeat(self.client, self._heartbeat)
@@ -689,7 +703,7 @@ class DeviceRuntime:
                 if generation == self._lease_generation:
                     try:
                         await self._identity()
-                        await self.profile.leave_remote(self.client)
+                        await self.profile.leave_remote(self.client, self._restore_mode())
                         await self._verify_connection()
                         # A confirmed exit resolves doubt left by a failed poll, but not
                         # by a failed heartbeat or command.
@@ -730,7 +744,7 @@ class DeviceRuntime:
                 task = self._cancel_lease_locked()
                 try:
                     await self._identity()
-                    await self.profile.leave_remote(self.client)
+                    await self.profile.leave_remote(self.client, self._restore_mode())
                     await self._verify_connection()
                     self.last_command = "confirmed"
                     self.remote_status = "stopped"
@@ -757,7 +771,7 @@ class DeviceRuntime:
                 if owned_remote and self.profile.controls_supported:
                     try:
                         await self._identity(allow_closed=True)
-                        await self.profile.leave_remote(self.client)
+                        await self.profile.leave_remote(self.client, self._restore_mode())
                     except EnergyLibError:
                         self.last_command = "uncertain"
                 await self.client.close()

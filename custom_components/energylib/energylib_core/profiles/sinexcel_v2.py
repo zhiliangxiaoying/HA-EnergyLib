@@ -86,6 +86,7 @@ DEVICE_SIGN = {
 # written 2099-12-31 00:00 to 23:59:59 (and its own windows end at 23:59:59).
 FAR_FUTURE = int(datetime(2099, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp())
 REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
+REMOTE_MODE_CODE = 4  # 0x300C while manual control (0xC646) is or was enabled
 # Explicit level parameters only. Heartbeats, remote enable/disable and TOU table
 # blocks retain single-send semantics until their repeated-write behavior is verified.
 RETRY_SAFE_ADDRESSES = frozenset(
@@ -602,7 +603,13 @@ class SinexcelProfile:
             )
         )
 
-    async def enter_remote(self, client, power):
+    async def enter_remote(self, client, power, restore_mode="self_consumption"):
+        """Enable manual control first, then set its power.
+
+        Verified on hardware (2026-10-26): 0xC648 is accepted only while 0xC646 = 1
+        (otherwise it reads back unchanged or answers exception 3), and enabling
+        switches the work mode to 4 (manual), which leave_remote undoes.
+        """
         saved = {
             a: await client.read_holding_registers(a, 2) for a in (HEARTBEAT_TIMEOUT, ESCAPE_MODE)
         }
@@ -610,19 +617,20 @@ class SinexcelProfile:
             for address, value in (
                 (HEARTBEAT_TIMEOUT, REMOTE_TIMEOUT_S),
                 (ESCAPE_MODE, REMOTE_ESCAPE),
-                (CONTROL_ADDRESSES["remote_power"], power),
                 (CONTROL_ADDRESSES["remote_control"], 1),
+                (CONTROL_ADDRESSES["remote_power"], power),
             ):
                 await self.write_float(client, address, value)
         except EnergyLibError:
-            # A device that refused the session (e.g. 0xC648 read back 0 without a
-            # battery) keeps its own watchdog settings. While a session may be
-            # active, the watchdog stays as written: it is the safety net.
+            # Undo a refused start: leave manual mode if it was entered, then give
+            # the device back its own watchdog settings. If the exit cannot be
+            # confirmed the session may be active and the watchdog stays as written.
             with contextlib.suppress(EnergyLibError):
                 remote = await client.read_holding_registers(CONTROL_ADDRESSES["remote_control"], 2)
-                if decode_float(remote, kind="control") == 0:
-                    for address, words in saved.items():
-                        await client.write_registers(address, words)
+                if decode_float(remote, kind="control") != 0:
+                    await self.leave_remote(client, restore_mode)
+                for address, words in saved.items():
+                    await client.write_registers(address, words)
             raise
 
     async def heartbeat(self, client, value):
@@ -637,5 +645,18 @@ class SinexcelProfile:
         if decode_float(remote, kind="control") != 1:
             raise InvalidResponse("Heartbeat not confirmed")
 
-    async def leave_remote(self, client):
+    async def leave_remote(self, client, restore_mode="self_consumption"):
+        """Clear the setpoint, leave manual control and restore the previous mode.
+
+        0xC648 can only be written while manual control is on, so it is cleared
+        first; the device then stays in work mode 4 (manual) until a mode is set.
+        """
+        with contextlib.suppress(DeviceException):
+            await client.write_registers(CONTROL_ADDRESSES["remote_power"], floats([0.0]))
         await self.write_float(client, CONTROL_ADDRESSES["remote_control"], 0)
+        mode = decode_float(
+            await client.read_holding_registers(CONTROL_ADDRESSES["work_mode"], 2), kind="control"
+        )
+        if mode == REMOTE_MODE_CODE:
+            code = self.control_values("work_mode", restore_mode)
+            await self.write_float(client, CONTROL_ADDRESSES["work_mode"], code)

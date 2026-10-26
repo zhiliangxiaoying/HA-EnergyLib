@@ -301,9 +301,17 @@ class BenchModel:
                 return 3
             if address == HEARTBEAT and value != 1:
                 return 3  # Only "Alive" (1) is a meaningful EMS heartbeat.
+            # Real V001B031 (2026-10-26): the manual-control power is writable only
+            # while manual control is enabled.
+            if address == 0xC648 and not self.get_float(0xC646):
+                return 3
         self.registers.update({address + i: w for i, w in enumerate(words)})
         if address in (HEARTBEAT, 0xC646):
             self.last_heartbeat = self.clock()
+        if address == HEARTBEAT:
+            self.set_float(HEARTBEAT, 0)  # The device consumes the Alive flag at once.
+        if address == 0xC646 and self.get_float(0xC646):
+            self.set_float(0x300C, 4)  # Enabling switches to manual mode, kept after exit.
         return 0
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.39.dev1
+
+- Fix remote charge/discharge never starting on real hardware: V001B031 accepts the manual-control power (0xC648) only while manual control (0xC646) is enabled, so enable is now written first (the device answers exception 3 or ignores the power otherwise).
+- Leaving remote control clears the power setpoint, disables manual control and restores the work mode used before the session: enabling switches the device to mode 4 (manual), which it keeps after the session ends. Unknown previous modes (after a restart) fall back to self-consumption, like the watchdog escape.
+- A refused start that already entered manual mode is rolled back the same way.
+- The simulator now follows the device: power writable only in manual mode, mode 4 on enable, heartbeat flag consumed at once.
+
 ## 0.8.38.dev1
 
 - Verified on hardware with a battery connected: battery power/current signs (device + = charging, HA shows charging as negative), SOC, cell voltage and temperature, BMS current limits and SOH. BMS cabinet floats are engineering units (V, °C, A), as assumed.
