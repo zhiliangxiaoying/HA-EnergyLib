@@ -38,4 +38,34 @@ assert.equal(guard.notice.textContent, "negative");
 hass.states["sensor.load"].state = "1"; guard.hass = hass;
 assert.equal(guard.firstChild, guard.flow);
 assert.equal(created.length, 2);
+
+// A few watts of mismatch must not animate a PV-to-home flow the device does not report.
+const balanced = new Guard();
+balanced.setConfig({
+  load_entity: "sensor.load", solar_entity: "sensor.pv", battery_entity: "sensor.bat", grid_entity: "sensor.grid",
+  warning: "negative", unavailable: "missing", card: { type: "custom:power-flow-card-plus" },
+});
+const kw = (state) => ({ state, attributes: { unit_of_measurement: "kW" } });
+const live = { states: { "sensor.load": kw("0.0"), "sensor.pv": kw("1.58"), "sensor.bat": kw("-1.57"), "sensor.grid": kw("-0.0") } };
+balanced.hass = live;
+const fed = balanced.flow.hass;
+assert.notEqual(fed, live);
+assert.ok(Math.abs(Number(fed.states["sensor.pv"].state) - 1.57) < 1e-9); // 10 W absorbed
+assert.equal(live.states["sensor.pv"].state, "1.58"); // raw state untouched
+assert.equal(fed.states["sensor.bat"], live.states["sensor.bat"]);
+// A real flow above the tolerance is passed through unchanged.
+live.states["sensor.load"] = kw("0.5"); live.states["sensor.pv"] = kw("2.2"); live.states["sensor.bat"] = kw("-1.7");
+balanced.hass = live;
+assert.equal(balanced.flow.hass, live);
+live.states["sensor.load"] = kw("0"); live.states["sensor.pv"] = kw("1.65"); live.states["sensor.bat"] = kw("-1.57");
+balanced.hass = live; // 80 W unexplained: shown as the device reports it
+assert.equal(balanced.flow.hass, live);
+// Night: no PV, 12 W of grid import against a 0 W load is not a grid-to-home flow.
+live.states["sensor.pv"] = kw("0"); live.states["sensor.bat"] = kw("0"); live.states["sensor.grid"] = kw("0.012");
+balanced.hass = live;
+assert.ok(Math.abs(Number(balanced.flow.hass.states["sensor.grid"].state)) < 1e-9);
+assert.equal(balanced.flow.hass.states["sensor.pv"], live.states["sensor.pv"]);
+live.states["sensor.pv"] = kw("unavailable");
+balanced.hass = live;
+assert.equal(balanced.flow.hass, live);
 process.stdout.write(JSON.stringify({ result: "passed" }));

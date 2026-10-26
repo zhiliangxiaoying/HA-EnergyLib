@@ -175,6 +175,9 @@ function buildView(hass, device, t, flowCard, multiple) {
         card: {
           type: "custom:energylib-flow",
           load_entity: load,
+          solar_entity: solar,
+          battery_entity: battery,
+          grid_entity: grid,
           warning: t.negativeLoad,
           unavailable: t.flowMissing,
           card: {
@@ -463,12 +466,41 @@ class EnergyLibFlowCard extends HTMLElement {
     this.notice = document.createElement("ha-card");
     this.notice.style.cssText = "padding:16px;line-height:1.6";
   }
+  // The card derives "to home" flows from the sources, while the home circle shows
+  // the measured load. A few watts of meter mismatch (PV 1.58 kW vs battery charge
+  // 1.57 kW with a 0 W load) would animate a flow the device does not report.
+  // Within this tolerance one supplying source (PV, else grid import, else battery
+  // discharge) absorbs the difference in the card's input only; the sensors,
+  // tiles and statistics keep the raw values.
+  static TOLERANCE_W = 30;
+  watts(hass, entity) {
+    const state = hass.states[entity];
+    const value = Number(state?.state);
+    if (!state || state.state === "" || !Number.isFinite(value)) return null;
+    return value * ({ W: 1, kW: 1000, MW: 1e6 }[state.attributes?.unit_of_measurement] ?? 1000);
+  }
+  balanced(hass) {
+    const { solar_entity: solar, battery_entity: battery, grid_entity: grid, load_entity: load } = this.config;
+    if (!solar || !battery || !grid) return hass;
+    const [s, b, g, l] = [solar, battery, grid, load].map((e) => this.watts(hass, e));
+    if ([s, b, g, l].some((v) => v === null)) return hass;
+    // EnergyLIB signs: battery + = discharge, grid + = import; load = sources.
+    const excess = s + b + g - l;
+    if (excess <= 0 || excess > EnergyLibFlowCard.TOLERANCE_W) return hass;
+    const source = [[solar, s], [grid, g], [battery, b]].find(([, watts]) => watts >= excess);
+    if (!source) return hass;
+    const [entity, watts] = source;
+    const state = hass.states[entity];
+    const scale = { W: 1, kW: 1000, MW: 1e6 }[state.attributes?.unit_of_measurement] ?? 1000;
+    const adjusted = { ...state, state: String((watts - excess) / scale) };
+    return { ...hass, states: { ...hass.states, [entity]: adjusted } };
+  }
   set hass(hass) {
     const raw = hass.states[this.config.load_entity]?.state;
     const valid = raw !== undefined && raw !== null && raw !== "" && Number.isFinite(Number(raw));
     let node;
     if (valid && Number(raw) >= 0) {
-      this.flow.hass = hass;
+      this.flow.hass = this.balanced(hass);
       node = this.flow;
     } else {
       this.notice.textContent = valid ? this.config.warning : this.config.unavailable;
