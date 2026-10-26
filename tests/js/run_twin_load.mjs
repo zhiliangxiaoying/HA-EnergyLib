@@ -57,16 +57,21 @@ function assertPaused() {
     assert.equal(element('svg-' + route.id).classes.inactive, true);
   }
 }
+// Beyond the 30 W tolerance: the home is drawn as 0 W, flows keep running and one
+// hint names the raw reading; the sensor state is untouched.
 set({load_power: -0.045, grid_power: -0.045});
-assertPaused();
-assert.equal(element('metric-load').textContent, '-45 W');
-assert.equal(element('flow-load-val').textContent, '-45 W');
-assert.equal(element('energy-badge').textContent, '计量待核对');
+assert.equal(element('metric-load').textContent, '0 W');
+assert.equal(element('energy-badge').textContent, '5/5 项可用');
 assert.equal(element('energy-notice').hidden, false);
-assert.match(element('energy-notice').textContent, /负值/);
+assert.match(element('energy-notice').textContent, /-45 W/);
+assert.equal(routes.find(r => r.id === 'home').active, false);
+assert.equal(routes.find(r => r.id === 'grid').active, true);
 assert.equal(states[device.entities.load_power].state, '-0.045');
-set({load_power: -0.001});
-assertPaused(); // tiny negative readings must not silently become normal
+// Meter noise within the tolerance is simply 0 W, without a hint.
+set({load_power: -0.02, grid_power: 0});
+assert.equal(element('energy-notice').hidden, true);
+assert.equal(element('metric-load').textContent, '0 W');
+assertPaused(); // all four powers are within ±20 W: nothing to animate
 set({solar_power: 2, grid_power: -1, battery_power: 0, load_power: 1});
 assert.equal(element('energy-notice').hidden, true);
 assert.equal(element('metric-load').textContent, '1.00 kW');

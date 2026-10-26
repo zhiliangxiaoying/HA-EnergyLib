@@ -178,10 +178,12 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertIs(flow["entities"]["grid"]["invert_state"], False)
         self.assertEqual(flow["display_zero_lines"]["mode"], "transparency")
         self.assertEqual(flow["kilo_threshold"], 1000)
-        self.assertIn("已暂停能流动画", guard["warning"])
+        # A negative home load is drawn as 0 W with a one-line hint naming the reading.
+        self.assertIn("{value}", guard["warning"])
+        self.assertIn("按 0 W 显示", guard["warning"])
         self.assertEqual(guard["load_entity"], "sensor.dev1_renamed_load_power")
         # An asynchronous flow residual can differ from measured home load.
-        # Display the supplied measurement; the guard rejects negative loads.
+        # Display the supplied measurement; the guard feeds a negative load as 0 W.
         self.assertEqual(flow["entities"]["home"]["entity"], guard["load_entity"])
         self.assertIs(flow["entities"]["home"]["override_state"], True)
 

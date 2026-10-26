@@ -13,6 +13,8 @@
 - Capacity sensors (installed / remaining kWh) are created only when the BMS reports a capacity above 0; the first real BMS reports 0.
 - Fix the live flow card drawing a charging battery as discharging: the card's default battery sign already matches EnergyLIB (positive = discharge), so `invert_state` is off again (found on hardware).
 - The live flow card no longer animates a flow to the home from a few watts of meter mismatch (e.g. PV 1.58 kW, battery charging 1.57 kW, load 0 W): within 30 W, one supplying source in the card's input absorbs the difference. Sensors, tiles and statistics keep the raw values.
+- Readings within 30 W (meter noise) no longer animate in the flow card or the twin: PV, battery and grid under 30 W count as 0 and a remaining imbalance within 30 W is absorbed, so e.g. 22 W of grid noise is not drawn as battery-to-grid.
+- A negative home load no longer replaces the flow card or pauses the twin: it is drawn as 0 W; within 30 W (meter noise) without comment, beyond that with one line naming the raw reading. Sensors keep the device value.
 - Device capabilities are re-probed every 10 minutes on the same connection (and on every reconnect); a change, such as a battery/BMS connected later, reloads the integration so entities are added or removed without a manual reload.
 
 ## 0.8.37.dev1

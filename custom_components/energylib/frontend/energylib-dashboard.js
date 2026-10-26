@@ -21,7 +21,7 @@ const TEXT = {
     flow: "Live energy flow",
     flowTitle: "Power flow",
     flowMissing: "Some power values are unavailable; the flow appears again once the device reports.",
-    negativeLoad: "The device reports negative home load, so flow animation is paused to avoid inventing a source. Raw readings below are retained. Check metering direction and wiring.",
+    negativeLoad: "Home load reads {value}; shown as 0 W, likely a metering error. Check the wiring if it persists.",
     battery: "Battery",
     soc: "State of charge",
     todayCharge: "Charged today",
@@ -70,7 +70,7 @@ const TEXT = {
     flow: "实时能流",
     flowTitle: "实时功率流向",
     flowMissing: "部分功率数据暂不可用，恢复连接后自动显示流向。",
-    negativeLoad: "设备上报家庭负载为负值，已暂停能流动画，避免推算出不存在的能量来源。下方保留原始读数，请核对设备计量方向和接线。",
+    negativeLoad: "家庭负载读数为 {value}，已按 0 W 显示，可能是计量误差；持续出现时请核对接线。",
     battery: "储能电池",
     soc: "电池电量",
     todayCharge: "今日充电",
@@ -465,13 +465,16 @@ class EnergyLibFlowCard extends HTMLElement {
     this.flow.setConfig(config.card);
     this.notice = document.createElement("ha-card");
     this.notice.style.cssText = "padding:16px;line-height:1.6";
+    this.hint = document.createElement("div");
+    this.hint.style.cssText = "padding:6px 4px 0;font-size:12px;line-height:1.5;color:var(--secondary-text-color)";
+    this.shown = null;
   }
   // The card derives "to home" flows from the sources, while the home circle shows
   // the measured load. A few watts of meter mismatch (PV 1.58 kW vs battery charge
   // 1.57 kW with a 0 W load) would animate a flow the device does not report.
-  // Within this tolerance one supplying source (PV, else grid import, else battery
-  // discharge) absorbs the difference in the card's input only; the sensors,
-  // tiles and statistics keep the raw values.
+  // Readings under the tolerance count as 0, and a remaining imbalance within it is
+  // absorbed by one source or sink in the card's input only; the sensors, tiles
+  // and statistics keep the raw values.
   static TOLERANCE_W = 30;
   watts(hass, entity) {
     const state = hass.states[entity];
@@ -482,31 +485,59 @@ class EnergyLibFlowCard extends HTMLElement {
   balanced(hass) {
     const { solar_entity: solar, battery_entity: battery, grid_entity: grid, load_entity: load } = this.config;
     if (!solar || !battery || !grid) return hass;
-    const [s, b, g, l] = [solar, battery, grid, load].map((e) => this.watts(hass, e));
-    if ([s, b, g, l].some((v) => v === null)) return hass;
+    const tolerance = EnergyLibFlowCard.TOLERANCE_W;
+    const raw = Object.fromEntries([solar, battery, grid, load].map((e) => [e, this.watts(hass, e)]));
+    if (Object.values(raw).some((v) => v === null)) return hass;
+    const w = { ...raw };
+    // Readings within the tolerance are meter noise, not flows.
+    for (const e of [solar, battery, grid]) if (Math.abs(w[e]) < tolerance) w[e] = 0;
     // EnergyLIB signs: battery + = discharge, grid + = import; load = sources.
-    const excess = s + b + g - l;
-    if (excess <= 0 || excess > EnergyLibFlowCard.TOLERANCE_W) return hass;
-    const source = [[solar, s], [grid, g], [battery, b]].find(([, watts]) => watts >= excess);
-    if (!source) return hass;
-    const [entity, watts] = source;
-    const state = hass.states[entity];
-    const scale = { W: 1, kW: 1000, MW: 1e6 }[state.attributes?.unit_of_measurement] ?? 1000;
-    const adjusted = { ...state, state: String((watts - excess) / scale) };
-    return { ...hass, states: { ...hass.states, [entity]: adjusted } };
+    const excess = w[solar] + w[battery] + w[grid] - w[load];
+    if (excess !== 0 && Math.abs(excess) <= tolerance) {
+      // Too much supply: trim a source (PV, grid import, battery discharge).
+      // Too much demand: trim a sink (grid export, battery charge).
+      const pick = excess > 0
+        ? [solar, grid, battery].find((e) => w[e] >= excess)
+        : [grid, battery].find((e) => w[e] <= excess);
+      if (pick) w[pick] -= excess;
+    }
+    const changed = [solar, battery, grid].filter((e) => w[e] !== raw[e]);
+    if (!changed.length) return hass;
+    const states = { ...hass.states };
+    for (const e of changed) {
+      const scale = { W: 1, kW: 1000, MW: 1e6 }[states[e].attributes?.unit_of_measurement] ?? 1000;
+      states[e] = { ...states[e], state: String(w[e] / scale) };
+    }
+    return { ...hass, states };
   }
   set hass(hass) {
-    const raw = hass.states[this.config.load_entity]?.state;
-    const valid = raw !== undefined && raw !== null && raw !== "" && Number.isFinite(Number(raw));
-    let node;
-    if (valid && Number(raw) >= 0) {
-      this.flow.hass = this.balanced(hass);
-      node = this.flow;
-    } else {
-      this.notice.textContent = valid ? this.config.warning : this.config.unavailable;
-      node = this.notice;
+    const load = this.config.load_entity;
+    const watts = this.watts(hass, load);
+    if (watts === null) {
+      this.notice.textContent = this.config.unavailable;
+      this.show("notice", this.notice);
+      return;
     }
-    if (this.firstChild !== node) this.replaceChildren(node);
+    // A home cannot feed power out: a negative reading is drawn as 0 W so the card
+    // never invents a source. Within the tolerance it is plain meter noise; beyond
+    // it one quiet line under the card says so. The sensor keeps the raw value.
+    let fed = hass;
+    if (watts < 0) {
+      fed = { ...hass, states: { ...hass.states, [load]: { ...hass.states[load], state: "0" } } };
+    }
+    this.flow.hass = this.balanced(fed);
+    if (watts < -EnergyLibFlowCard.TOLERANCE_W) {
+      this.hint.textContent = this.config.warning.replace("{value}", `-${Math.round(-watts)} W`);
+      this.show("flow+hint", this.flow, this.hint);
+    } else {
+      this.show("flow", this.flow);
+    }
+  }
+  show(key, ...nodes) {
+    if (this.shown !== key) {
+      this.replaceChildren(...nodes);
+      this.shown = key;
+    }
   }
   getCardSize() { return 4; }
 }
