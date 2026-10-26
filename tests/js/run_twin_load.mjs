@@ -72,6 +72,14 @@ set({load_power: -0.02, grid_power: 0});
 assert.equal(element('energy-notice').hidden, true);
 assert.equal(element('metric-load').textContent, '0 W');
 assertPaused(); // all four powers are within ±20 W: nothing to animate
+// Same numbers as the overview flow card (hardware case): PV 153 W, battery
+// charging 155 W, 22 W of grid noise, load 0 W -> PV 153, battery 153, grid 0.
+set({solar_power: 0.153, battery_power: -0.155, grid_power: -0.022, load_power: 0});
+assert.equal(element('metric-solar').textContent, '153 W');
+assert.equal(element('metric-battery').textContent, '153 W');
+assert.equal(element('metric-grid').textContent, '0 W');
+assert.equal(routes.find(r => r.id === 'grid').active, false);
+assert.equal(routes.find(r => r.id === 'battery').active, true);
 set({solar_power: 2, grid_power: -1, battery_power: 0, load_power: 1});
 assert.equal(element('energy-notice').hidden, true);
 assert.equal(element('metric-load').textContent, '1.00 kW');

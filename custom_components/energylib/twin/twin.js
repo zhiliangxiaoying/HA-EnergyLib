@@ -356,6 +356,22 @@
   // Readings within ±30 W are meter noise: no flow, no warning (same as the flow card).
   const NOISE_W = 30;
 
+  // Same rule as the overview flow card, so both pages show the same numbers:
+  // PV, battery and grid under NOISE_W count as 0, and a remaining imbalance
+  // within NOISE_W is absorbed by one source or sink. Sensors keep raw values.
+  function balanced(d) {
+    const w = {...d};
+    for (const k of ['solar', 'battery', 'grid']) if (w[k] !== null && Math.abs(w[k]) < NOISE_W) w[k] = 0;
+    if ([w.solar, w.battery, w.grid, w.load].some(v => v === null)) return w;
+    // Signs: battery + = discharge, grid + = import; load = sources.
+    const excess = w.solar + w.battery + w.grid - w.load;
+    if (excess !== 0 && Math.abs(excess) <= NOISE_W) {
+      const pick = excess > 0 ? ['solar', 'grid', 'battery'].find(k => w[k] >= excess) : ['grid', 'battery'].find(k => w[k] <= excess);
+      if (pick) w[pick] -= excess;
+    }
+    return w;
+  }
+
   function note(key, v, text) {
     return !hass ? '等待 HA 连接' : !device ? '未找到设备' : !device.entities[key] ? '未找到实体' : v === null ? '暂无数据' : text;
   }
@@ -371,7 +387,7 @@
     $('energy-device').textContent = device ? device.name : '';
 
     const socKey = device?.entities.battery_total_soc ? 'battery_total_soc' : 'battery_soc';
-    const d = {solar: reading('solar_power'), grid: reading('grid_power'), battery: reading('battery_power'), load: displayLoad(reading('load_power')), soc: reading(socKey)};
+    const d = balanced({solar: reading('solar_power'), grid: reading('grid_power'), battery: reading('battery_power'), load: displayLoad(reading('load_power')), soc: reading(socKey)});
     const rawLoad = reading('load_power');
     // A few watts below zero is meter noise: shown as 0 W without comment. Beyond
     // the tolerance the home is still drawn as 0 W and a one-line hint explains it.
