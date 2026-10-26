@@ -10,6 +10,7 @@
 - Fix remote charge/discharge never starting on real hardware: V001B031 accepts the manual-control power (0xC648) only while manual control (0xC646) is enabled, so enable is now written first (the device answers exception 3 or ignores the power otherwise).
 - Leaving remote control clears the power setpoint, disables manual control and restores the work mode used before the session: enabling switches the device to mode 4 (manual), which it keeps after the session ends. Unknown previous modes (after a restart) fall back to self-consumption, like the watchdog escape.
 - A refused start that already entered manual mode is rolled back the same way.
+- Hardware semantics (documented): discharge, including forced discharge, is only allowed above backup SOC plus the device's discharge hysteresis (0x31BA, 10 %); with backup 52 % and SOC 53 % a 2 kW forced discharge did not run. Min SOC raises the discharge-ended alarm and stops discharge.
 - Hardware semantics (documented): a charge setpoint is battery power (grid tops up PV); a discharge setpoint is the inverter's total output (PV + battery), so the battery supplies only the part PV does not cover, and surplus is exported.
 - The simulator now follows the device: power writable only in manual mode, mode 4 on enable, heartbeat flag consumed at once.
 
