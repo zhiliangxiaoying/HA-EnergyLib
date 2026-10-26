@@ -11,6 +11,12 @@ from .ha_runtime_check import StaticPaths
 from .sinexcel_simulator import BenchConfig, BenchModel, BenchServer
 
 
+def energylib_device_id(dr, hass, entry):
+    # async_get_device() raises in newer HA when called outside an integration.
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    return next(d.id for d in devices if ("energylib", entry.unique_id) in d.identifiers)
+
+
 async def check():
     from homeassistant import config_entries, loader
     from homeassistant.bootstrap import async_load_base_functionality
@@ -103,9 +109,7 @@ async def check():
                 for e in entities
                 if e.translation_key in keys
             )
-            device_id = (
-                dr.async_get(hass).async_get_device(identifiers={("energylib", entry.unique_id)}).id
-            )
+            device_id = energylib_device_id(dr, hass, entry)
             access = next(e for e in entities if e.translation_key == "allow_remote_control")
             assert access.disabled_by is er.RegistryEntryDisabler.INTEGRATION
             assert hass.states.get(access.entity_id) is None
@@ -218,9 +222,7 @@ async def check():
             await hass.async_block_till_done()
             assert all(registry.async_get(entity_id) is None for entity_id in retired)
             runtime = entry.runtime_data.device
-            device_id = (
-                dr.async_get(hass).async_get_device(identifiers={("energylib", entry.unique_id)}).id
-            )
+            device_id = energylib_device_id(dr, hass, entry)
             checks.append(
                 "status ready; native helpers and end timestamp default disabled, retained on reload; retired UI controls absent"
             )
