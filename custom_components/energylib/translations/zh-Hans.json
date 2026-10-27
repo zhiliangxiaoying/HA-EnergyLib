@@ -5,7 +5,7 @@
     "step": {
       "user": {
         "title": "连接 EnergyLIB",
-        "description": "填写逆变器的 Modbus TCP 地址（盛弘 V001B031 协议）。控制功能默认关闭，需要在集成选项中手动打开。",
+        "description": "填写 EnergyLIB 采集棒的 Modbus TCP 地址。控制功能默认关闭，需要在集成选项中手动打开。",
         "data": {
           "host": "IP 地址或主机名",
           "port": "Modbus TCP 端口",
@@ -45,7 +45,7 @@
       },
       "control": {
         "title": "控制权限",
-        "description": "默认关闭。只有设备能读写全部控制寄存器时才会出现控制实体，新增的控制实体需逐个启用。控制按盛弘 V001B031 协议实现，尚未经过实机验证。",
+        "description": "默认关闭。打开后会出现设备支持的控制项（EMS 模式、SOC、电网充电、出口限制），打开本身不会修改设备参数。",
         "data": {
           "allow_control": "允许控制"
         }
@@ -76,7 +76,7 @@
         }
       },
       "add": {
-        "title": "编辑时段",
+        "title": "添加时段",
         "data": {
           "type": "类型",
           "start": "开始",
@@ -472,6 +472,33 @@
         "enabled": {
           "name": "允许远程充放电"
         }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "充电",
+        "discharge": "放电"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "周一",
+        "tue": "周二",
+        "wed": "周三",
+        "thu": "周四",
+        "fri": "周五",
+        "sat": "周六",
+        "sun": "周日"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "自发自用模式",
+        "backup": "备电模式",
+        "pv_charge_priority": "光伏优先充电",
+        "feed_in_priority": "卖电优先模式"
       }
     }
   }

@@ -5,7 +5,7 @@
     "step": {
       "user": {
         "title": "Connect EnergyLIB",
-        "description": "Enter the inverter's Modbus TCP address (Sinexcel V001B031). Controls stay off until you enable them in the integration options.",
+        "description": "Enter the Modbus TCP address of the EnergyLIB data logger. Controls stay off until you enable them in the integration options.",
         "data": {
           "host": "IP address or hostname",
           "port": "Modbus TCP port",
@@ -45,7 +45,7 @@
       },
       "control": {
         "title": "Control access",
-        "description": "Disabled by default. Controls appear only if the inverter answers every control register; each new control entity must then be enabled individually. Controls follow the Sinexcel V001B031 protocol and are not yet verified on physical hardware.",
+        "description": "Off by default. Turning it on adds the controls the inverter supports (EMS mode, SOC, grid charging, export limit); it does not change any device setting by itself.",
         "data": {
           "allow_control": "Allow control"
         }
@@ -76,7 +76,7 @@
         }
       },
       "add": {
-        "title": "Edit period",
+        "title": "Add period",
         "data": {
           "type": "Type",
           "start": "Start",
@@ -472,6 +472,33 @@
         "enabled": {
           "name": "Allow remote charge/discharge"
         }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Charge",
+        "discharge": "Discharge"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Self-consumption",
+        "backup": "Backup",
+        "pv_charge_priority": "PV charge priority",
+        "feed_in_priority": "Feed-in priority"
       }
     }
   }

@@ -92,7 +92,13 @@ class EnergyLibOptionsFlow(OptionsFlow):
             errors=errors,
             data_schema=vol.Schema(
                 {
-                    field("type", "charge"): vol.In(["charge", "discharge"]),
+                    field("type", "charge"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=["charge", "discharge"],
+                            mode=selector.SelectSelectorMode.LIST,
+                            translation_key="period_type",
+                        )
+                    ),
                     field("start", "01:00"): selector.TimeSelector(),
                     field("end", "06:00"): selector.TimeSelector(),
                     field("power", 1): selector.NumberSelector(
@@ -131,12 +137,19 @@ class EnergyLibOptionsFlow(OptionsFlow):
                 return await self.async_step_tou()
             return await self.async_step_edit_period()
         choices = {
-            str(i): f"{p['type']} {p['start']}–{p['end']} ({p['power']} kW)"
+            str(i): f"{self._type_label(p)} {p['start']}–{p['end']} ({p['power']} kW)"
             for i, p in enumerate(self.draft["periods"])
         }
         return self.async_show_form(
             step_id=step, data_schema=vol.Schema({vol.Required("period"): vol.In(choices)})
         )
+
+    def _type_label(self, period):
+        # Labels built in code; the form fields themselves use selector translations.
+        labels = {"charge": "充电", "discharge": "放电"}
+        if not self.hass.config.language.startswith("zh"):
+            labels = {"charge": "Charge", "discharge": "Discharge"}
+        return labels[period["type"]]
 
     async def async_step_edit(self, user_input=None):
         return await self._select_period("edit", user_input)
@@ -165,11 +178,17 @@ class EnergyLibOptionsFlow(OptionsFlow):
                     vol.Required(
                         "weekdays", default=self.draft["weekdays"]
                     ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=list(WEEKDAYS), multiple=True)
+                        selector.SelectSelectorConfig(
+                            options=list(WEEKDAYS), multiple=True, translation_key="weekday"
+                        )
                     ),
                     vol.Required(
                         "outside_mode", default=self.draft.get("outside_mode", "self_consumption")
-                    ): vol.In(OUTSIDE_MODES),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=list(OUTSIDE_MODES), translation_key="outside_mode"
+                        )
+                    ),
                 }
             ),
         )
@@ -190,7 +209,7 @@ class EnergyLibOptionsFlow(OptionsFlow):
             return self.async_abort(reason="command_failed")
         preview = (
             "\n".join(
-                f"{p['type']} {p['start']}–{p['end']} {p['power']} kW"
+                f"{self._type_label(p)} {p['start']}–{p['end']} {p['power']} kW"
                 for p in self.draft["periods"]
             )
             or "—"

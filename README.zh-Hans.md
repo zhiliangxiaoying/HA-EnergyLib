@@ -6,7 +6,7 @@
 
 [English](README.md)
 
-[中文用户操作说明](docs/USER_GUIDE.zh-Hans.md)：首次添加、页面查看、故障告警、EMS 参数、定时充放电和电池强制充放电的完整操作步骤。
+[中文使用手册](docs/USER_GUIDE.zh-Hans.md)：带截图的安装和日常操作步骤；完整细节见 [进阶说明](docs/USER_GUIDE_ADVANCED.zh-Hans.md)。
 
 > **开发预览版。** 已在一台实机（盛弘 V001B031 三相 12 kW，经 EnergyLIB 采集棒）和软件模拟器上验证：
 > 实机的数据、告警以及参数控制（SOC 限值、电网充电、出口限制、EMS 模式、TOU）均已写入并回读确认；
