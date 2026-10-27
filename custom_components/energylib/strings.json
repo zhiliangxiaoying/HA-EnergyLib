@@ -5,7 +5,7 @@
     "step": {
       "user": {
         "title": "Connect EnergyLIB",
-        "description": "Enter the Modbus TCP address of the EnergyLIB data logger. Controls stay off until you enable them in the integration options.",
+        "description": "Enter the Modbus TCP address of the EnergyLIB data logger. Controls are on for new devices and can be turned off in the integration options.",
         "data": {
           "host": "IP address or hostname",
           "port": "Modbus TCP port",
@@ -14,7 +14,7 @@
       },
       "discovery_confirm": {
         "title": "Confirm EnergyLIB device",
-        "description": "**Logger SN:** {logger_sn}\n\n**Logger model:** {logger_model}\n\n**Logger firmware:** {logger_firmware}\n\nThese details are advertised by the logger. The inverter SN is checked separately when connecting. Confirm the connection settings below. Controls are off by default.",
+        "description": "**Logger SN:** {logger_sn}\n\n**Logger model:** {logger_model}\n\n**Logger firmware:** {logger_firmware}\n\nThese details are advertised by the logger. The inverter SN is checked separately when connecting. Confirm the connection settings below. Controls are on by default and can be turned off in the integration options.",
         "data": {
           "host": "IP address or hostname",
           "port": "Modbus TCP port",
@@ -45,7 +45,7 @@
       },
       "control": {
         "title": "Control access",
-        "description": "Off by default. Turning it on adds the controls the inverter supports (EMS mode, SOC, grid charging, export limit); it does not change any device setting by itself.",
+        "description": "On for newly added devices. Controls the inverter supports (EMS mode, SOC, grid charging, export limit) are shown; turning this on or off does not change any device setting by itself.",
         "data": {
           "allow_control": "Allow control"
         }

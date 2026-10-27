@@ -3,16 +3,16 @@
 Local Home Assistant integration for **EnergyLIB hybrid inverters** that speak the
 Sinexcel **V001B031** Modbus protocol through a communication dongle exposing
 **Modbus TCP**. It reads power, energy and battery data for the Energy dashboard and
-offers optional, opt-in controls (work mode, SOC limits, export limit, remote
-charge/discharge and a time-of-use schedule).
+offers controls (work mode, SOC limits, export limit, remote charge/discharge and a
+time-of-use schedule), allowed by default for newly added devices.
 
 [中文说明](README.zh-Hans.md)
 
 > **Development preview.** Verified on one physical inverter (Sinexcel V001B031, three-phase
 > 12 kW, through an EnergyLIB logger) and with software simulators. On that device, readings,
 > alarms and the parameter controls (SOC limits, grid charging, export limit, EMS mode, TOU)
-> were written and read back; **remote charge/discharge is not hardware-verified yet**.
-> Controls stay off until you enable them. See [Testing](docs/TESTING.md) and the
+> were written and read back, and remote charge/discharge was tested on the device.
+> Controls are on for newly added devices and can be turned off in the options. See [Testing](docs/TESTING.md) and the
 > [open protocol questions](docs/FIRMWARE_QUESTIONS.md).
 
 ## Features
@@ -23,7 +23,7 @@ charge/discharge and a time-of-use schedule).
   energy counters; total SOC; running state; alert status; work mode)
 - More diagnostic sensors available but disabled by default (grid voltage/frequency,
   battery voltage/current/SOH, PV strings, temperatures, faults)
-- Optional controls (opt-in): work mode, backup SOC, minimum SOC, grid charging,
+- Controls (on by default for new devices, can be turned off): work mode, backup SOC, minimum SOC, grid charging,
   export limit, remote charge/discharge with a finite lease
 - Time-of-use editor (up to 6 charge + 6 discharge periods) and services for automations
 - Unavailable data is shown as *unavailable*, never as 0; diagnostics are redacted
@@ -42,6 +42,11 @@ Single inverter only; parallel systems are not supported.
 
 1. HACS → ⋮ → *Custom repositories* → add this repository URL, type **Integration**.
 2. Search for **EnergyLIB**, download it, and restart Home Assistant.
+
+Some HACS versions show an “icon not available” placeholder in the repository list
+even though EnergyLIB includes its brand icon. The list uses the older public brands
+CDN; the bundled icon is available to Home Assistant after installation. See the
+[HACS issue](https://github.com/hacs/integration/issues/5402).
 
 **Manual:** copy `custom_components/energylib` into your `config/custom_components/`
 directory and restart Home Assistant.
@@ -71,9 +76,8 @@ inverter display before relying on them.
 devices: energy flow, battery, today's and lifetime energy, a 7-day chart, status,
 time-of-use schedule and activity. Control tiles appear only after you enable
 **Allow control**. The page follows renamed entities and shows one tab per device.
-The flow diagram appears when the
-[Power Flow Card Plus](https://github.com/flixlix/power-flow-card-plus) frontend card
-is installed (HACS); it is not bundled. Without it the page shows the power tiles.
+The live energy-flow diagram is built in (no extra frontend card); a missing grid or
+battery is marked with a red cross.
 To use it in YAML: `strategy: {type: custom:energylib}`.
 
 ### Digital twin
@@ -93,9 +97,10 @@ the integration and needs no setup. Its page text is currently Chinese only.
 The inverter reports the opposite signs (battery + = charging, grid + = feed-in); the
 integration converts them.
 
-## Controls (opt-in)
+## Controls
 
-1. *Settings → Devices & services → EnergyLIB → Configure → Control access* → enable **Allow control**.
+1. *Settings → Devices & services → EnergyLIB → Configure → Control access* → **Allow control**.
+   Since 0.8.43 it is on for newly added devices; entries added earlier keep their setting.
 2. Once controls are allowed and the device answers the required registers, new
    basic EMS/SOC/grid-charging/export controls are enabled by default. Existing
    user-disabled entities keep that preference. Battery dispatch still needs its

@@ -6,9 +6,6 @@
 // Entities are found by device and translation key, never by entity ID, so
 // renamed entities keep working. Controls appear only when they are enabled.
 
-// Optional: the flow diagram uses power-flow-card-plus when the user installed it
-// (HACS). It is not bundled: the upstream project publishes no license.
-const FLOW_CARD = "power-flow-card-plus";
 // The integration loads this file with ?v=<hash of this file and the twin files>;
 // the twin page reuses it so browsers fetch new twin files after an update.
 const VERSION = new URL(import.meta.url).searchParams.get("v") || "dev";
@@ -58,6 +55,13 @@ const TEXT = {
     load: "Home",
     batteryShort: "Battery",
     grid: "Grid",
+    importing: "Importing",
+    exporting: "Exporting",
+    charging: "Charging",
+    discharging: "Discharging",
+    gridMissing: "Grid offline",
+    batteryMissing: "No battery",
+    offGrid: "Off-grid",
     weekdays: { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" },
     charge: "Charge",
     discharge: "Discharge",
@@ -106,6 +110,13 @@ const TEXT = {
     load: "家庭负载",
     batteryShort: "储能电池",
     grid: "电网",
+    importing: "买电",
+    exporting: "卖电",
+    charging: "充电",
+    discharging: "放电",
+    gridMissing: "电网断开",
+    batteryMissing: "电池未接入",
+    offGrid: "离网运行",
     weekdays: { mon: "周一", tue: "周二", wed: "周三", thu: "周四", fri: "周五", sat: "周六", sun: "周日" },
     charge: "充电",
     discharge: "放电",
@@ -113,13 +124,6 @@ const TEXT = {
     activeDays: "生效",
   },
 };
-
-// Dashboard resources load in parallel with strategies; give them a moment.
-async function hasFlowCard() {
-  if (customElements.get(FLOW_CARD)) return true;
-  const timeout = new Promise((resolve) => setTimeout(() => resolve(false), 2000));
-  return Promise.race([customElements.whenDefined(FLOW_CARD).then(() => true), timeout]);
-}
 
 // Map "domain.translation_key" -> entity_id for one device.
 function deviceEntities(hass, deviceId) {
@@ -143,7 +147,7 @@ function energyLibDevices(hass) {
     .sort((a, b) => (a.name_by_user || a.name || "").localeCompare(b.name_by_user || b.name || ""));
 }
 
-function buildView(hass, device, t, flowCard, multiple) {
+function buildView(hass, device, t, multiple) {
   const ent = deviceEntities(hass, device.id);
   const s = (key) => ent[`sensor.${key}`];
   const name = (id) => hass.entities[id]?.name || undefined;
@@ -164,71 +168,27 @@ function buildView(hass, device, t, flowCard, multiple) {
   const compact = (cards) => cards.filter(Boolean);
   const power = ["solar_power", "load_power", "battery_power", "grid_power"].map(s);
 
-  // Live flow: the bundled power flow card when every power value exists.
+  // Live flow: the built-in card. It shows a notice while a power value is missing.
   const flowCards = [heading(t.flow, "mdi:transit-connection-variant")];
-  if (flowCard && has(...power)) {
+  if (has(...power)) {
     const [solar, load, battery, grid] = power;
-    flowCards.push(
-      {
-        type: "conditional",
-        conditions: power.map((entity) => ({ condition: "state", entity, state_not: ["unavailable", "unknown"] })),
-        card: {
-          type: "custom:energylib-flow",
-          load_entity: load,
-          solar_entity: solar,
-          battery_entity: battery,
-          grid_entity: grid,
-          warning: t.negativeLoad,
-          unavailable: t.flowMissing,
-          card: {
-          type: "custom:power-flow-card-plus",
-          title: t.flowTitle,
-          entities: {
-            solar: { entity: solar, name: t.solar, color: "#ffb300", color_icon: true, color_value: true },
-            // Show the inverter's measured load, not the card's flow-derived
-            // residual. The outer guard still withholds negative/invalid loads.
-            home: { entity: load, override_state: true, name: t.load, icon: "mdi:home-lightning-bolt", color_icon: true, color_value: true },
-            battery: {
-              entity: battery,
-              name: t.batteryShort,
-              state_of_charge: s("battery_total_soc"),
-              // EnergyLIB: positive = discharge, which is also the card's default.
-              // Verified on hardware 2026-10-26: inverting drew a charging battery
-              // (-1.62 kW) as discharging to the home.
-              invert_state: false,
-              display_state: "one_way",
-              color_icon: "color_dynamically",
-              color_circle: "color_dynamically",
-            },
-            grid: {
-              entity: grid,
-              invert_state: false,
-              name: t.grid,
-              display_state: "one_way",
-              color_icon: "color_dynamically",
-              color_circle: "color_dynamically",
-            },
-          },
-          clickable_entities: true,
-          kilo_decimals: 2,
-          base_decimals: 0,
-          kilo_threshold: 1000,
-          use_new_flow_rate_model: true,
-          display_zero_lines: { mode: "transparency", transparency: 70 },
-          },
-        },
+    flowCards.push({
+      type: "custom:energylib-flow",
+      title: t.flowTitle,
+      solar_entity: solar,
+      load_entity: load,
+      battery_entity: battery,
+      grid_entity: grid,
+      soc_entity: s("battery_total_soc"),
+      running_entity: s("running_state"),
+      alarm_entity: s("alarm_status"),
+      text: {
+        solar: t.solar, grid: t.grid, load: t.load, batteryShort: t.batteryShort,
+        importing: t.importing, exporting: t.exporting, charging: t.charging, discharging: t.discharging,
+        gridMissing: t.gridMissing, batteryMissing: t.batteryMissing, offGrid: t.offGrid,
+        negativeLoad: t.negativeLoad, unavailable: t.flowMissing,
       },
-      {
-        type: "conditional",
-        conditions: [
-          {
-            condition: "or",
-            conditions: power.map((entity) => ({ condition: "state", entity, state: ["unavailable", "unknown"] })),
-          },
-        ],
-        card: { type: "markdown", title: t.flowTitle, content: t.flowMissing },
-      }
-    );
+    });
   }
   flowCards.push(
     ...compact([
@@ -428,7 +388,6 @@ class EnergyLibDashboardStrategy extends HTMLElement {
         views: [{ title: "EnergyLIB", cards: [{ type: "markdown", content: t.noDevice }] }],
       };
     }
-    const flowCard = await hasFlowCard();
     // Everyday overview first; the full-screen twin keeps its stable URL.
     const twin = {
       title: t.twin,
@@ -437,7 +396,7 @@ class EnergyLibDashboardStrategy extends HTMLElement {
     };
     return {
       title: "EnergyLIB",
-      views: [...devices.map((device) => buildView(hass, device, t, flowCard, devices.length > 1)), twin],
+      views: [...devices.map((device) => buildView(hass, device, t, devices.length > 1)), twin],
     };
   }
 }
@@ -466,91 +425,291 @@ if (!window.customStrategies.some((s) => s.type === "energylib")) {
 }
 
 // Exposed for in-browser checks; not part of the HA strategy API.
-window.energyLibDashboard = { buildView, deviceEntities, energyLibDevices, TEXT };
+window.energyLibDashboard = { buildView, deviceEntities, energyLibDevices, TEXT, flowModel, balanceWatts, flowSplit };
 
-// Use textContent for device-provided values; no raw HTML or entity-name assumptions.
+// Built-in live energy flow (no third-party card), laid out like HA's energy card:
+// values inside the circles, one line per node-to-node flow with moving dots.
+// Signs are the integration's: battery + = discharge, grid + = import.
+const FLOW_TOLERANCE_W = 30;
+const FLOW_COLORS = { solar: "#f7b731", grid: "#5299ff", battery: "#b28aff", home: "#38d39f" };
+
+function stateWatts(hass, entity) {
+  const state = entity && hass.states[entity];
+  const value = Number(state?.state);
+  if (!state || state.state === "" || !Number.isFinite(value)) return null;
+  return value * ({ W: 1, kW: 1000, MW: 1e6 }[state.attributes?.unit_of_measurement] ?? 1000);
+}
+
+// A few watts of meter mismatch (PV 1.58 kW vs battery charge 1.57 kW with a 0 W
+// load) must not draw a flow the device does not report. Readings under the
+// tolerance count as 0; a remaining imbalance within it is absorbed by one source
+// or sink. Sensors and statistics keep the raw values.
+function balanceWatts(raw) {
+  const w = { ...raw };
+  for (const k of ["solar", "battery", "grid"]) if (Math.abs(w[k]) < FLOW_TOLERANCE_W) w[k] = 0;
+  const excess = w.solar + w.battery + w.grid - w.load;
+  if (excess !== 0 && Math.abs(excess) <= FLOW_TOLERANCE_W) {
+    // Too much supply: trim a source (PV, grid import, battery discharge).
+    // Too much demand: trim a sink (grid export, battery charge).
+    const pick = excess > 0
+      ? ["solar", "grid", "battery"].find((k) => w[k] >= excess)
+      : ["grid", "battery"].find((k) => w[k] <= excess);
+    if (pick) w[pick] -= excess;
+  }
+  return w;
+}
+
+// Everything the card draws, from HA states only (also used by the tests).
+function flowModel(hass, config) {
+  const raw = {
+    solar: stateWatts(hass, config.solar_entity),
+    battery: stateWatts(hass, config.battery_entity),
+    grid: stateWatts(hass, config.grid_entity),
+    load: stateWatts(hass, config.load_entity),
+  };
+  if (Object.values(raw).some((v) => v === null)) return { ready: false };
+  const alarm = hass.states[config.alarm_entity]?.attributes || {};
+  const offGrid = hass.states[config.running_entity]?.state === "off_grid";
+  const missing = { grid: offGrid || alarm.grid_disconnected === true, battery: alarm.battery_disconnected === true };
+  // A home cannot feed power out: a negative reading is drawn as 0 W. Beyond the
+  // tolerance one quiet line under the card names the raw reading.
+  const negativeLoad = raw.load < -FLOW_TOLERANCE_W ? raw.load : null;
+  const w = balanceWatts({ ...raw, load: Math.max(raw.load, 0) });
+  if (missing.grid) w.grid = 0;
+  if (missing.battery) w.battery = 0;
+  const dir = (v, inward) => (v > 0 ? inward : v < 0 ? (inward === "in" ? "out" : "in") : null);
+  const soc = Number(hass.states[config.soc_entity]?.state);
+  return {
+    ready: true,
+    watts: w,
+    missing,
+    offGrid,
+    negativeLoad,
+    soc: Number.isFinite(soc) ? soc : null,
+    // "in" = towards the inverter, "out" = away from it.
+    flows: { solar: dir(w.solar, "in"), grid: dir(w.grid, "in"), battery: dir(w.battery, "in"), home: dir(w.load, "out") },
+  };
+}
+
+// Split the balanced powers into node-to-node flows (W): PV serves the home first,
+// then charges the battery, then exports; the battery serves the home before the
+// grid does. Each path is drawn only when it carries power.
+function flowSplit(w) {
+  const charge = Math.max(-w.battery, 0), discharge = Math.max(w.battery, 0);
+  const imported = Math.max(w.grid, 0), exported = Math.max(-w.grid, 0);
+  const solar = Math.max(w.solar, 0), load = Math.max(w.load, 0);
+  const solarHome = Math.min(solar, load);
+  const solarBattery = Math.min(solar - solarHome, charge);
+  const solarGrid = Math.min(solar - solarHome - solarBattery, exported);
+  const batteryHome = Math.min(discharge, load - solarHome);
+  const gridHome = Math.min(imported, load - solarHome - batteryHome);
+  const batteryGrid = Math.min(discharge - batteryHome, exported - solarGrid);
+  const gridBattery = Math.min(imported - gridHome, charge - solarBattery);
+  const keep = (v) => (v >= FLOW_TOLERANCE_W ? v : 0);
+  return {
+    solarHome: keep(solarHome), solarBattery: keep(solarBattery), solarGrid: keep(solarGrid),
+    batteryHome: keep(batteryHome), gridHome: keep(gridHome),
+    batteryGrid: keep(batteryGrid), gridBattery: keep(gridBattery),
+  };
+}
+
+function formatWatts(w) {
+  const a = Math.abs(w);
+  return a < 1000 ? `${Math.round(a)} W` : `${(a / 1000).toFixed(2)} kW`;
+}
+
+// 400 x 330 drawing, circles of radius 40, in the layout of HA's energy card.
+const FLOW_NODES = ["solar", "grid", "home", "battery"];
+const FLOW_CENTRES = { solar: [200, 62], grid: [62, 175], home: [338, 175], battery: [200, 288] };
+// Path geometry runs from the first node to the second; "reverse" flows run back.
+// a/b are the path's end points: each line fades from one node's colour to the other's.
+const FLOW_PATHS = {
+  solarGrid: { d: "M192,102 V130 Q192,170 152,170 H102", from: "solar", to: "grid", a: [192, 102], b: [102, 170] },
+  solarHome: { d: "M208,102 V130 Q208,170 248,170 H298", from: "solar", to: "home", a: [208, 102], b: [298, 170] },
+  solarBattery: { d: "M200,102 V248", from: "solar", to: "battery", a: [200, 102], b: [200, 248] },
+  gridHome: { d: "M102,175 H298", from: "grid", to: "home", a: [102, 175], b: [298, 175] },
+  batteryGrid: { d: "M192,248 V220 Q192,180 152,180 H102", from: "battery", to: "grid", a: [192, 248], b: [102, 180] },
+  batteryHome: { d: "M208,248 V220 Q208,180 248,180 H298", from: "battery", to: "home", a: [208, 248], b: [298, 180] },
+};
+// Where a missing grid/battery gets the red cross on its main line.
+const FLOW_CROSS = { grid: [150, 175], battery: [200, 224] };
+const FLOW_ICONS = {
+  solar: "mdi:solar-power-variant",
+  grid: "mdi:transmission-tower",
+  home: "mdi:home",
+  battery: "mdi:battery-high",
+};
+
 class EnergyLibFlowCard extends HTMLElement {
   setConfig(config) {
     this.config = config;
-    this.flow = document.createElement(FLOW_CARD);
-    this.flow.setConfig(config.card);
-    this.notice = document.createElement("ha-card");
-    this.notice.style.cssText = "padding:16px;line-height:1.6";
-    this.hint = document.createElement("div");
-    this.hint.style.cssText = "padding:6px 4px 0;font-size:12px;line-height:1.5;color:var(--secondary-text-color)";
-    this.shown = null;
-  }
-  // The card derives "to home" flows from the sources, while the home circle shows
-  // the measured load. A few watts of meter mismatch (PV 1.58 kW vs battery charge
-  // 1.57 kW with a 0 W load) would animate a flow the device does not report.
-  // Readings under the tolerance count as 0, and a remaining imbalance within it is
-  // absorbed by one source or sink in the card's input only; the sensors, tiles
-  // and statistics keep the raw values.
-  static TOLERANCE_W = 30;
-  watts(hass, entity) {
-    const state = hass.states[entity];
-    const value = Number(state?.state);
-    if (!state || state.state === "" || !Number.isFinite(value)) return null;
-    return value * ({ W: 1, kW: 1000, MW: 1e6 }[state.attributes?.unit_of_measurement] ?? 1000);
-  }
-  balanced(hass) {
-    const { solar_entity: solar, battery_entity: battery, grid_entity: grid, load_entity: load } = this.config;
-    if (!solar || !battery || !grid) return hass;
-    const tolerance = EnergyLibFlowCard.TOLERANCE_W;
-    const raw = Object.fromEntries([solar, battery, grid, load].map((e) => [e, this.watts(hass, e)]));
-    if (Object.values(raw).some((v) => v === null)) return hass;
-    const w = { ...raw };
-    // Readings within the tolerance are meter noise, not flows.
-    for (const e of [solar, battery, grid]) if (Math.abs(w[e]) < tolerance) w[e] = 0;
-    // EnergyLIB signs: battery + = discharge, grid + = import; load = sources.
-    const excess = w[solar] + w[battery] + w[grid] - w[load];
-    if (excess !== 0 && Math.abs(excess) <= tolerance) {
-      // Too much supply: trim a source (PV, grid import, battery discharge).
-      // Too much demand: trim a sink (grid export, battery charge).
-      const pick = excess > 0
-        ? [solar, grid, battery].find((e) => w[e] >= excess)
-        : [grid, battery].find((e) => w[e] <= excess);
-      if (pick) w[pick] -= excess;
+    this.text = config.text || {};
+    if (this.shadowRoot) return;
+    const root = this.attachShadow({ mode: "open" });
+    const pos = ([x, y]) => `left:${x / 4}%;top:${(y / 330) * 100}%`;
+    const gradient = ([id, p]) => `<linearGradient id="grad-${id}" gradientUnits="userSpaceOnUse"`
+      + ` x1="${p.a[0]}" y1="${p.a[1]}" x2="${p.b[0]}" y2="${p.b[1]}">`
+      + `<stop offset="0" stop-color="${FLOW_COLORS[p.from]}"/><stop offset="1" stop-color="${FLOW_COLORS[p.to]}"/>`
+      + `</linearGradient>`;
+    const path = ([id, p]) => `<path class="base" id="base-${id}" d="${p.d}"/>`
+      + `<path class="line" id="line-${id}" d="${p.d}" stroke="url(#grad-${id})"/>`
+      + `<circle class="dot" id="dot-${id}" r="4" fill="${FLOW_COLORS[p.from]}">`
+      + `<animateMotion id="move-${id}" dur="2s" repeatCount="indefinite" calcMode="linear"`
+      + ` keyPoints="0;1" keyTimes="0;1"><mpath href="#base-${id}"/></animateMotion></circle>`;
+    const cross = ([id, [x, y]]) => `<g class="cross" id="cross-${id}" transform="translate(${x} ${y})">`
+      + `<circle r="9"/><path d="M-3.5 -3.5 L3.5 3.5 M3.5 -3.5 L-3.5 3.5"/></g>`;
+    const node = (id) => `<div class="node ${id}" id="node-${id}" style="${pos(FLOW_CENTRES[id])};--c:${FLOW_COLORS[id]}">`
+      + `<div class="label" id="label-${id}"></div>`
+      + `<div class="ring" id="ring-${id}"><div class="inner">${id === "battery"
+        // Battery: an outline that fills with the charge level, the percentage inside.
+        ? `<div class="batt" id="batt"><div class="fill" id="fill"></div><span id="soc"></span></div>`
+        : `<ha-icon icon="${FLOW_ICONS[id]}"></ha-icon>`}`
+      + `<div class="value" id="value-${id}"></div></div>`
+      + `<div class="badge">✕</div></div></div>`;
+    root.innerHTML = `<style>
+      :host{display:block}
+      ha-card{padding:16px 16px 8px}
+      .head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .title{font-size:20px;line-height:1.3}
+      .chip{font-size:12px;padding:2px 10px;border-radius:12px;background:rgba(229,57,53,.15);color:#e53935}
+      .stage{position:relative;width:100%;max-width:420px;aspect-ratio:400/330;margin:28px auto 30px}
+      svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+      .base{fill:none;stroke:var(--divider-color,#555);stroke-width:1.5;opacity:.45}
+      .base.missing{stroke-dasharray:4 5;opacity:.6}
+      .line{fill:none;stroke-width:2.5;stroke-linecap:round;display:none}
+      .line.on{display:inline}
+      .dot{display:none}
+      .dot.on{display:inline}
+      .cross{display:none}
+      .cross.on{display:inline}
+      .cross circle{fill:#e53935}
+      .cross path{stroke:#fff;stroke-width:2;stroke-linecap:round}
+      .node{position:absolute;transform:translate(-50%,-50%);width:80px;height:80px;cursor:pointer}
+      .label{position:absolute;left:50%;transform:translateX(-50%);top:84px;font-size:12px;white-space:nowrap;color:var(--secondary-text-color)}
+      .node.solar .label{top:auto;bottom:84px}
+      .ring{position:relative;width:80px;height:80px;border-radius:50%;box-sizing:border-box;border:3px solid var(--c);background:var(--card-background-color,#1c1c1c)}
+      .ring.mix{border:none;padding:3px;background:var(--mix)}
+      .node.active .ring{animation:glow 2.8s ease-in-out infinite}
+      @keyframes glow{
+        0%,100%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 14%,transparent),0 0 18px 2px color-mix(in srgb,var(--c) 40%,transparent)}
+        50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--c) 10%,transparent),0 0 28px 6px color-mix(in srgb,var(--c) 55%,transparent)}
+      }
+      .inner{width:100%;height:100%;border-radius:50%;background:var(--card-background-color,#1c1c1c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+      .inner ha-icon{--mdc-icon-size:24px;color:var(--c)}
+      .value{font-size:12px;font-weight:400;line-height:1.2;white-space:nowrap;color:var(--c)}
+      .batt{position:relative;width:38px;height:18px;margin:0 3px 3px 0;box-sizing:border-box;border:1.5px solid var(--c);border-radius:4px;display:flex;align-items:center;justify-content:center}
+      .batt::after{content:"";position:absolute;right:-4.5px;top:4px;width:3px;height:7px;border-radius:0 2px 2px 0;background:var(--c)}
+      .fill{position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:0;border-radius:2px;background:color-mix(in srgb,var(--c) 40%,transparent)}
+      .fill.low{background:rgba(229,57,53,.55)}
+      .batt span{position:relative;font-size:11px;line-height:1;color:var(--primary-text-color)}
+      .node.missing .batt{border-color:var(--disabled-text-color,#777)}
+      .node.missing .batt::after{background:var(--disabled-text-color,#777)}
+      .badge{display:none;position:absolute;right:-2px;top:-2px;width:20px;height:20px;border-radius:50%;background:#e53935;color:#fff;font-size:12px;line-height:20px;text-align:center}
+      .node.missing .ring{border:2px dashed var(--disabled-text-color,#777);background:var(--card-background-color,#1c1c1c)}
+      .node.missing ha-icon{color:var(--disabled-text-color,#777)}
+      .node.missing .value{color:#e53935;font-size:11px}
+      .node.missing .badge{display:block}
+      .hint,.notice{font-size:12px;line-height:1.5;color:var(--secondary-text-color);padding-top:6px}
+      .notice{font-size:14px;padding:24px 0}
+    </style>
+    <ha-card><div class="head"><div class="title" id="title"></div><div class="chip" id="chip" hidden></div></div>
+      <div class="stage" id="stage"><svg viewBox="0 0 400 330">
+        <defs>${Object.entries(FLOW_PATHS).map(gradient).join("")}</defs>
+        ${Object.entries(FLOW_PATHS).map(path).join("")}${Object.entries(FLOW_CROSS).map(cross).join("")}</svg>
+        ${FLOW_NODES.map(node).join("")}</div>
+      <div class="notice" id="notice" hidden></div><div class="hint" id="hint" hidden></div></ha-card>`;
+    this.$ = (id) => root.getElementById(id);
+    const entity = { solar: "solar_entity", grid: "grid_entity", home: "load_entity", battery: "battery_entity" };
+    for (const [id, key] of Object.entries(entity)) {
+      this.$(`node-${id}`).addEventListener("click", () => this.dispatchEvent(
+        new CustomEvent("hass-more-info", { detail: { entityId: this.config[key] }, bubbles: true, composed: true })
+      ));
     }
-    const changed = [solar, battery, grid].filter((e) => w[e] !== raw[e]);
-    if (!changed.length) return hass;
-    const states = { ...hass.states };
-    for (const e of changed) {
-      const scale = { W: 1, kW: 1000, MW: 1e6 }[states[e].attributes?.unit_of_measurement] ?? 1000;
-      states[e] = { ...states[e], state: String(w[e] / scale) };
-    }
-    return { ...hass, states };
   }
+
   set hass(hass) {
-    const load = this.config.load_entity;
-    const watts = this.watts(hass, load);
-    if (watts === null) {
-      this.notice.textContent = this.config.unavailable;
-      this.show("notice", this.notice);
+    const t = this.text;
+    const m = flowModel(hass, this.config);
+    this.$("title").textContent = this.config.title || "";
+    this.$("stage").hidden = !m.ready;
+    this.$("notice").hidden = m.ready;
+    this.$("chip").hidden = !m.ready || !m.offGrid;
+    this.$("chip").textContent = t.offGrid || "";
+    if (!m.ready) {
+      this.$("notice").textContent = t.unavailable || "";
+      this.$("hint").hidden = true;
       return;
     }
-    // A home cannot feed power out: a negative reading is drawn as 0 W so the card
-    // never invents a source. Within the tolerance it is plain meter noise; beyond
-    // it one quiet line under the card says so. The sensor keeps the raw value.
-    let fed = hass;
-    if (watts < 0) {
-      fed = { ...hass, states: { ...hass.states, [load]: { ...hass.states[load], state: "0" } } };
+    const w = m.watts;
+    const split = flowSplit(w);
+    const arrow = (v, plus, minus) => (v > 0 ? `${plus} ` : v < 0 ? `${minus} ` : "");
+    const value = {
+      solar: formatWatts(w.solar),
+      grid: `${arrow(w.grid, "→", "←")}${formatWatts(w.grid)}`,
+      home: formatWatts(w.load),
+      battery: `${arrow(w.battery, "↑", "↓")}${formatWatts(w.battery)}`,
+    };
+    const label = {
+      solar: t.solar,
+      grid: m.missing.grid || !w.grid ? t.grid : w.grid > 0 ? t.importing : t.exporting,
+      home: t.load,
+      battery: m.missing.battery || !w.battery ? t.batteryShort : w.battery > 0 ? t.discharging : t.charging,
+    };
+    for (const id of FLOW_NODES) {
+      const missing = Boolean(m.missing[id]);
+      this.$(`node-${id}`).classList.toggle("missing", missing);
+      // A node carrying power glows; an idle or missing one stays plain.
+      const power = { solar: w.solar, grid: w.grid, home: w.load, battery: w.battery }[id];
+      this.$(`node-${id}`).classList.toggle("active", !missing && power !== 0);
+      this.$(`value-${id}`).textContent = missing ? (id === "grid" ? t.gridMissing : t.batteryMissing) : value[id];
+      this.$(`label-${id}`).textContent = label[id] || "";
     }
-    this.flow.hass = this.balanced(fed);
-    if (watts < -EnergyLibFlowCard.TOLERANCE_W) {
-      this.hint.textContent = this.config.warning.replace("{value}", `-${Math.round(-watts)} W`);
-      this.show("flow+hint", this.flow, this.hint);
-    } else {
-      this.show("flow", this.flow);
+    const soc = m.soc === null || m.missing.battery ? null : Math.min(Math.max(m.soc, 0), 100);
+    this.$("soc").textContent = soc === null ? "" : `${Math.round(soc)}%`;
+    this.$("fill").style.width = soc === null ? "0" : `calc((100% - 3px) * ${soc / 100})`;
+    this.$("fill").classList.toggle("low", soc !== null && soc < 20);
+    for (const [id, p] of Object.entries(FLOW_PATHS)) {
+      // gridBattery shares the batteryGrid line and runs backwards.
+      const forward = split[id] || 0;
+      const backward = id === "batteryGrid" ? split.gridBattery : 0;
+      const watts = forward || backward;
+      const dead = Boolean(m.missing[p.from] || m.missing[p.to]);
+      this.$(`base-${id}`).classList.toggle("missing", dead);
+      const on = watts > 0 && !dead;
+      const color = FLOW_COLORS[backward && !forward ? "grid" : p.from];
+      const line = this.$(`line-${id}`), dot = this.$(`dot-${id}`), move = this.$(`move-${id}`);
+      line.classList.toggle("on", on);
+      dot.classList.toggle("on", on);
+      dot.setAttribute("fill", color);
+      move.setAttribute("keyPoints", backward && !forward ? "1;0" : "0;1");
+      // More power, faster dots: about 3 s per pass at 100 W, 1 s from ~5 kW.
+      const kw = watts / 1000;
+      move.setAttribute("dur", `${Math.max(1, 3.2 - Math.log10(1 + kw * 10) * 1.2).toFixed(2)}s`);
+    }
+    for (const id of Object.keys(FLOW_CROSS)) this.$(`cross-${id}`).classList.toggle("on", Boolean(m.missing[id]));
+    // The home ring shows where its power comes from, like HA's energy card.
+    const ring = this.$("ring-home");
+    const parts = [["solar", split.solarHome], ["battery", split.batteryHome], ["grid", split.gridHome]];
+    const total = parts.reduce((sum, [, v]) => sum + v, 0);
+    ring.classList.toggle("mix", total > 0);
+    if (total > 0) {
+      let at = 0;
+      const stops = parts.filter(([, v]) => v > 0).map(([k, v]) => {
+        const from = at;
+        at += (v / total) * 100;
+        return `${FLOW_COLORS[k]} ${from.toFixed(1)}% ${at.toFixed(1)}%`;
+      });
+      ring.style.setProperty("--mix", `conic-gradient(${stops.join(",")})`);
+    }
+    const hint = this.$("hint");
+    hint.hidden = m.negativeLoad === null;
+    if (m.negativeLoad !== null) {
+      hint.textContent = (t.negativeLoad || "").replace("{value}", `-${Math.round(-m.negativeLoad)} W`);
     }
   }
-  show(key, ...nodes) {
-    if (this.shown !== key) {
-      this.replaceChildren(...nodes);
-      this.shown = key;
-    }
-  }
-  getCardSize() { return 4; }
+
+  getCardSize() { return 6; }
+  getGridOptions() { return { columns: 12, min_rows: 6 }; }
 }
 
 class EnergyLibAlarmCard extends HTMLElement {

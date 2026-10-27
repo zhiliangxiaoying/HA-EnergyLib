@@ -11,6 +11,7 @@ from energylib_under_test.energylib_core.legacy import IdentityMismatch
 from energylib_under_test.energylib_core.model.points import CONTROLS, CORE
 from energylib_under_test.energylib_core.model.tou import TouLimits, TouSchedule
 from energylib_under_test.energylib_core.planner import plan_reads
+from energylib_under_test.energylib_core.profiles.sinexcel_alarms import describe_alarm
 from energylib_under_test.energylib_core.profiles.sinexcel_v2 import Mapping
 from energylib_under_test.energylib_core.runtime import ControlError, DeviceRuntime, PartialWrite
 from energylib_under_test.energylib_core.transport.modbus_tcp import (
@@ -549,6 +550,44 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             (alarm["name"], alarm["severity"], alarm["code"]), ("电网异常", "warning", "1014")
         )
+
+    async def test_grid_and_battery_link_flags_follow_disconnected_alarms(self):
+        # The profile's codes are the table's "grid / battery 1 disconnected" rows.
+        names = {
+            link: {describe_alarm("sinexcel_v2", 2, 1, int(c, 16))["name"] for c in codes}
+            for link, codes in self.runtime.profile.link_alarms.items()
+        }
+        self.assertEqual(names, {"grid": {"电网未接"}, "battery": {"电池1未接"}})
+        await self.runtime.refresh({"alarm_status"}, force=True)
+        attrs = self.runtime.attributes["alarm_status"]
+        self.assertIs(attrs["grid_disconnected"], False)
+        self.assertIs(attrs["battery_disconnected"], False)
+        self.model.bits[1][0x110C] = True
+        self.model.bits[2][0x1058] = True
+        await self.runtime.refresh({"alarm_status"}, force=True)
+        attrs = self.runtime.attributes["alarm_status"]
+        self.assertIs(attrs["grid_disconnected"], True)
+        self.assertIs(attrs["battery_disconnected"], True)
+
+    def test_bench_scenarios_drop_the_missing_link(self):
+        for scenario, grid_bit, battery_bit in (
+            ("off_grid", True, False),
+            ("no_battery", False, True),
+            ("off_grid_no_battery", True, True),
+        ):
+            with self.subTest(scenario=scenario):
+                model = BenchModel(BenchConfig(scenario=scenario), clock=lambda: 0)
+                model.tick(datetime(2026, 10, 27, 12), 60)
+                self.assertEqual(model.bits[1][0x110C], grid_bit)
+                self.assertEqual(model.bits[2][0x1058], battery_bit)
+                self.assertEqual(model.bits[1][0x1001], not grid_bit)  # off-grid enum 2
+                v = model.base.values
+                if grid_bit:
+                    self.assertAlmostEqual(v["grid_power"], 0, places=6)
+                if battery_bit:
+                    self.assertEqual(v["battery_power"], 0)
+        with self.assertRaises(ValueError):
+            BenchConfig(scenario="island")
 
     async def test_unsupported_grid_bit_does_not_leave_alarms_incomplete(self):
         del self.model.bits[1][0x1014]

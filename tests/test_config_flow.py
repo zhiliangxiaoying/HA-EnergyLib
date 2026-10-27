@@ -155,6 +155,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"]["profile"], "v001b031_single")
         self.assertEqual(result["data"]["logger"]["sn"], "LOGGER-001")
         self.assertEqual(result["data"]["logger"]["source"], "zeroconf")
+        self.assertEqual(result["options"], {"allow_control": True})
 
     async def test_discovery_card_and_confirmation_identify_the_logger(self):
         form = await self.flow.async_step_zeroconf(self.discovery(model="WF_ETH", fw="400.3.3"))

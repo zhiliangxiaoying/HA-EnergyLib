@@ -13,6 +13,7 @@ class DeviceProfile(Protocol):
     manufacturer: str
     device_name: str
     work_mode_codes: dict[int, str]  # Device code -> standard WORK_MODES name.
+    link_alarms: dict[str, frozenset[str]]  # Link -> alarm codes meaning it is missing.
     register_limit: int
     bit_limit: int
     controls_supported: bool  # Device answers the control registers (set by configure).

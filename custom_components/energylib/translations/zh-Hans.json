@@ -5,7 +5,7 @@
     "step": {
       "user": {
         "title": "连接 EnergyLIB",
-        "description": "填写 EnergyLIB 采集棒的 Modbus TCP 地址。控制功能默认关闭，需要在集成选项中手动打开。",
+        "description": "填写 EnergyLIB 采集棒的 Modbus TCP 地址。新添加的设备默认允许控制，可在集成选项中关闭。",
         "data": {
           "host": "IP 地址或主机名",
           "port": "Modbus TCP 端口",
@@ -14,7 +14,7 @@
       },
       "discovery_confirm": {
         "title": "确认 EnergyLIB 设备",
-        "description": "**采集棒 SN：** {logger_sn}\n\n**采集棒型号：** {logger_model}\n\n**采集棒固件：** {logger_firmware}\n\n以上为采集棒广播信息，逆变器 SN 将在连接时单独核对。请确认下方连接参数，控制功能默认关闭。",
+        "description": "**采集棒 SN：** {logger_sn}\n\n**采集棒型号：** {logger_model}\n\n**采集棒固件：** {logger_firmware}\n\n以上为采集棒广播信息，逆变器 SN 将在连接时单独核对。请确认下方连接参数，控制功能默认开启，可在集成选项中关闭。",
         "data": {
           "host": "IP 地址或主机名",
           "port": "Modbus TCP 端口",
@@ -45,7 +45,7 @@
       },
       "control": {
         "title": "控制权限",
-        "description": "默认关闭。打开后会出现设备支持的控制项（EMS 模式、SOC、电网充电、出口限制），打开本身不会修改设备参数。",
+        "description": "新添加的设备默认开启。开启后显示设备支持的控制项（EMS 模式、SOC、电网充电、出口限制）；开关本身不会修改设备参数。",
         "data": {
           "allow_control": "允许控制"
         }

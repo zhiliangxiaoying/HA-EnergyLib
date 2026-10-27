@@ -52,6 +52,11 @@ PARAMETER_BLOCKS = {
 }
 
 
+SCENARIOS = ("normal", "off_grid", "no_battery", "off_grid_no_battery")
+GRID_MISSING_BIT = 0x110C  # FC02 "grid disconnected" (Unit 1)
+BATTERY_MISSING_BIT = 0x1058  # FC02 "battery 1 disconnected" (Unit 2)
+
+
 @dataclass(frozen=True)
 class BenchConfig:
     serial: str = "ELIB260002"
@@ -63,6 +68,8 @@ class BenchConfig:
     max_registers: int = 60
     writes: bool = False
     rated_kw: float = 5.0  # Served at 0x2008 as U16 value * 100 (V001B031).
+    # Bench scenario for flow displays: grid and/or battery 1 missing.
+    scenario: str = "normal"
 
     def __post_init__(self):
         if not self.serial or len(self.serial) > 24:
@@ -75,6 +82,8 @@ class BenchConfig:
             raise ValueError("Invalid battery count/register limit")
         if not 0 < self.rated_kw <= 655:
             raise ValueError("Invalid rated power")
+        if self.scenario not in SCENARIOS:
+            raise ValueError("Invalid scenario")
 
 
 def tou_limits(config):
@@ -88,6 +97,11 @@ class BenchModel:
         self.registers = {}
         self.bits = {u: {a: False for a in range(0x1000, 0x1112)} for u in (1, 2)}
         self.bits[1][0x1001] = self.bits[1][0x1002] = True  # on-grid enum 3
+        if "off_grid" in config.scenario:
+            self.bits[1][0x1001] = False  # off-grid enum 2
+            self.bits[1][GRID_MISSING_BIT] = True
+        if "no_battery" in config.scenario:
+            self.bits[2][BATTERY_MISSING_BIT] = True
         self.last_heartbeat = None
         self.last_now = None
         self.schedule_error = False
@@ -197,6 +211,14 @@ class BenchModel:
             )
         if battery < 0 and not self.get_float(0x322A):
             battery = max(battery, -max(solar - load, 0))
+        if "no_battery" in self.config.scenario:
+            battery = 0
+        if "off_grid" in self.config.scenario:
+            # No grid: the battery covers the gap; without one, PV only feeds the load.
+            if "no_battery" in self.config.scenario:
+                solar = load = min(solar, load)
+            else:
+                battery = load - solar
         dt = seconds / 3600
         if dt:
             battery = min(
@@ -449,6 +471,7 @@ async def run(args):
         args.max_registers,
         args.enable_writes,
         args.rated_kw,
+        args.scenario,
     )
     state = json.loads(args.state.read_text()) if args.state.exists() else None
     model = BenchModel(config, state=state)
@@ -499,6 +522,7 @@ if __name__ == "__main__":
     parser.add_argument("--batteries", type=int, choices=(1, 2), default=1)
     parser.add_argument("--port-use", type=int, choices=(0, 1, 2, 4), default=0)
     parser.add_argument("--no-bms", action="store_true")
+    parser.add_argument("--scenario", choices=SCENARIOS, default="normal")
     parser.add_argument("--max-registers", type=int, default=60)
     parser.add_argument("--enable-writes", action="store_true")
     parser.add_argument(

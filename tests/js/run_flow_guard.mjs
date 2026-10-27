@@ -1,89 +1,86 @@
+// Built-in flow card model: tolerance, negative load, missing grid/battery.
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 
-globalThis.HTMLElement = class {
-  replaceChildren(node) { this.firstChild = node; }
-};
+globalThis.HTMLElement = class {};
 globalThis.window = globalThis;
-const classes = new Map();
-globalThis.customElements = { get: (k) => classes.get(k), define: (k, v) => classes.set(k, v), whenDefined: () => Promise.resolve() };
-const created = [];
-globalThis.document = { createElement: (name) => {
-  const node = { name, style: {}, setConfig(config) { this.config = config; } };
-  created.push(node);
-  return node;
-} };
-await import(pathToFileURL(process.argv[2]).href); await Promise.resolve();
-const Guard = classes.get("energylib-flow");
-const guard = new Guard();
-guard.setConfig({ load_entity: "sensor.load", warning: "negative {value}", unavailable: "missing", card: { type: "custom:power-flow-card-plus" } });
-const hass = { states: { "sensor.load": { state: "-0.045" } } };
-guard.hass = hass;
-// Below the tolerance: the card stays, the home is fed as 0 W, one quiet hint line.
-assert.equal(guard.firstChild, guard.flow);
-assert.equal(guard.flow.hass.states["sensor.load"].state, "0");
-assert.equal(guard.shown, "flow+hint");
-assert.equal(guard.hint.textContent, "negative -45 W");
-assert.equal(hass.states["sensor.load"].state, "-0.045"); // raw state untouched
-for (const raw of ["0", "-0.0", "0.5"]) {
-  hass.states["sensor.load"].state = raw; guard.hass = hass;
-  assert.equal(guard.firstChild, guard.flow);
-  assert.equal(guard.shown, "flow");
-  assert.equal(guard.flow.hass, hass);
-}
-// Meter noise (-20 W) is just 0 W: no hint.
-hass.states["sensor.load"].state = "-0.02"; guard.hass = hass;
-assert.equal(guard.shown, "flow");
-assert.equal(guard.flow.hass.states["sensor.load"].state, "0");
-for (const raw of ["unknown", "unavailable", "", "NaN"]) {
-  hass.states["sensor.load"].state = raw; guard.hass = hass;
-  assert.equal(guard.firstChild, guard.notice);
-  assert.equal(guard.notice.textContent, "missing");
-}
-hass.states["sensor.load"].state = "-1"; guard.hass = hass;
-assert.equal(guard.hint.textContent, "negative -1000 W");
-hass.states["sensor.load"].state = "1"; guard.hass = hass;
-assert.equal(guard.firstChild, guard.flow);
-assert.equal(created.length, 3);
+globalThis.customElements = { get: () => undefined, define: () => {}, whenDefined: () => new Promise(() => {}) };
+await import(pathToFileURL(process.argv[2]).href);
+const { flowModel, balanceWatts, flowSplit } = window.energyLibDashboard;
 
-// A few watts of mismatch must not animate a PV-to-home flow the device does not report.
-const balanced = new Guard();
-created.length = 0;
-balanced.setConfig({
-  load_entity: "sensor.load", solar_entity: "sensor.pv", battery_entity: "sensor.bat", grid_entity: "sensor.grid",
-  warning: "negative", unavailable: "missing", card: { type: "custom:power-flow-card-plus" },
-});
+const config = {
+  solar_entity: "sensor.pv", battery_entity: "sensor.bat", grid_entity: "sensor.grid", load_entity: "sensor.load",
+  soc_entity: "sensor.soc", running_entity: "sensor.run", alarm_entity: "sensor.alarm",
+};
 const kw = (state) => ({ state, attributes: { unit_of_measurement: "kW" } });
-const live = { states: { "sensor.load": kw("0.0"), "sensor.pv": kw("1.58"), "sensor.bat": kw("-1.57"), "sensor.grid": kw("-0.0") } };
-balanced.hass = live;
-const fed = balanced.flow.hass;
-assert.notEqual(fed, live);
-assert.ok(Math.abs(Number(fed.states["sensor.pv"].state) - 1.57) < 1e-9); // 10 W absorbed
-assert.equal(live.states["sensor.pv"].state, "1.58"); // raw state untouched
-assert.equal(fed.states["sensor.bat"], live.states["sensor.bat"]);
-// A real flow above the tolerance is passed through unchanged.
-live.states["sensor.load"] = kw("0.5"); live.states["sensor.pv"] = kw("2.2"); live.states["sensor.bat"] = kw("-1.7");
-balanced.hass = live;
-assert.equal(balanced.flow.hass, live);
-live.states["sensor.load"] = kw("0"); live.states["sensor.pv"] = kw("1.65"); live.states["sensor.bat"] = kw("-1.57");
-balanced.hass = live; // 80 W unexplained: shown as the device reports it
-assert.equal(balanced.flow.hass, live);
-// Night: no PV, 12 W of grid import against a 0 W load is not a grid-to-home flow.
-live.states["sensor.pv"] = kw("0"); live.states["sensor.bat"] = kw("0"); live.states["sensor.grid"] = kw("0.012");
-balanced.hass = live;
-assert.ok(Math.abs(Number(balanced.flow.hass.states["sensor.grid"].state)) < 1e-9);
-assert.equal(balanced.flow.hass.states["sensor.pv"], live.states["sensor.pv"]);
-// Hardware case: PV 869 W, battery charging 865 W, 22 W of "export", load -22 W.
-live.states["sensor.pv"] = kw("0.869"); live.states["sensor.bat"] = kw("-0.865");
-live.states["sensor.grid"] = kw("-0.022"); live.states["sensor.load"] = kw("-0.022");
-balanced.hass = live;
-const hw = balanced.flow.hass.states;
-assert.equal(Number(hw["sensor.grid"].state), 0); // export noise is not a battery-to-grid flow
-assert.ok(Math.abs(Number(hw["sensor.pv"].state) - 0.865) < 1e-9); // PV exactly into the battery
-assert.equal(hw["sensor.load"].state, "0");
-assert.equal(balanced.shown, "flow"); // -22 W is within the tolerance: no hint
-live.states["sensor.load"] = kw("0"); live.states["sensor.grid"] = kw("0");
-live.states["sensor.pv"] = kw("unavailable");
-balanced.hass = live;
-assert.equal(balanced.flow.hass, live);
+const hass = (pv, bat, grid, load, extra = {}) => ({
+  states: {
+    "sensor.pv": kw(pv), "sensor.bat": kw(bat), "sensor.grid": kw(grid), "sensor.load": kw(load),
+    "sensor.soc": { state: "52" }, "sensor.run": { state: "on_grid" }, "sensor.alarm": { state: "normal", attributes: {} },
+    ...extra,
+  },
+});
+const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
+
+// 10 W of mismatch must not draw a PV-to-home flow the device does not report.
+let m = flowModel(hass("1.58", "-1.57", "-0.0", "0.0"), config);
+assert.equal(m.ready, true);
+near(m.watts.solar, 1570);
+assert.deepEqual(m.flows, { solar: "in", grid: null, battery: "out", home: null });
+assert.equal(m.soc, 52);
+// A real flow above the tolerance is kept as reported.
+m = flowModel(hass("2.2", "-1.7", "0", "0.5"), config);
+assert.deepEqual(m.watts, { solar: 2200, battery: -1700, grid: 0, load: 500 });
+assert.deepEqual(m.flows, { solar: "in", grid: null, battery: "out", home: "out" });
+// 80 W unexplained: shown as the device reports it.
+near(flowModel(hass("1.65", "-1.57", "0", "0"), config).watts.solar, 1650);
+// Night: 12 W of grid import against a 0 W load is noise, not a grid flow.
+m = flowModel(hass("0", "0", "0.012", "0"), config);
+assert.equal(m.watts.grid, 0);
+assert.equal(m.flows.grid, null);
+// Hardware case: PV 869 W, battery charging 865 W, 22 W "export", load -22 W.
+m = flowModel(hass("0.869", "-0.865", "-0.022", "-0.022"), config);
+assert.equal(m.watts.grid, 0);
+near(m.watts.solar, 865);
+assert.equal(m.watts.load, 0);
+assert.equal(m.negativeLoad, null); // within the tolerance: no hint
+// A larger negative load is drawn as 0 W and named in the hint.
+m = flowModel(hass("0", "0", "0", "-0.045"), config);
+assert.equal(m.watts.load, 0);
+near(m.negativeLoad, -45);
+// Import flows towards the inverter, export away from it.
+assert.equal(flowModel(hass("0", "0", "1.2", "1.2"), config).flows.grid, "in");
+assert.equal(flowModel(hass("2", "0", "-1.5", "0.5"), config).flows.grid, "out");
+assert.equal(flowModel(hass("0", "0.8", "0", "0.8"), config).flows.battery, "in");
+// Any missing power value: no drawing, the card shows a notice instead.
+for (const raw of ["unknown", "unavailable", "", "NaN"]) {
+  assert.equal(flowModel(hass(raw, "0", "0", "0"), config).ready, false);
+}
+// Off-grid running state: grid missing (red cross), no grid flow.
+m = flowModel(hass("1", "-0.4", "0.01", "0.6", { "sensor.run": { state: "off_grid" } }), config);
+assert.equal(m.missing.grid, true);
+assert.equal(m.offGrid, true);
+assert.equal(m.watts.grid, 0);
+assert.equal(m.flows.grid, null);
+// Alarm-derived link flags from the integration.
+const alarm = (attributes) => ({ "sensor.alarm": { state: "abnormal", attributes } });
+m = flowModel(hass("0.5", "0", "0", "0.5", alarm({ battery_disconnected: true, grid_disconnected: false })), config);
+assert.deepEqual(m.missing, { grid: false, battery: true });
+assert.equal(m.flows.battery, null);
+m = flowModel(hass("0", "0", "0", "0", alarm({ grid_disconnected: true })), config);
+assert.equal(m.missing.grid, true);
+assert.equal(m.offGrid, false);
+// Unknown link state (incomplete alarm sources) is not shown as missing.
+m = flowModel(hass("0", "0", "0", "0", alarm({ grid_disconnected: null, battery_disconnected: null })), config);
+assert.deepEqual(m.missing, { grid: false, battery: false });
+// The balancing helper alone.
+assert.deepEqual(balanceWatts({ solar: 1000, battery: 0, grid: -20, load: 1000 }), { solar: 1000, battery: 0, grid: 0, load: 1000 });
+// Node-to-node split: PV serves the home first, then the battery, then export.
+const none = { solarHome: 0, solarBattery: 0, solarGrid: 0, batteryHome: 0, gridHome: 0, batteryGrid: 0, gridBattery: 0 };
+assert.deepEqual(flowSplit({ solar: 2620, battery: -1640, grid: 0, load: 980 }), { ...none, solarHome: 980, solarBattery: 1640 });
+assert.deepEqual(flowSplit({ solar: 0, battery: 800, grid: 300, load: 1100 }), { ...none, batteryHome: 800, gridHome: 300 });
+assert.deepEqual(flowSplit({ solar: 3000, battery: 500, grid: -2500, load: 1000 }), { ...none, solarHome: 1000, solarGrid: 2000, batteryGrid: 500 });
+assert.deepEqual(flowSplit({ solar: 0, battery: -2000, grid: 2500, load: 500 }), { ...none, gridHome: 500, gridBattery: 2000 });
+// A residual under the tolerance is not drawn as a path.
+assert.deepEqual(flowSplit({ solar: 1010, battery: 0, grid: 0, load: 1000 }), { ...none, solarHome: 1000 });
 process.stdout.write(JSON.stringify({ result: "passed" }));

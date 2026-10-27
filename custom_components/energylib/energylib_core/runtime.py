@@ -336,6 +336,13 @@ class DeviceRuntime:
 
     def _publish_alarms(self):
         values, attributes = self.alarms.snapshot(self.profile.mappings.get("active_alarms", ()))
+        # Grid/battery link state for flow displays: an active "disconnected" alarm
+        # proves it; its absence proves nothing until every alarm source was read.
+        codes = {a["code"] for a in attributes["alarms"]}
+        for link, wanted in getattr(self.profile, "link_alarms", {}).items():
+            attributes[f"{link}_disconnected"] = (
+                True if codes & wanted else False if attributes["complete"] else None
+            )
         self.values.update(values)
         for key in ALARM_KEYS:
             self.attributes[key] = (

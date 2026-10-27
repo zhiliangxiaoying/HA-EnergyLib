@@ -165,33 +165,30 @@ class StrategyOutputTests(unittest.TestCase):
         expected.add("sensor.dev1_renamed_remote_status")
         # Read-only mode also supplies the explicit control-permission status.
         self.assertEqual(expected - refs, set())
-        self.assertIn("custom:power-flow-card-plus", text(self.out["full_zh"]))
+        # The energy flow is built in: no third-party card is needed.
+        self.assertIn("custom:energylib-flow", text(self.out["full_zh"]))
+        self.assertNotIn("power-flow-card-plus", text(self.out["full_zh"]))
         # An offline TOU sensor has no plan attributes: HA's strict templates
         # must not dereference them directly (UndefinedError in the HA log).
         self.assertNotIn("s.attributes.periods", text(self.out["full_zh"]))
         self.assertIn("s.attributes.get('periods', [])", text(self.out["full_zh"]))
         self.assertIn("实时能流", text(self.out["full_zh"]))
 
-    def test_flow_direction_matches_standard_power_signs(self):
+    def test_flow_card_gets_entities_and_texts(self):
         cards = self.out["full_zh"]["views"][0]["sections"][0]["cards"]
-        guard = next(
-            c["card"] for c in cards if c.get("card", {}).get("type") == "custom:energylib-flow"
-        )
-        flow = guard["card"]
-        # Card defaults are +battery discharge, +grid import, the same as EnergyLIB.
-        # Hardware check: an inverted battery drew charging as discharging.
-        self.assertIs(flow["entities"]["battery"]["invert_state"], False)
-        self.assertIs(flow["entities"]["grid"]["invert_state"], False)
-        self.assertEqual(flow["display_zero_lines"]["mode"], "transparency")
-        self.assertEqual(flow["kilo_threshold"], 1000)
+        flow = next(c for c in cards if c.get("type") == "custom:energylib-flow")
+        self.assertEqual(flow["load_entity"], "sensor.dev1_renamed_load_power")
+        self.assertEqual(flow["solar_entity"], "sensor.dev1_renamed_solar_power")
+        self.assertEqual(flow["battery_entity"], "sensor.dev1_renamed_battery_power")
+        self.assertEqual(flow["grid_entity"], "sensor.dev1_renamed_grid_power")
+        # Grid/battery presence comes from the running state and the alarm sensor.
+        self.assertEqual(flow["running_entity"], "sensor.dev1_renamed_running_state")
+        self.assertEqual(flow["alarm_entity"], "sensor.dev1_renamed_alarm_status")
+        self.assertEqual(flow["soc_entity"], "sensor.dev1_renamed_battery_total_soc")
+        self.assertEqual(flow["text"]["gridMissing"], "电网断开")
+        self.assertEqual(flow["text"]["batteryMissing"], "电池未接入")
         # A negative home load is drawn as 0 W with a one-line hint naming the reading.
-        self.assertIn("{value}", guard["warning"])
-        self.assertIn("按 0 W 显示", guard["warning"])
-        self.assertEqual(guard["load_entity"], "sensor.dev1_renamed_load_power")
-        # An asynchronous flow residual can differ from measured home load.
-        # Display the supplied measurement; the guard feeds a negative load as 0 W.
-        self.assertEqual(flow["entities"]["home"]["entity"], guard["load_entity"])
-        self.assertIs(flow["entities"]["home"]["override_state"], True)
+        self.assertIn("{value}", flow["text"]["negativeLoad"])
 
     def test_flow_guard_pauses_invalid_load_and_recovers(self):
         result = subprocess.run(
@@ -211,7 +208,7 @@ class StrategyOutputTests(unittest.TestCase):
             {r for r in refs if r.split(".")[0] in ("select", "number", "switch", "button")}
         )
         self.assertIn("sensor.dev1_renamed_work_mode", refs)
-        self.assertNotIn("power-flow-card-plus", text(page))
+        self.assertIn("custom:energylib-flow", text(page))
         self.assertIn("Allow control", text(page))
         self.assertIn("Live energy flow", text(page))
         self.assertNotIn("null", text(page))

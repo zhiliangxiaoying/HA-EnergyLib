@@ -185,6 +185,8 @@ class SinexcelProfile:
     power_direction_verified = True  # Vendor convention confirmed; see DEVICE_SIGN.
     controls_hw_verified = False  # Implemented from the protocol, not yet on hardware.
     work_mode_codes = WORK_MODE_CODES
+    # FC02 codes meaning a link is missing: "grid disconnected", "battery 1 disconnected".
+    link_alarms = {"grid": frozenset({"110C"}), "battery": frozenset({"1058"})}
 
     def __init__(self):
         self.capabilities = set()

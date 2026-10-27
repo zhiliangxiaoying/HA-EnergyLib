@@ -10,6 +10,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .const import (
+    CONF_ALLOW_CONTROL,
     CONF_PROFILE,
     CONF_PROFILE_ID,
     CONF_UNIT_ID,
@@ -243,5 +244,9 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             except EnergyLibError:
                 errors["base"] = "cannot_connect"
             else:
-                return self.async_create_entry(title="EnergyLIB", data=self._data)
+                # New devices start with control allowed; it can be turned off in the
+                # options. Existing entries keep whatever they have stored.
+                return self.async_create_entry(
+                    title="EnergyLIB", data=self._data, options={CONF_ALLOW_CONTROL: True}
+                )
         return self._connection_form(step, errors)

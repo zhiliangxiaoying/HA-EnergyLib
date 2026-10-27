@@ -2,6 +2,10 @@
 
 ## 0.8.43.dev1
 
+- Built-in live energy-flow card replaces the optional third-party Power Flow Card Plus: values inside the circles, one line per node-to-node flow (PV serves the home first, then the battery, then export; the battery before the grid) with colour gradients and moving dots, glowing active circles, and the home ring split by power source. A missing grid (off-grid running state or the "grid disconnected" alarm) or battery ("battery 1 disconnected" alarm) is drawn grey with a red cross. The 30 W noise rule and the 0 W display of a negative load are unchanged.
+- The alarm sensor exposes `grid_disconnected` / `battery_disconnected` (true/false, or null while alarm sources are incomplete).
+- Simulator: `--scenario off_grid|no_battery|off_grid_no_battery` for these displays.
+- Control is allowed by default for newly added devices (options `allow_control: true` at creation); it can still be turned off in the options. Entries added earlier keep their stored setting. Setup, discovery and control-permission texts say so.
 - Peak shaving (work mode 8) is offered in the EMS mode selector only for rated power of 30 kW or more: Sinexcel's "Working Mode" note says it exists on 30/50 kW models only. On smaller models the selector still shows it when the device is already in it (set from the App), and a remote session or TOU save restores it as before. Seen on a 12 kW unit: in mode 8 the battery stayed idle, and the peak-shaving parameters (0x324C/0x324E) answer exception 3.
 - User guide: work-mode descriptions follow the vendor's "Working Mode" document.
 - New diagnostic "Meter online" connectivity sensor (0xA000, 1 = online), created only when the device answers that register and disabled by default. With the meter offline, grid power and export limiting cannot be trusted.
