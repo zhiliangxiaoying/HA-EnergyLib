@@ -19,7 +19,16 @@ class EnergyLibSelect(EnergyLibControl, SelectEntity):
     def __init__(self, coordinator, definition):
         super().__init__(coordinator, definition.key)
         self._attr_translation_key = definition.key
-        self._attr_options = list(coordinator.device.control_options(definition))
+        self._offered = list(coordinator.device.control_options(definition))
+        self._encodable = coordinator.device.control_options(definition, restoring=True)
+
+    @property
+    def options(self):
+        # A mode set from the App that this model does not offer is still shown.
+        current = self.control_value
+        if current not in self._offered and current in self._encodable:
+            return [*self._offered, current]
+        return self._offered
 
     @property
     def current_option(self):

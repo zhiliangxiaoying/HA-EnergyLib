@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.43.dev1
+
+- Peak shaving (work mode 8) is offered in the EMS mode selector only for rated power of 30 kW or more: Sinexcel's "Working Mode" note says it exists on 30/50 kW models only. On smaller models the selector still shows it when the device is already in it (set from the App), and a remote session or TOU save restores it as before. Seen on a 12 kW unit: in mode 8 the battery stayed idle, and the peak-shaving parameters (0x324C/0x324E) answer exception 3.
+- User guide: work-mode descriptions follow the vendor's "Working Mode" document.
+- New diagnostic "Meter online" connectivity sensor (0xA000, 1 = online), created only when the device answers that register and disabled by default. With the meter offline, grid power and export limiting cannot be trusted.
+
+## 0.8.42.dev1
+
+- Fix the EMS mode not being restored after a remote charge/discharge task on firmware that switches itself from manual (4) back to self-consumption (0) when manual control is disabled: for a session this integration owns, both cases now restore the mode used before the session (and the device's watchdog settings), skipping the write when the device is already in it. A mode set by another controller during the session is kept. Seen on hardware; stop and 60 s expiry verified.
+- Overview: while the device is in a mode that cannot be selected (manual/remote, dynamic tariff, voltage regulation), the controls column shows the read-only EMS mode sensor instead of a native selector reading "unknown".
+
+## 0.8.41.dev1
+
+- Chinese work-mode names follow the vendor's ESS LINK App: 自发自用模式, 定时充放电模式, 备电模式 (was 灾备) and 卖电优先模式. Mode codes, English names, entity IDs and automation values are unchanged.
+
 ## 0.8.40.dev1
 
 - Fix the work mode being forced back to self-consumption about 60 s after a remote charge/discharge task ended: the device's EMS watchdog stays armed after manual control is off, and our heartbeat timeout (60 s) and escape mode (1, self-consumption) were left in place. Leaving remote control now restores the device's own watchdog settings recorded at the first start (a renewal keeps them); with unknown originals after a restart, our settings are neutralised with escape 0 ("keep running"). Found on hardware: feed-in priority set right after a stop was reverted at exactly last heartbeat + 60 s.

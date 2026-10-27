@@ -5,6 +5,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.util import dt as dt_util
 
 from .const import RETIRED_ALARM_ENTITIES
+from .energylib_core.model.points import BINARY_KINDS
 from .entity import EnergyLibEntity
 
 PARALLEL_UPDATES = 0
@@ -29,7 +30,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(
         EnergyLibSensor(coordinator, p)
         for p in coordinator.device.points()
-        if p.kind != "problem" and p.key not in RETIRED_ALARM_ENTITIES
+        if p.kind not in BINARY_KINDS and p.key not in RETIRED_ALARM_ENTITIES
     )
 
 

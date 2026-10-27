@@ -379,15 +379,25 @@ class DeviceRuntime:
             values = [None if v is None else v * m.scale for v, m in zip(values, maps, strict=True)]
             if key == "work_mode":
                 self.values[key] = self.profile.decode_enum(key, values[0])
+            elif MEASUREMENTS[key].kind == "connectivity":
+                self.values[key] = values[0] == 1
             else:
                 self.values[key] = max(values) if all(v is not None for v in values) else None
 
-    def control_options(self, definition):
-        """Standard options this profile can actually encode."""
+    def control_options(self, definition, *, restoring=False):
+        """Standard options this profile can encode and this model offers.
+
+        Restoring a mode the device was already in (set from the App) only needs
+        it to be encodable, not offered for selection.
+        """
         if definition.key != "work_mode":
             return definition.options
         known = set(self.profile.work_mode_codes.values())
-        return tuple(o for o in definition.options if o in known)
+        return tuple(
+            o
+            for o in definition.options
+            if o in known and (restoring or self.profile.work_mode_offered(o))
+        )
 
     def _gate(self):
         self._ensure_open()
@@ -563,7 +573,7 @@ class DeviceRuntime:
                 raise ControlError("Stop remote control before editing TOU")
             previous = actual["work_mode"]
             mode = next(c for c in CONTROLS if c.key == "work_mode")
-            if previous not in self.control_options(mode):
+            if previous not in self.control_options(mode, restoring=True):
                 raise ControlError("Cannot safely restore current mode")
             current = await self.profile.read_schedule(self.client)
             # Validity is not editable through this API or the native forms.
@@ -625,7 +635,9 @@ class DeviceRuntime:
             if self.remote_deadline is None:
                 # A renewal keeps the mode recorded when the session started.
                 mode = actual["work_mode"]
-                options = self.control_options(next(c for c in CONTROLS if c.key == "work_mode"))
+                options = self.control_options(
+                    next(c for c in CONTROLS if c.key == "work_mode"), restoring=True
+                )
                 self._remote_restore_mode = (
                     mode if mode in options and mode != "time_of_use" else "self_consumption"
                 )

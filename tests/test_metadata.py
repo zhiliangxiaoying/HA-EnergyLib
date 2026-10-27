@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from energylib_under_test.energylib_core.model.points import (
+    BINARY_KINDS,
     BUTTONS,
     CONTROLS,
     DRAFTS,
@@ -35,7 +36,7 @@ class MetadataTests(unittest.TestCase):
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(keys(data), keys(original))
             for point in MEASUREMENTS.values():
-                platform = "binary_sensor" if point.kind == "problem" else "sensor"
+                platform = "binary_sensor" if point.kind in BINARY_KINDS else "sensor"
                 self.assertIn(point.key, data["entity"][platform])
             for control in CONTROLS + DRAFTS:
                 self.assertIn(control.key, data["entity"][control.platform])

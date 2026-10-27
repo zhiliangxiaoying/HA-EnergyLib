@@ -1102,6 +1102,36 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             await self.runtime.set_control("grid_charge", True)
         self.assertEqual(self.peer.write_count, before)
 
+    async def test_peak_shaving_is_offered_only_on_30_kw_and_larger_models(self):
+        # Vendor "Working Mode" note: 0x300C = 8 exists on 30/50 kW models only.
+        self.runtime.allow_control = True
+        mode = next(c for c in CONTROLS if c.key == "work_mode")
+        self.assertEqual(self.runtime.profile.max_power_kw, 5.0)
+        self.assertNotIn("peak_shaving", self.runtime.control_options(mode))
+        self.assertIn("peak_shaving", self.runtime.control_options(mode, restoring=True))
+        before = self.peer.write_count
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("work_mode", "peak_shaving")
+        self.assertEqual(self.peer.write_count, before)
+        # Already in peak shaving (from the App): a TOU save still restores it.
+        self.model.set_float(0x300C, 8)
+        await self.runtime.set_schedule({"periods": []})
+        self.assertEqual(self.model.get_float(0x300C), 8)
+        self.runtime.profile.max_power_kw = 30.0
+        self.assertIn("peak_shaving", self.runtime.control_options(mode))
+        await self.runtime.set_control("work_mode", "self_consumption")
+        await self.runtime.set_control("work_mode", "peak_shaving")
+        self.assertEqual(self.model.get_float(0x300C), 8)
+
+    async def test_meter_online_reads_0xa000_for_devices_that_answer_it(self):
+        self.assertIn("meter", self.runtime.profile.capabilities)
+        await self.runtime.refresh({"meter_online"})
+        self.assertIs(self.runtime.values["meter_online"], True)
+        self.model.set_float(0xA000, 0)
+        self.now += 31  # next slow-tier read
+        await self.runtime.refresh({"meter_online"})
+        self.assertIs(self.runtime.values["meter_online"], False)
+
     async def test_rated_power_comes_from_protocol_register(self):
         self.assertEqual(self.runtime.profile.max_power_kw, 5.0)  # 0x2008 = 500
         self.assertEqual(self.runtime.profile.tou_limits.max_power_kw, 5.0)
@@ -1159,6 +1189,41 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.now += 61
         self.model.tick(datetime(2026, 10, 26, 14, 34), 1)
         self.assertEqual(self.model.get_float(0x300C), 6)  # not forced back to 0
+
+    async def test_firmware_self_consumption_on_remote_exit_restores_original_mode(self):
+        # Hardware can switch 4 -> 0 itself when manual control is disabled.
+        # A stop and an expiry must still restore the mode captured at entry.
+        self.runtime.allow_control = True
+        self.model.set_float(0x300C, 8)  # peak shaving, set from the App
+        original = self.model.apply_write
+
+        def firmware_exit(address, words):
+            result = original(address, words)
+            if address == 0xC646 and not self.model.get_float(0xC646):
+                self.model.set_float(0x300C, 0)
+            return result
+
+        with patch.object(self.model, "apply_write", firmware_exit):
+            for exit_kind in ("stop", "expiry"):
+                with self.subTest(exit_kind=exit_kind):
+                    await self.runtime.set_battery_power(0.5, 2)
+                    if exit_kind == "stop":
+                        await self.runtime.stop_remote()
+                    else:
+                        self.now += 3
+                        await asyncio.wait_for(asyncio.shield(self.runtime._lease_task), 15)
+                    self.assertEqual(self.model.get_float(0x300C), 8)
+                    self.assertEqual(self.runtime.controls["work_mode"], "peak_shaving")
+                    self.assertEqual(self.model.get_float(0xC646), 0)
+                    self.assertEqual(self.model.get_float(0xC648), 0)
+
+    async def test_remote_exit_preserves_a_different_external_nonmanual_mode(self):
+        self.runtime.allow_control = True
+        self.model.set_float(0x300C, 8)
+        await self.runtime.set_battery_power(0.5, 300)
+        self.model.set_float(0x300C, 6)  # A separate controller has selected a mode.
+        await self.runtime.stop_remote()
+        self.assertEqual(self.model.get_float(0x300C), 6)
 
     async def test_unknown_watchdog_originals_are_neutralised_on_exit(self):
         # After a restart the originals are unknown; our own 60 s / escape 1 must

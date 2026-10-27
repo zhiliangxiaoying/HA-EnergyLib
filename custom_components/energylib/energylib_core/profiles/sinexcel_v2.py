@@ -86,6 +86,8 @@ DEVICE_SIGN = {
 # written 2099-12-31 00:00 to 23:59:59 (and its own windows end at 23:59:59).
 FAR_FUTURE = int(datetime(2099, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp())
 REMOTE_TIMEOUT_S, REMOTE_ESCAPE = 60, 1  # escape 1 = self-consumption
+# Vendor "Working Mode" note: peak shaving (0x300C = 8) exists on 30/50 kW models only.
+PEAK_SHAVING_MIN_KW = 30
 REMOTE_MODE_CODE = 4  # 0x300C while manual control (0xC646) is or was enabled
 # Explicit level parameters only. Heartbeats, remote enable/disable and TOU table
 # blocks retain single-send semantics until their repeated-write behavior is verified.
@@ -288,6 +290,7 @@ class SinexcelProfile:
             ("battery_2", 0x3036),
             ("port_use", 0xC264),
             ("bms", 0xB000),
+            ("meter", 0xA000),
         ):
             try:
                 probes[key] = decode_float(
@@ -317,6 +320,8 @@ class SinexcelProfile:
                 capacity = None
             if capacity is not None and capacity > 0:
                 self.capabilities.add("bms_capacity")
+        if probes["meter"] is not None:
+            self.capabilities.add("meter")
         if probes["port_use"] in (1, 2):
             self.capabilities.add("generator")
         elif probes["port_use"] == 4:
@@ -363,6 +368,7 @@ class SinexcelProfile:
             "backup_load_power": 0x1278,
             "generator_power": 0x128C,
             "ac_couple_power": 0x12A4,
+            "meter_online": 0xA000,  # 0 offline, 1 online
         }
         self.mappings = {
             k: (Mapping(k, a, unit=client.unit_id, scale=DEVICE_SIGN.get(k, 1.0)),)
@@ -606,6 +612,10 @@ class SinexcelProfile:
             )
         )
 
+    def work_mode_offered(self, mode):
+        """Modes a user may select; smaller models only report peak shaving."""
+        return mode != "peak_shaving" or (self.max_power_kw or 0) >= PEAK_SHAVING_MIN_KW
+
     async def enter_remote(self, client, power, restore_mode="self_consumption"):
         """Enable manual control first, then set its power.
 
@@ -674,15 +684,18 @@ class SinexcelProfile:
         """Clear the setpoint, leave manual control and restore the previous mode.
 
         0xC648 can only be written while manual control is on, so it is cleared
-        first; the device then stays in work mode 4 (manual) until a mode is set.
+        first. Firmware may keep manual mode or switch to self-consumption when
+        manual control is disabled; both require restoration for our own session.
         """
+        owned = self._saved_watchdog is not None
         with contextlib.suppress(DeviceException):
             await client.write_registers(CONTROL_ADDRESSES["remote_power"], floats([0.0]))
         await self.write_float(client, CONTROL_ADDRESSES["remote_control"], 0)
         mode = decode_float(
             await client.read_holding_registers(CONTROL_ADDRESSES["work_mode"], 2), kind="control"
         )
-        if mode == REMOTE_MODE_CODE:
+        if mode == REMOTE_MODE_CODE or (owned and mode == 0):
             code = self.control_values("work_mode", restore_mode)
-            await self.write_float(client, CONTROL_ADDRESSES["work_mode"], code)
+            if mode != code:
+                await self.write_float(client, CONTROL_ADDRESSES["work_mode"], code)
         await self._restore_watchdog(client)

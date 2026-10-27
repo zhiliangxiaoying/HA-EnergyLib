@@ -172,13 +172,13 @@
       "work_mode": {
         "name": "EMS模式",
         "state": {
-          "self_consumption": "自发自用",
-          "time_of_use": "定时充放电",
+          "self_consumption": "自发自用模式",
+          "time_of_use": "定时充放电模式",
           "dynamic_tariff": "分时电价",
-          "backup": "灾备",
+          "backup": "备电模式",
           "remote": "手动控制",
           "pv_charge_priority": "光伏优先充电",
-          "feed_in_priority": "卖电优先",
+          "feed_in_priority": "卖电优先模式",
           "voltage_regulation": "调压",
           "peak_shaving": "削峰填谷",
           "other": "其他"
@@ -314,19 +314,22 @@
       },
       "any_warning": {
         "name": "存在警告"
+      },
+      "meter_online": {
+        "name": "电表在线"
       }
     },
     "select": {
       "work_mode": {
         "name": "EMS模式",
         "state": {
-          "self_consumption": "自发自用",
-          "time_of_use": "定时充放电",
+          "self_consumption": "自发自用模式",
+          "time_of_use": "定时充放电模式",
           "dynamic_tariff": "分时电价",
-          "backup": "灾备",
+          "backup": "备电模式",
           "remote": "手动控制",
           "pv_charge_priority": "光伏优先充电",
-          "feed_in_priority": "卖电优先",
+          "feed_in_priority": "卖电优先模式",
           "voltage_regulation": "调压",
           "peak_shaving": "削峰填谷",
           "other": "其他"

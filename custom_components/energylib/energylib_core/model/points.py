@@ -123,6 +123,10 @@ OPTIONAL = (
         Measurement("generator_power", "power", "kW", False, frozenset({"generator"})),
         Measurement("ac_couple_power", "power", "kW", False, frozenset({"ac_couple"})),
         Measurement("inverter_temperature", "temperature", "°C", False),
+        # External meter link (0xA000, 1 = online); only for devices that answer it.
+        Measurement(
+            "meter_online", "connectivity", enabled=False, capabilities=frozenset({"meter"})
+        ),
         Measurement(
             "tou_schedule",
             "schedule",
@@ -148,6 +152,8 @@ REMOTE_MEASUREMENTS = (
     Measurement("remote_status", "task", options=REMOTE_STATUSES),
     Measurement("remote_end_time", "timestamp", enabled=False),
 )
+# Point kinds published as binary sensors rather than sensors.
+BINARY_KINDS = ("problem", "connectivity")
 MEASUREMENTS = {p.key: p for p in CORE + OPTIONAL + ALARM_SUMMARIES + REMOTE_MEASUREMENTS}
 
 

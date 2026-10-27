@@ -314,6 +314,9 @@
       },
       "any_warning": {
         "name": "Warning present"
+      },
+      "meter_online": {
+        "name": "Meter online"
       }
     },
     "select": {

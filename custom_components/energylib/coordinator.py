@@ -12,7 +12,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, REMOTE_OPERATION_ENTITIES, RETIRED_ALARM_ENTITIES
-from .energylib_core.model.points import FLOW_INTERVAL
+from .energylib_core.model.points import BINARY_KINDS, FLOW_INTERVAL
 from .energylib_core.model.remote import RemoteDraft
 from .energylib_core.runtime import ControlError, PartialWrite
 from .energylib_core.transport.modbus_tcp import EnergyLibError
@@ -229,7 +229,7 @@ class EnergyLibCoordinator(DataUpdateCoordinator):
         for p in self.device.points():
             if p.key in RETIRED_ALARM_ENTITIES:
                 continue
-            domain = "binary_sensor" if p.kind == "problem" else "sensor"
+            domain = "binary_sensor" if p.kind in BINARY_KINDS else "sensor"
             entity_id = registry.async_get_entity_id(
                 domain, DOMAIN, f"{self.device.unique_id}_{p.key}"
             )

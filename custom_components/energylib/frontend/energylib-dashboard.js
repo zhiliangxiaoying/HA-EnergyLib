@@ -272,7 +272,18 @@ function buildView(hass, device, t, flowCard, multiple) {
     ["number.max_soc", "mdi:battery-arrow-up", "green", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_charge_current", "mdi:current-dc", "teal", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_discharge_current", "mdi:current-dc", "orange", [{ type: "numeric-input", style: "slider" }]],
-  ].map(([key, icon, color, features]) => tile(ent[key], icon, color, { features }));
+  ].flatMap(([key, icon, color, features]) => {
+    const card = tile(ent[key], icon, color, { features });
+    if (!card) return [];
+    if (key !== "select.work_mode" || !s("work_mode")) return [card];
+    // Read-only modes are not selectable options. Display the authoritative
+    // sensor while one is active instead of an "unknown" native selector.
+    const readOnlyModes = ["dynamic_tariff", "remote", "voltage_regulation"];
+    return [
+      { type: "conditional", conditions: [{ condition: "state", entity: s("work_mode"), state_not: readOnlyModes }], card },
+      { type: "conditional", conditions: [{ condition: "state", entity: s("work_mode"), state: readOnlyModes }], card: tile(s("work_mode"), icon, color) },
+    ];
+  });
   const dispatch = s("remote_status") && {
     type: "custom:energylib-dispatch", device_id: device.id,
     power_entity: ent["number.remote_target_power"], duration_entity: ent["number.remote_duration"],

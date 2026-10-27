@@ -236,6 +236,7 @@ class BenchModel:
             0x3036: self.config.batteries - 1,
             0xC264: self.config.port_use,
             0xB000: int(self.config.bms),
+            0xA000: 1,  # external meter online
             0xB108: 97,
             # Battery cabinet 1 BMS view (engineering units, as the integration assumes).
             0xB10A: 3.331,

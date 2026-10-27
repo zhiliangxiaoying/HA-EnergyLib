@@ -7,7 +7,13 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from energylib_under_test.energylib_core.model.points import BUTTONS, CONTROLS, DRAFTS, MEASUREMENTS
+from energylib_under_test.energylib_core.model.points import (
+    BINARY_KINDS,
+    BUTTONS,
+    CONTROLS,
+    DRAFTS,
+    MEASUREMENTS,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components" / "energylib"
@@ -21,7 +27,7 @@ def fake_hass(devices, language, controls=True):
     for device in devices:
         registry_devices[device] = {"id": device, "name": f"EnergyLIB {device}"}
         keys = [
-            ("binary_sensor" if p.kind == "problem" else "sensor", p.key)
+            ("binary_sensor" if p.kind in BINARY_KINDS else "sensor", p.key)
             for p in MEASUREMENTS.values()
             if p.key
             not in {"active_alarms", "fault_count", "warning_count", "any_fault", "any_warning"}
@@ -220,6 +226,21 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertIn("custom:energylib-dispatch", text(status))
         self.assertNotIn("Controls are off", text(self.out["remote_only"]))
         self.assertIn("custom:energylib-dispatch", text(self.out["remote_only"]))
+
+    def test_read_only_ems_modes_show_the_sensor_instead_of_unknown_selector(self):
+        cards = self.out["full_zh"]["views"][0]["sections"][-1]["cards"]
+        selector = "select.dev1_renamed_work_mode"
+        sensor = "sensor.dev1_renamed_work_mode"
+        editable = next(c for c in cards if c.get("card", {}).get("entity") == selector)
+        observed = next(c for c in cards if c.get("card", {}).get("entity") == sensor)
+        modes = ["dynamic_tariff", "remote", "voltage_regulation"]
+        self.assertEqual(
+            editable["conditions"], [{"condition": "state", "entity": sensor, "state_not": modes}]
+        )
+        self.assertEqual(
+            observed["conditions"], [{"condition": "state", "entity": sensor, "state": modes}]
+        )
+        self.assertNotIn("features", observed["card"])
 
     def test_no_device_explains_what_to_do(self):
         self.assertIn("No EnergyLIB device found", text(self.out["empty"]))
