@@ -35,7 +35,16 @@
 
 ## 3. 打开总览
 
-进入 **设置 → 仪表盘 → 添加仪表盘 → EnergyLIB**，创建后左侧就会出现 **EnergyLIB**。
+1. 进入 **设置 → 仪表盘**，点击右下角 **添加仪表盘**。
+2. 在 **社区仪表盘** 中选择 **EnergyLIB**。
+
+   ![在添加仪表盘中选择 EnergyLIB](images/user-guide/03-add-dashboard.png)
+
+3. 填写标题和网址，例如标题 `EnergyLIB`、网址 `energylib-home`，勾选 **添加到侧边栏**，然后点击 **创建**。
+
+创建后，左侧会出现 **EnergyLIB**，进入后可以在顶部切换 **总览** 和 **数字孪生**。
+
+如果没有看到 EnergyLIB 选项，先确认已经安装并添加集成，然后刷新浏览器页面；刚安装或更新插件时，如果刷新后仍没有出现，请重启 Home Assistant，再刷新页面查看。
 
 ![总览](images/user-guide/03-overview.png)
 
