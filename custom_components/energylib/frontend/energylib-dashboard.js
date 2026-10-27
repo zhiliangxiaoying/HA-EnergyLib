@@ -596,7 +596,7 @@ class EnergyLibFlowCard extends HTMLElement {
       }
       .inner{width:100%;height:100%;border-radius:50%;background:var(--card-background-color,#1c1c1c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
       .inner ha-icon{--mdc-icon-size:24px;color:var(--c)}
-      .value{font-size:12px;font-weight:400;line-height:1.2;white-space:nowrap;color:var(--c)}
+      .value{font-size:12px;font-weight:400;line-height:1.2;white-space:nowrap;color:color-mix(in srgb,var(--c) 80%,var(--primary-text-color,#fff))}
       .batt{position:relative;width:38px;height:18px;margin:0 3px 3px 0;box-sizing:border-box;border:1.5px solid var(--c);border-radius:4px;display:flex;align-items:center;justify-content:center}
       .batt::after{content:"";position:absolute;right:-4.5px;top:4px;width:3px;height:7px;border-radius:0 2px 2px 0;background:var(--c)}
       .fill{position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:0;border-radius:2px;background:color-mix(in srgb,var(--c) 40%,transparent)}
