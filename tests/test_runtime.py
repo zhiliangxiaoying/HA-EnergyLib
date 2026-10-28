@@ -1,6 +1,7 @@
 """End-to-end TCP bench tests for profiles, polling, controls and failure states."""
 
 import asyncio
+import math
 import time
 import unittest
 from dataclasses import replace
@@ -887,6 +888,71 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.model.get_float(0x314A), 35)
         self.assertEqual(self.model.get_float(0x314C), 35)
         self.assertEqual(self.runtime.controls["backup_soc"], 35)
+
+    async def test_reprobe_never_exposes_a_half_built_configuration(self):
+        profile = self.runtime.profile
+        before = (profile.controls_supported, profile.control_keys, set(profile.capabilities))
+        self.assertTrue(before[0] and "work_mode" in before[1])
+        seen = []
+        original = self.client.read_holding_registers
+
+        async def watch(address, count, **kwargs):
+            # What a command or entity would see while the probe is waiting on I/O.
+            seen.append(
+                (profile.controls_supported, profile.control_keys, set(profile.capabilities))
+            )
+            return await original(address, count, **kwargs)
+
+        with patch.object(self.client, "read_holding_registers", watch):
+            await profile.configure(self.client, self.runtime.identity)
+        self.assertTrue(seen)
+        self.assertTrue(all(state == before for state in seen))
+        after = (profile.controls_supported, profile.control_keys, set(profile.capabilities))
+        self.assertEqual(after, before)
+
+    async def test_mode_command_during_the_periodic_reprobe_is_queued_not_rejected(self):
+        # Seen on hardware: a Siri mode change during the 10-minute re-probe
+        # failed with "Unsupported control".
+        self.runtime.allow_control = True
+        await self.runtime.refresh(set(), force=True)
+        self.runtime._capabilities_checked = -math.inf
+        command = None
+        original = self.client.read_holding_registers
+
+        async def start_command(address, count, **kwargs):
+            nonlocal command
+            # The rated-power read opens the control probe.
+            if command is None and (address, count) == (0x2008, 1):
+                command = asyncio.create_task(self.runtime.set_control("work_mode", "backup"))
+            return await original(address, count, **kwargs)
+
+        with patch.object(self.client, "read_holding_registers", start_command):
+            await self.runtime.refresh({"solar_power"})
+            await command
+        self.assertEqual(self.model.get_float(0x300C), 3)
+        self.assertEqual(self.runtime.controls["work_mode"], "backup")
+
+    async def test_failed_reprobe_keeps_the_previous_configuration(self):
+        profile = self.runtime.profile
+        keys, capabilities = profile.control_keys, set(profile.capabilities)
+        calls = 0
+        original = self.client.read_holding_registers
+
+        async def fail_midway(address, count, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 8:
+                raise ConnectionError("dropped during re-probe")
+            return await original(address, count, **kwargs)
+
+        with (
+            patch.object(self.client, "read_holding_registers", fail_midway),
+            self.assertRaises(ConnectionError),
+        ):
+            await profile.configure(self.client, self.runtime.identity)
+        self.assertTrue(profile.controls_supported)
+        self.assertEqual(profile.control_keys, keys)
+        self.assertEqual(profile.capabilities, capabilities)
 
     async def test_inverter_power_is_a_one_shot_command_confirmed_by_the_dcac_bit(self):
         self.runtime.allow_control = True

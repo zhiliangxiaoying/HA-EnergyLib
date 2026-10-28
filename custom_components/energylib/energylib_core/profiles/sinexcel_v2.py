@@ -18,6 +18,7 @@ HA still requires the user's explicit "allow control" option.
 
 import asyncio
 import contextlib
+import copy
 import math
 import struct
 from datetime import date, datetime, timezone
@@ -290,6 +291,18 @@ class SinexcelProfile:
         return True
 
     async def configure(self, client, identity):
+        """Probe on a copy and switch over at once.
+
+        The 10-minute re-probe runs between polls, but entities and the pre-lock
+        command checks read this profile at any time; they must never see the
+        emptied capabilities or control keys of a probe in progress. A probe
+        that fails keeps the previous configuration.
+        """
+        staged = copy.copy(self)
+        await staged._probe(client, identity)
+        self.__dict__.update(staged.__dict__)
+
+    async def _probe(self, client, identity):
         self._flow_block_enabled = True
         self.capabilities = {"battery"}
         if identity.machine_type == 0:
