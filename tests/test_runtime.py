@@ -888,6 +888,72 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.model.get_float(0x314C), 35)
         self.assertEqual(self.runtime.controls["backup_soc"], 35)
 
+    async def test_inverter_power_is_a_one_shot_command_confirmed_by_the_dcac_bit(self):
+        self.runtime.allow_control = True
+        self.assertIn("inverter_power", self.runtime.profile.control_keys)
+        await self.runtime.refresh({"running_state"}, force=True)
+        self.assertEqual(self.runtime.controls["inverter_power"], 1)
+        calls = []
+        original = self.client._request_once
+
+        async def record(pdu, unit):
+            calls.append((pdu[0], int.from_bytes(pdu[1:3], "big")))
+            return await original(pdu, unit)
+
+        with patch.object(self.client, "_request_once", record):
+            await self.runtime.set_control("inverter_power", False)
+        # State bit (FC02, aligned to 0x1010), one write of 1.0 to "off", state bit.
+        self.assertEqual(calls, [(2, 0x1010), (16, 0x3C44), (2, 0x1010)])
+        self.assertEqual(self.runtime.controls["inverter_power"], 0)
+        self.assertEqual(self.runtime.last_command, "confirmed")
+        self.now += 60
+        self.model.tick(datetime(2026, 10, 19, 12, 1, tzinfo=timezone.utc), 5)
+        values = await self.runtime.refresh({"running_state", "solar_power"}, force=True)
+        self.assertEqual(values["running_state"], "standby")
+        self.assertEqual(values["solar_power"], 0)
+        # Already off: confirmed from the state bit without another command.
+        writes = self.peer.write_count
+        await self.runtime.set_control("inverter_power", False)
+        self.assertEqual(self.peer.write_count, writes)
+        await self.runtime.set_control("inverter_power", True)
+        self.assertEqual(self.runtime.controls["inverter_power"], 1)
+        values = await self.runtime.refresh({"running_state"}, force=True)
+        self.assertEqual(values["running_state"], "on_grid")
+
+    async def test_inverter_power_off_waits_for_the_remote_task_to_stop(self):
+        self.runtime.allow_control = True
+        await self.runtime.set_battery_power(1, 300)
+        writes = self.peer.write_count
+        with self.assertRaises(ControlError) as caught:
+            await self.runtime.set_control("inverter_power", False)
+        self.assertNotIsInstance(caught.exception, PartialWrite)
+        self.assertEqual(self.peer.write_count, writes)
+        await self.runtime.stop_remote()
+
+    async def test_inverter_power_needs_a_readable_dcac_state(self):
+        del self.model.bits[1][0x1010], self.model.bits[1][0x1011]
+        await self.runtime.initialize()
+        self.assertTrue(self.runtime.profile.controls_supported)
+        self.assertNotIn("inverter_power", self.runtime.profile.control_keys)
+        self.runtime.allow_control = True
+        await self.runtime.refresh(set(), force=True)
+        self.assertNotIn("inverter_power", self.runtime.controls)
+        with self.assertRaises(ControlError):
+            await self.runtime.set_control("inverter_power", False)
+
+    async def test_unconfirmed_inverter_power_is_reported_as_uncertain(self):
+        self.runtime.allow_control = True
+        await self.runtime.refresh(set(), force=True)
+        module = "energylib_under_test.energylib_core.profiles.sinexcel_v2"
+        with (
+            patch.object(self.model, "set_power", lambda on: None),
+            patch(f"{module}.POWER_CONFIRM_S", 1),
+            self.assertRaises(PartialWrite),
+        ):
+            await self.runtime.set_control("inverter_power", False)
+        self.assertEqual(self.runtime.last_command, "uncertain")
+        self.assertEqual(self.runtime.controls["inverter_power"], 1)
+
     async def test_soc_conflict_is_rejected_from_cached_values_without_reads(self):
         self.runtime.allow_control = True
         # Device already has min SOC above backup SOC, e.g. changed from the App.

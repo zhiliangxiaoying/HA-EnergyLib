@@ -59,7 +59,8 @@
     "charge": "充电",
     "discharge": "放电",
     "noPeriods": "暂无时段。",
-    "activeDays": "生效"
+    "activeDays": "生效",
+    "powerConfirm": "确定切换逆变器开关机吗？关机后光伏和电池停止工作，没有电网时家里会断电。"
   },
   "alarms": {
     "title": "设备告警",

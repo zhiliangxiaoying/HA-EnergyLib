@@ -518,6 +518,8 @@ class DeviceRuntime:
                 raise ControlError("Stop remote control first")
             if key in ("min_soc", "backup_soc", "max_soc"):
                 self._check_soc_order(key, value)
+            if key == "inverter_power" and not value and self.remote_deadline is not None:
+                raise ControlError("Stop remote control first")
             # Basic edits have no dependency pre-read: the checks above use cached
             # control state (refreshed by every read-back and the 30 s tier).
             # Confirm every target through exact raw read-back.

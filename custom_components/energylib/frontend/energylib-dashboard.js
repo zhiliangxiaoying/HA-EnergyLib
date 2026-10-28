@@ -135,12 +135,16 @@ function buildView(hass, device, t, multiple) {
     ["number.export_limit", "mdi:transmission-tower-export", "cyan", [{ type: "numeric-input", style: "slider" }]],
     ["switch.export_limit_enable", "mdi:transmission-tower-off", "cyan", [{ type: "toggle" }]],
     ["switch.grid_charge", "mdi:battery-charging-wireless", "purple", [{ type: "toggle" }]],
+    // Power on/off has no toggle feature: tapping the icon asks for confirmation first.
+    ["switch.inverter_power", "mdi:power", "red", []],
     // Advanced battery limits start disabled; they appear once enabled on the device page.
     ["number.max_soc", "mdi:battery-arrow-up", "green", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_charge_current", "mdi:current-dc", "teal", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_discharge_current", "mdi:current-dc", "orange", [{ type: "numeric-input", style: "slider" }]],
   ].flatMap(([key, icon, color, features]) => {
-    const card = tile(ent[key], icon, color, { features });
+    const card = tile(ent[key], icon, color, key === "switch.inverter_power"
+      ? { icon_tap_action: { action: "toggle", confirmation: { text: t.powerConfirm } } }
+      : { features });
     if (!card) return [];
     if (key !== "select.work_mode" || !s("work_mode")) return [card];
     // Read-only modes are not selectable options. Display the authoritative

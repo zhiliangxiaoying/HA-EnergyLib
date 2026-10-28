@@ -118,6 +118,7 @@ to the device and read back to confirm.
 | Backup SOC | Discharge stops here, keeping a reserve for outages |
 | Minimum SOC | Lowest battery level |
 | Grid charging | When off, the grid never charges the battery |
+| Inverter power | Tap the icon and confirm to switch on or off; when off, PV and the battery stop, and without the grid the home loses power |
 | Export limit + Export limit enabled | Caps how much power is exported; set both |
 
 ## 9. Time-of-use schedule

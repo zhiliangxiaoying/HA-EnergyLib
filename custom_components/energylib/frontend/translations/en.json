@@ -59,7 +59,8 @@
     "charge": "Charge",
     "discharge": "Discharge",
     "noPeriods": "No periods.",
-    "activeDays": "Active"
+    "activeDays": "Active",
+    "powerConfirm": "Switch the inverter on or off? When off, PV and the battery stop; without the grid the home loses power."
   },
   "alarms": {
     "title": "Device alerts",

@@ -27,7 +27,7 @@ Pages and entity names follow Home Assistant's language (English and Simplified 
 - More diagnostic sensors available but disabled by default (grid voltage/frequency,
   battery voltage/current/SOH, PV strings, temperatures, faults)
 - Controls (on by default for new devices, can be turned off): work mode, backup SOC, minimum SOC, grid charging,
-  export limit, remote charge/discharge with a finite lease
+  export limit, inverter power on/off, remote charge/discharge with a finite lease
 - Time-of-use editor (up to 6 charge + 6 discharge periods) and services for automations
 - Unavailable data is shown as *unavailable*, never as 0; diagnostics are redacted
 
@@ -115,6 +115,7 @@ integration converts them.
 | Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
 | Grid charging (switch) | allow charging the battery from the grid |
 | Export limit (number) | maximum feed-in power, up to the inverter rating |
+| Inverter power (switch) | on = power on, off = power off; state read from the inverter's running bit. When off, PV and the battery stop |
 | Target power + Duration (draft numbers), Start charging/discharging and Stop buttons | Enter a positive kW magnitude and whole minutes (1–1440), then explicitly start/stop |
 | Battery operation card | Choose direction, power and minutes, then Start; status/countdown/Stop in one card |
 

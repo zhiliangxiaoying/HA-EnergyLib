@@ -199,6 +199,8 @@ CONTROLS = (
     Control("export_limit", "number", step=0.1, power_range="unipolar"),
     # 0x3002: the limit value alone cannot express "no limit" (0 kW means zero export).
     Control("export_limit_enable", "switch", maximum=1),
+    # One-shot power on/off commands, shown as a switch read back from the DCAC state.
+    Control("inverter_power", "switch", maximum=1),
     Control("remote_control", "switch", maximum=1),
     Control("remote_power", "number", step=0.1, power_range="bipolar"),
     Control("max_soc", "number", minimum=50, maximum=100, advanced=True),

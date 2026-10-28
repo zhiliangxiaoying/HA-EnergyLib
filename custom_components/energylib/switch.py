@@ -47,6 +47,8 @@ class EnergyLibSwitch(EnergyLibControl, SwitchEntity):
     def __init__(self, coordinator, definition):
         super().__init__(coordinator, definition.key)
         self._attr_translation_key = definition.key
+        if definition.key == "inverter_power":
+            self._attr_icon = "mdi:power"
 
     @property
     def is_on(self):

@@ -372,6 +372,9 @@
       "export_limit_enable": {
         "name": "Export limit enabled"
       },
+      "inverter_power": {
+        "name": "Inverter power"
+      },
       "remote_control": {
         "name": "Legacy remote control (immediate, 5 minutes)"
       },

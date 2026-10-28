@@ -372,6 +372,9 @@
       "export_limit_enable": {
         "name": "启用出口限制"
       },
+      "inverter_power": {
+        "name": "逆变器开关机"
+      },
       "remote_control": {
         "name": "旧版远程控制（立即执行5分钟）"
       },

@@ -9,11 +9,14 @@ not hardware-verified:
   - running state: 3 bits from 0x1001, least significant bit first;
   - TOU: the mode is set to self-consumption while blocks are written, there is
     no separate master switch (Q5); effective dates are U32 local-as-UTC stamps;
-  - rated power for limits comes from 0x2008 (U16, value / 100).
+  - rated power for limits comes from 0x2008 (U16, value / 100);
+  - power on/off: writing 1.0 to 0x3C42 / 0x3C44 is a one-shot command and the
+    FC02 DCAC state bit 0x1011 (1 = on) confirms it (Q17).
 Controls are offered only when the device answers every control register, and
 HA still requires the user's explicit "allow control" option.
 """
 
+import asyncio
 import contextlib
 import math
 import struct
@@ -67,6 +70,10 @@ BATTERY_2_ADDRESSES = {
     "max_discharge_current": 0x30B4,
 }
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = 0xC068, 0xC06A, 0xC06C
+# Power on/off commands (PDF p108, "general settings") and the DCAC state bit
+# (FC02, 0 = off, 1 = on) that confirms them.
+POWER_ON, POWER_OFF, DCAC_STATE = 0x3C42, 0x3C44, 0x1011
+POWER_CONFIRM_S, POWER_POLL_S = 20, 1
 OUTSIDE_MODE = 0x314E
 RATED_POWER = 0x2008
 PROTOCOL_MAX_KW = 50.0  # 0x3004 / 0xC648 / TOU power ranges in V001B031
@@ -194,6 +201,7 @@ class SinexcelProfile:
         self.single_battery_confirmed = False
         self.controls_supported = False
         self.control_keys = frozenset()
+        self.power_control = False
         self.max_power_kw = None
         self.tou_limits = None
         self._flow_block_enabled = True
@@ -403,6 +411,7 @@ class SinexcelProfile:
         """Offer controls only for a device that answers every control register."""
         self.controls_supported, self.control_keys = False, frozenset()
         self.max_power_kw = self.tou_limits = None
+        self.power_control = False
         if client.unit_id != 1:  # V001B031 writes go to slave 1 only.
             return
         try:
@@ -431,8 +440,20 @@ class SinexcelProfile:
                     blocks.append((BATTERY_2_ADDRESSES[key], 2))
                 if await self._readable(client, blocks):
                     self.control_addresses[key] = address
+            # Power on/off is offered when the bit that confirms it can be read.
+            try:
+                await self.read_discrete_inputs(client, DCAC_STATE, 1)
+            except DeviceException as err:
+                if err.code not in (1, 2):
+                    raise
+                self.power_control = False
+            else:
+                self.power_control = True
             self.control_keys = frozenset(
-                c.key for c in CONTROLS if c.key in self.control_addresses
+                c.key
+                for c in CONTROLS
+                if c.key in self.control_addresses
+                or (c.key == "inverter_power" and self.power_control)
             )
             self.capabilities.update("ctrl_" + key for key in self.control_keys)
             if await self._readable(client, [*SCHEDULE_BLOCKS, (OUTSIDE_MODE, 2)]):
@@ -472,7 +493,10 @@ class SinexcelProfile:
             addresses.update(
                 {k + "_2": a for k, a in BATTERY_2_ADDRESSES.items() if k in addresses}
             )
-        if keys is not None and not set(keys) <= addresses.keys():
+        power = "inverter_power" in self.control_keys and (keys is None or "inverter_power" in keys)
+        if keys is not None:
+            keys = set(keys) - {"inverter_power"}
+        if keys is not None and not keys <= addresses.keys():
             raise InvalidResponse("Unsupported control read")
         for key, address in addresses.items():
             if keys is not None and key not in keys:
@@ -482,6 +506,9 @@ class SinexcelProfile:
                 kind="soc" if key in ("min_soc_2", "backup_soc_2") else "control",
             )
             result[key] = self.decode_enum(key, raw) if key == "work_mode" else raw
+        if power:
+            bit = (await self.read_discrete_inputs(client, DCAC_STATE, 1))[0]
+            result["inverter_power"] = float(bool(bit))
         if any(v is None for v in result.values()):
             raise InvalidResponse("Control state is incomplete")
         if "export_limit_enable" in result:
@@ -576,7 +603,28 @@ class SinexcelProfile:
             if value != expected:
                 raise InvalidResponse("Unsupported remote retry parameter")
 
+    async def switch_power(self, client, on):
+        """One-shot on/off command, confirmed by the DCAC state bit (Q17).
+
+        The command registers are not read back; an inverter already in the
+        target state gets no write.
+        """
+
+        async def running():
+            return bool((await self.read_discrete_inputs(client, DCAC_STATE, 1))[0])
+
+        if await running() == on:
+            return float(on)
+        await client.write_registers(POWER_ON if on else POWER_OFF, floats([1.0]))
+        for _ in range(POWER_CONFIRM_S // POWER_POLL_S):
+            if await running() == on:
+                return float(on)
+            await asyncio.sleep(POWER_POLL_S)
+        raise InvalidResponse("Inverter power state not confirmed")
+
     async def apply_control(self, client, key, value):
+        if key == "inverter_power":
+            return {key: await self.switch_power(client, bool(value))}
         changes = [(key, self.control_addresses[key], self.control_values(key, value))]
         if key in BATTERY_2_ADDRESSES and "battery_2" in self.capabilities:
             changes.append((key + "_2", BATTERY_2_ADDRESSES[key], float(value)))

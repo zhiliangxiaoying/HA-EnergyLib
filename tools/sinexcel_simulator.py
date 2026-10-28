@@ -40,6 +40,7 @@ ADVANCED_CONTROL_ADDRESSES = _sx.ADVANCED_CONTROL_ADDRESSES
 BATTERY_2_ADDRESSES = _sx.BATTERY_2_ADDRESSES
 SCHEDULE_BLOCKS = _sx.SCHEDULE_BLOCKS
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = _sx.HEARTBEAT, _sx.HEARTBEAT_TIMEOUT, _sx.ESCAPE_MODE
+POWER_ON, POWER_OFF, POWER_STATE = _sx.POWER_ON, _sx.POWER_OFF, _sx.DCAC_STATE
 PARAMETER_BLOCKS = {
     **{a: 2 for a in CONTROL_ADDRESSES.values()},
     **{a: 2 for a in ADVANCED_CONTROL_ADDRESSES.values()},
@@ -96,9 +97,8 @@ class BenchModel:
         self.base = InverterModel(state)
         self.registers = {}
         self.bits = {u: {a: False for a in range(0x1000, 0x1112)} for u in (1, 2)}
-        self.bits[1][0x1001] = self.bits[1][0x1002] = True  # on-grid enum 3
+        self.set_power(True)
         if "off_grid" in config.scenario:
-            self.bits[1][0x1001] = False  # off-grid enum 2
             self.bits[1][GRID_MISSING_BIT] = True
         if "no_battery" in config.scenario:
             self.bits[2][BATTERY_MISSING_BIT] = True
@@ -144,6 +144,14 @@ class BenchModel:
             # A restarted bench never resumes a previous remote lease or setpoint.
             self.set_float(0xC646, 0)
             self.set_float(0xC648, 0)
+
+    def set_power(self, on):
+        """DCDC/DCAC state bits and the running state (standby when off)."""
+        self.bits[1][0x1010] = self.bits[1][POWER_STATE] = on
+        # Running state enum: 3 on-grid, 2 off-grid, 0 standby (LSB first).
+        self.bits[1][0x1001] = on and "off_grid" not in self.config.scenario
+        self.bits[1][0x1002] = on
+        self.bits[1][0x1003] = False
 
     def set_float(self, address, value):
         self.registers.update({address + i: w for i, w in enumerate(_sx.floats([value]))})
@@ -220,6 +228,11 @@ class BenchModel:
             else:
                 battery = load - solar
         dt = seconds / 3600
+        if not self.bits[1][POWER_STATE]:
+            # Switched off: no PV or battery; the home runs from the grid, if any.
+            solar = battery = 0
+            if "off_grid" in self.config.scenario:
+                load = 0
         if dt:
             battery = min(
                 battery,
@@ -320,6 +333,8 @@ class BenchModel:
             HEARTBEAT: 2,
             HEARTBEAT_TIMEOUT: 2,
             ESCAPE_MODE: 2,
+            POWER_ON: 2,
+            POWER_OFF: 2,
         }
         if allowed.get(address) != len(words):
             return 2
@@ -327,8 +342,12 @@ class BenchModel:
             value = struct.unpack(">f", struct.pack(">2H", *words))[0]
             if not math.isfinite(value):
                 return 3
-            if address == HEARTBEAT and value != 1:
-                return 3  # Only "Alive" (1) is a meaningful EMS heartbeat.
+            if address in (HEARTBEAT, POWER_ON, POWER_OFF) and value != 1:
+                return 3  # Only "Alive" (1) / "issue" (1) are meaningful.
+            if address in (POWER_ON, POWER_OFF):
+                # One-shot commands: nothing is stored, the state bits change.
+                self.set_power(address == POWER_ON)
+                return 0
             # Real V001B031 (2026-10-26): the manual-control power is writable only
             # while manual control is enabled.
             if address == 0xC648 and not self.get_float(0xC646):

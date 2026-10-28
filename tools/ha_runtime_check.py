@@ -217,9 +217,10 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        # 6 basic + remote access/drafts + 3 advanced battery limits (default disabled).
-        assert len(controls) == 12
+        # 7 basic + remote access/drafts + 3 advanced battery limits (default disabled).
+        assert len(controls) == 13
         basic = {
+            "inverter_power",
             "work_mode",
             "backup_soc",
             "min_soc",
@@ -235,7 +236,7 @@ async def check():
         assert not lab.runtime_data.remote_enabled
         assert lab_peer.write_count == 0, "Enabling basic controls must not write the inverter"
         results.append(
-            "native options enable six basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
+            "native options enable seven basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))
@@ -360,6 +361,24 @@ async def check():
             assert lab_peer.write_count - before_writes == 1
             assert list(lab_peer.read_log) == [(3, 1, address, 2)]
         results.append("EMS mode and switches also use one write and one exact target readback")
+
+        # Power on/off: a one-shot command confirmed by the DCAC state bit.
+        power = next(e for e in controls if e.translation_key == "inverter_power")
+        assert hass.states.get(power.entity_id).state == "on"
+        # The repeated "off" finds the target state already set and sends nothing.
+        for service, state, writes in (
+            ("turn_off", "off", 1),
+            ("turn_off", "off", 0),
+            ("turn_on", "on", 1),
+        ):
+            before_writes = lab_peer.write_count
+            await hass.services.async_call(
+                "switch", service, {"entity_id": power.entity_id}, blocking=True
+            )
+            assert hass.states.get(power.entity_id).state == state
+            assert lab_model.bits[1][0x1011] is (state == "on")
+            assert lab_peer.write_count - before_writes == writes
+        results.append("inverter power switch sends one command and follows the DCAC state bit")
 
         flow_keys = {"solar_power", "battery_power", "load_power", "grid_power"}
         await lab.runtime_data.device.refresh(flow_keys, force=True)
