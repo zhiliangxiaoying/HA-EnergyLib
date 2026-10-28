@@ -8,6 +8,9 @@ time-of-use schedule), allowed by default for newly added devices.
 
 [中文说明](README.zh-Hans.md)
 
+[User guide](docs/USER_GUIDE.md): installation and everyday steps with screenshots.
+Pages and entity names follow Home Assistant's language (English and Simplified Chinese included).
+
 > **Development preview.** Verified on one physical inverter (Sinexcel V001B031, three-phase
 > 12 kW, through an EnergyLIB logger) and with software simulators. On that device, readings,
 > alarms and the parameter controls (SOC limits, grid charging, export limit, EMS mode, TOU)
@@ -85,7 +88,7 @@ To use it in YAML: `strategy: {type: custom:energylib}`.
 The first tab is the everyday Overview. The following Digital twin tab shows a 3D home with live
 solar, battery, grid and load flows from your EnergyLIB device (a selector appears with
 several devices). The twin is bundled with
-the integration and needs no setup. Its page text is currently Chinese only.
+the integration and needs no setup. Its text follows the user's Home Assistant language.
 
 ### Sign convention
 

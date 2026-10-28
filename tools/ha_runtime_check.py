@@ -147,6 +147,17 @@ async def check():
         results.append(
             "firmware display distinguishes inverter in Chinese/English without changing identity"
         )
+        # Changing HA's system language reloads the entry so names follow it.
+        names = {"zh-Hans": "光伏总功率", "en": "Solar power"}
+        solar = registry.async_get_entity_id(
+            "sensor", "energylib", f"energylib_{model.config.serial}_solar_power"
+        )
+        for language in sorted(names, key=lambda lang: lang == original_language):
+            await hass.config.async_update(language=language)
+            await hass.async_block_till_done()
+            friendly = hass.states.get(solar).attributes["friendly_name"]
+            assert friendly.endswith(names[language]), (language, friendly)
+        results.append("entity names follow a change of HA's system language without restart")
         from homeassistant.components.frontend import DATA_PANELS
 
         from custom_components.energylib.dashboard import async_register_dashboard

@@ -114,7 +114,10 @@ class TwinFilesTests(unittest.TestCase):
         for name in ("index.html", "twin.js"):
             source = (TWIN / name).read_text(encoding="utf-8")
             self.assertIsNone(re.search(r"https?://", source), name)
-            self.assertNotIn("fetch(", source)
+            # The only network read is the static translation files (no credentials).
+            fetches = re.findall(r"fetch\(([^)]*)\)", source)
+            self.assertTrue(all("/energylib_static/translations/" in f for f in fetches), fetches)
+            self.assertLessEqual(len(fetches), 1)
             self.assertNotIn("/api/", source)
             self.assertNotIn("energy-config.json", source)
 

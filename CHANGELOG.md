@@ -2,6 +2,10 @@
 
 ## 0.8.43.dev1
 
+- English first: the overview cards, alarm, remote-task and dispatch cards and the digital twin read their text from shared translation files (`frontend/translations/en.json`, `zh-Hans.json`) and follow the user's Home Assistant language; other languages fall back to English. Adding a language needs one more file there plus the integration's `translations/`. The twin now defaults to English.
+- Entity and device names follow a change of Home Assistant's system language without a restart (the entry reloads itself).
+- English entity states read naturally (for example "Self-consumption", "On-grid", "Charge period" instead of lower-case codes).
+- English user guide with screenshots (`docs/USER_GUIDE.md`).
 - Built-in live energy-flow card replaces the optional third-party Power Flow Card Plus: values inside the circles, one line per node-to-node flow (PV serves the home first, then the battery, then export; the battery before the grid) with colour gradients and moving dots, glowing active circles, and the home ring split by power source. A missing grid (off-grid running state or the "grid disconnected" alarm) or battery ("battery 1 disconnected" alarm) is drawn grey with a red cross. The 30 W noise rule and the 0 W display of a negative load are unchanged.
 - The alarm sensor exposes `grid_disconnected` / `battery_disconnected` (true/false, or null while alarm sources are incomplete).
 - Simulator: `--scenario off_grid|no_battery|off_grid_no_battery` for these displays.

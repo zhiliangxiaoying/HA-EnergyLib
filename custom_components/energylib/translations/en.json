@@ -159,11 +159,11 @@
       "running_state": {
         "name": "Running state",
         "state": {
-          "standby": "standby",
-          "ready": "ready",
-          "off_grid": "off grid",
-          "on_grid": "on grid",
-          "other": "other"
+          "standby": "Standby",
+          "ready": "Ready",
+          "off_grid": "Off-grid",
+          "on_grid": "On-grid",
+          "other": "Other"
         }
       },
       "active_alarms": {
@@ -172,16 +172,16 @@
       "work_mode": {
         "name": "EMS mode",
         "state": {
-          "self_consumption": "self consumption",
-          "time_of_use": "time of use",
-          "dynamic_tariff": "dynamic tariff",
-          "backup": "backup",
-          "remote": "remote",
-          "pv_charge_priority": "pv charge priority",
-          "feed_in_priority": "feed in priority",
-          "voltage_regulation": "voltage regulation",
-          "peak_shaving": "peak shaving",
-          "other": "other"
+          "self_consumption": "Self-consumption",
+          "time_of_use": "Time-of-use",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Backup",
+          "remote": "Remote control",
+          "pv_charge_priority": "PV charge priority",
+          "feed_in_priority": "Feed-in priority",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
         }
       },
       "grid_voltage_a": {
@@ -268,12 +268,12 @@
       "tou_schedule": {
         "name": "Time-of-use schedule",
         "state": {
-          "charge": "charge period",
-          "discharge": "discharge period",
-          "outside_period": "outside periods",
-          "expired": "validity expired",
-          "inactive": "inactive",
-          "remote": "remote control"
+          "charge": "Charge period",
+          "discharge": "Discharge period",
+          "outside_period": "Outside periods",
+          "expired": "Validity expired",
+          "inactive": "Inactive",
+          "remote": "Remote control"
         }
       },
       "fault_count": {
@@ -323,16 +323,16 @@
       "work_mode": {
         "name": "EMS mode",
         "state": {
-          "self_consumption": "self consumption",
-          "time_of_use": "time of use",
-          "dynamic_tariff": "dynamic tariff",
-          "backup": "backup",
-          "remote": "remote",
-          "pv_charge_priority": "pv charge priority",
-          "feed_in_priority": "feed in priority",
-          "voltage_regulation": "voltage regulation",
-          "peak_shaving": "peak shaving",
-          "other": "other"
+          "self_consumption": "Self-consumption",
+          "time_of_use": "Time-of-use",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Backup",
+          "remote": "Remote control",
+          "pv_charge_priority": "PV charge priority",
+          "feed_in_priority": "Feed-in priority",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
         }
       }
     },

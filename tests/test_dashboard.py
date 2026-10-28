@@ -329,10 +329,39 @@ class StrategyServingTests(unittest.TestCase):
         self.assertIn('customElements.whenDefined("home-assistant")', source)
         # Entities are found by translation key, never by a fixed entity ID.
         self.assertIsNone(re.search(r"[a-z_]+\.energylib_\w+", source))
-        self.assertNotIn("import(", source)
-        self.assertEqual(sorted(p.name for p in STRATEGY.parent.iterdir()), [STRATEGY.name])
+        # The only import is the versioned translation files next to the strategy.
+        self.assertEqual(source.count("import("), 1)
+        self.assertIn("./translations/${lang}.json?v=${encodeURIComponent(VERSION)}", source)
+        self.assertEqual(
+            sorted(p.name for p in STRATEGY.parent.iterdir()), [STRATEGY.name, "translations"]
+        )
         dashboard = (COMPONENT / "dashboard.py").read_text(encoding="utf-8")
         self.assertIn(f'STRATEGY_FILE = "{STRATEGY.name}"', dashboard)
+
+    def test_frontend_translations_share_keys_and_match_the_language_list(self):
+        folder = STRATEGY.parent / "translations"
+        files = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in folder.glob("*.json")}
+        source = STRATEGY.read_text(encoding="utf-8")
+        listed = re.search(r"const LANGUAGES = \[(.*?)\];", source).group(1)
+        self.assertEqual(sorted(re.findall(r'"([^"]+)"', listed)), sorted(files))
+
+        def keys(data, prefix=""):
+            out = set()
+            for key, value in data.items():
+                out |= keys(value, f"{prefix}{key}.") if isinstance(value, dict) else {prefix + key}
+            return out
+
+        english = keys(files["en"])
+        for lang, data in files.items():
+            with self.subTest(lang=lang):
+                self.assertEqual(keys(data), english)
+                # Placeholders survive translation.
+                for section in ("twin", "dashboard"):
+                    self.assertIn("{value}", data[section]["negativeLoad"])
+
+    def test_content_hash_covers_the_translation_files(self):
+        dashboard = (COMPONENT / "dashboard.py").read_text(encoding="utf-8")
+        self.assertIn('FRONTEND_DIR / "translations"', dashboard)
 
     def test_frontend_is_an_optional_dependency(self):
         manifest = json.loads((COMPONENT / "manifest.json").read_text(encoding="utf-8"))

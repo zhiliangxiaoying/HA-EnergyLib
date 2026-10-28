@@ -1,6 +1,7 @@
 /* EnergyLIB digital twin: self-built scene + live EnergyLIB entities from the HA frontend.
  * Runs in the EnergyLIB dashboard's iframe card and reads the parent page's hass object;
- * it stores no credentials and makes no REST calls. */
+ * it stores no credentials and makes no REST calls (it only reads the static
+ * translation files the integration serves). */
 (() => {
   'use strict';
   const VERSION = window.ENERGYLIB_TWIN_VERSION || 'dev';
@@ -27,6 +28,26 @@
   };
 
   const $ = id => document.getElementById(id);
+  // Visible text lives in the dashboard's translation files (English fallback),
+  // so a new language only needs a new file there.
+  let TEXT = {}, LOCALE = 'en';
+  const t = (key, vars = {}) => (TEXT[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
+  async function loadText() {
+    const parentHass = findHass();
+    const asked = parentHass?.locale?.language || parentHass?.language || navigator.language || 'en';
+    const lang = asked.startsWith('zh') ? 'zh-Hans' : asked.split('-')[0];
+    const get = name => fetch('/energylib_static/translations/' + name + '.json?v=' + encodeURIComponent(VERSION))
+      .then(r => r.ok ? r.json() : null).catch(() => null);
+    const [english, own] = await Promise.all([get('en'), lang === 'en' ? null : get(lang)]);
+    TEXT = {...(english?.twin || {}), ...(own?.twin || {})};
+    LOCALE = own ? lang : 'en';
+    document.documentElement.lang = LOCALE;
+    // Keep the English defaults in the page when a key is missing.
+    for (const el of document.querySelectorAll('[data-i18n]')) if (TEXT[el.dataset.i18n]) el.textContent = TEXT[el.dataset.i18n];
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) if (TEXT[el.dataset.i18nAria]) el.setAttribute('aria-label', TEXT[el.dataset.i18nAria]);
+    if (TEXT.title) document.title = TEXT.title;
+    for (const key of ['expand', 'collapse']) if (TEXT[key]) document.documentElement.style.setProperty('--i18n-' + key, JSON.stringify(TEXT[key]));
+  }
   const srgb = hex => new THREE.Color(hex).convertSRGBToLinear();
   const fmt = v => v === null || v === undefined ? '—' : Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + ' kW' : Math.abs(v).toFixed(0) + ' W';
 
@@ -166,7 +187,7 @@
     });
     // Sports car (CC BY 4.0, see NOTICE): scaled to its real length, nose +z, parked in the bay.
     // It is decorative: loading failure must leave the already visible scene usable.
-    loadCar = () => load('sports-car.glb', '汽车视图加载失败，请重新加载', root => {
+    loadCar = () => load('sports-car.glb', t('failCar'), root => {
       root.name = 'Sports_Car';
       const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
       root.scale.setScalar(CAR.length / Math.max(size.x, size.z));
@@ -174,17 +195,17 @@
       root.position.set(CAR.x - centre.x, CAR.y - fit.min.y, CAR.z - centre.z);
       shade(root, .9);
     }, false);
-    load('home-interior.glb', '家庭视图加载失败，请重新加载', root => {
+    load('home-interior.glb', t('failHome'), root => {
       root.name = 'Home_Interior'; shade(root, .28);
       const board = root.getObjectByName('Entry_Energy_Backboard');
       if (board) placeBackboard(board);
     });
-    load('home-energy-system.glb', '能源设备视图加载失败，请重新加载', root => {
+    load('home-energy-system.glb', t('failEnergy'), root => {
       root.name = 'Energy_System'; root.position.set(ENERGY_HUB.x, ENERGY_HUB.y, ENERGY_HUB.z);
       root.rotation.y = Math.PI / 2; root.scale.setScalar(1.8); shade(root, 1);
     });
-    load('solar-ev-system.glb', '光伏与充电桩视图加载失败，请重新加载', root => { root.name = 'Solar_Charger'; shade(root, .8); });
-    load('garden-site.glb', '庭院视图加载失败，请重新加载', root => { root.name = 'Garden_Site'; shade(root, .25); });
+    load('solar-ev-system.glb', t('failSolar'), root => { root.name = 'Solar_Charger'; shade(root, .8); });
+    load('garden-site.glb', t('failGarden'), root => { root.name = 'Garden_Site'; shade(root, .25); });
   }
 
   // ---------- Grid pole and power-flow routes ----------
@@ -214,7 +235,7 @@
     const badge = document.createElement('canvas'); badge.width = 512; badge.height = 160;
     const ctx = badge.getContext('2d');
     ctx.fillStyle = '#13232b'; ctx.fillRect(0, 0, 512, 160); ctx.strokeStyle = '#70d9d1'; ctx.strokeRect(2, 2, 508, 156);
-    ctx.fillStyle = '#cee5df'; ctx.font = '42px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('电网进线', 256, 96);
+    ctx.fillStyle = '#cee5df'; ctx.font = '42px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t('gridEntry'), 256, 96);
     const label = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(badge), transparent: true}));
     label.position.set(GRID_POLE.x, GRID_POLE.y + 6.7, GRID_POLE.z); label.scale.set(2.1, .65, 1); scene.add(label);
   }
@@ -373,17 +394,17 @@
   }
 
   function note(key, v, text) {
-    return !hass ? '等待 HA 连接' : !device ? '未找到设备' : !device.entities[key] ? '未找到实体' : v === null ? '暂无数据' : text;
+    return !hass ? t('waitingHa') : !device ? t('noDevice') : !device.entities[key] ? t('noEntity') : v === null ? t('noData') : text;
   }
 
   function refresh() {
     hass = findHass();
     devices = hass ? findDevices(hass) : [];
     syncDeviceSelect();
-    $('ha-link-status').textContent = hass ? 'HA 已连接 · 数据随设备更新' : '未连接 Home Assistant';
+    $('ha-link-status').textContent = hass ? t('haConnected') : t('haDisconnected');
     const notice = $('energy-notice');
     notice.hidden = !!(hass && device);
-    notice.textContent = !hass ? '请从 Home Assistant 侧边栏打开本页面，才能读取设备数据。' : '未找到 EnergyLIB 设备。请先在“设置 → 设备与服务”中添加 EnergyLIB 集成。';
+    notice.textContent = !hass ? t('openFromHa') : t('addIntegration');
     $('energy-device').textContent = device ? device.name : '';
 
     const socKey = device?.entities.battery_total_soc ? 'battery_total_soc' : 'battery_soc';
@@ -396,31 +417,31 @@
     const flowReady = powerComplete;
     if (hass && device) {
       notice.hidden = flowReady && !negativeLoad;
-      notice.textContent = negativeLoad ? '家庭负载读数为 -' + fmt(rawLoad) + '，已按 0 W 显示，可能是计量误差；持续出现时请核对接线。' : '部分功率数据暂不可用，能流动画已暂停；数据恢复后自动继续。';
+      notice.textContent = negativeLoad ? t('negativeLoad', {value: fmt(rawLoad)}) : t('partialData');
     }
     const direction = (v, pos, neg, idle) => v > NOISE_W ? pos : v < -NOISE_W ? neg : idle;
-    $('metric-solar').textContent = fmt(d.solar); $('metric-solar-note').textContent = note('solar_power', d.solar, d.solar > NOISE_W ? '发电中' : '无输出');
-    $('metric-grid').textContent = fmt(d.grid); $('metric-grid-note').textContent = note('grid_power', d.grid, direction(d.grid, '电网购电', '馈入电网', '待机'));
-    $('metric-battery').textContent = fmt(d.battery); $('metric-battery-note').textContent = note('battery_power', d.battery, direction(d.battery, '放电', '充电', '待机'));
-    $('metric-load').textContent = fmt(d.load); $('metric-load-note').textContent = note('load_power', rawLoad, negativeLoad ? '读数为负，按 0 显示' : '家庭用电');
-    $('metric-soc').textContent = d.soc === null ? '—' : d.soc.toFixed(0) + ' %'; $('metric-soc-note').textContent = note(socKey, d.soc, '电池总电量');
+    $('metric-solar').textContent = fmt(d.solar); $('metric-solar-note').textContent = note('solar_power', d.solar, d.solar > NOISE_W ? t('generating') : t('noOutput'));
+    $('metric-grid').textContent = fmt(d.grid); $('metric-grid-note').textContent = note('grid_power', d.grid, direction(d.grid, t('importing'), t('exporting'), t('idle')));
+    $('metric-battery').textContent = fmt(d.battery); $('metric-battery-note').textContent = note('battery_power', d.battery, direction(d.battery, t('discharging'), t('charging'), t('idle')));
+    $('metric-load').textContent = fmt(d.load); $('metric-load-note').textContent = note('load_power', rawLoad, negativeLoad ? t('negativeShownZero') : t('homeUse'));
+    $('metric-soc').textContent = d.soc === null ? '—' : d.soc.toFixed(0) + ' %'; $('metric-soc-note').textContent = note(socKey, d.soc, t('batterySoc'));
     $('soc-fill').style.width = (d.soc ?? 0) + '%';
     const running = stateOf('running_state');
     $('metric-state').textContent = running ? (hass.formatEntityState ? hass.formatEntityState(running) : running.state) : '—';
-    $('metric-state-note').textContent = note('running_state', running, '逆变器');
+    $('metric-state-note').textContent = note('running_state', running, t('inverter'));
     $('flow-inverter-val').textContent = running ? $('metric-state').textContent : '—';
 
     const connected = Object.values(d).filter(v => v !== null).length;
-    $('energy-data-summary').textContent = '设备数据 · ' + (connected ? connected + (flowReady ? '/5 项可用' : '/5 项有读数') : '等待连接');
-    $('energy-badge').textContent = !powerComplete && connected ? '数据不完整' : connected ? connected + '/5 项可用' : '数据待连接';
+    $('energy-data-summary').textContent = t('summary', {status: connected ? t(flowReady ? 'availableOf' : 'readingOf', {count: connected}) : t('waitingConnect')});
+    $('energy-badge').textContent = !powerComplete && connected ? t('incomplete') : connected ? t('availableOf', {count: connected}) : t('badgeWaiting');
     $('energy-badge').style.color = !flowReady && connected ? '#f7b731' : connected ? '#7cddb0' : '#98b5b8';
-    $('flow-scenario').textContent = !flowReady ? '等待完整功率数据' : [d.solar > NOISE_W ? '光伏发电' : '光伏无输出', direction(d.battery, '储能放电', '储能充电', '储能待机'), direction(d.grid, '电网购电', '馈入电网', '电网待机')].join(' · ');
+    $('flow-scenario').textContent = !flowReady ? t('waitingFlow') : [d.solar > NOISE_W ? t('pvGenerating') : t('pvIdle'), direction(d.battery, t('storageDischarging'), t('storageCharging'), t('storageIdle')), direction(d.grid, t('importing'), t('exporting'), t('gridIdle'))].join(' · ');
     $('flow-solar-val').textContent = fmt(d.solar); $('flow-grid-val').textContent = fmt(d.grid);
     $('flow-battery-val').textContent = fmt(d.battery); $('flow-load-val').textContent = fmt(d.load);
-    $('flow-battery-direction').textContent = d.battery === null ? '待接入' : direction(d.battery, '放电 ↑', '充电 ↓', '待机');
-    $('energy-explanation').textContent = !flowReady && connected ? '能流动画已暂停，灰线仅表示接线示意，不代表正在充放电或上网。' : connected ? '光带与箭头按功率方向移动；灰线表示待机或暂无数据。' : '连接 EnergyLIB 设备后，这里会显示功率流向。';
+    $('flow-battery-direction').textContent = d.battery === null ? t('pending') : direction(d.battery, t('dischargeArrow'), t('chargeArrow'), t('idle'));
+    $('energy-explanation').textContent = !flowReady && connected ? t('explanationPaused') : connected ? t('explanationLive') : t('explanationNoDevice');
     const stamps = KEYS.map(k => stateOf(k)?.last_updated).filter(Boolean).sort();
-    $('energy-updated').textContent = stamps.length ? '更新时间：' + new Date(stamps.at(-1)).toLocaleString('zh-CN', {hour12: false}) : hass ? '等待设备数据' : '';
+    $('energy-updated').textContent = stamps.length ? t('updatedAt', {time: new Date(stamps.at(-1)).toLocaleString(LOCALE, {hour12: false})}) : hass ? t('waitingDevice') : '';
 
     const vectors = [['solar', d.solar, 'M46 67 L46 105 L117 105', 'M117 105 L46 105 L46 67'], ['grid', d.grid, 'M254 67 L254 105 L183 105', 'M183 105 L254 105 L254 67'], ['home', d.load, 'M150 127 L150 161', 'M150 161 L150 127'], ['battery', d.battery, 'M46 161 L46 123 L117 113', 'M117 113 L46 123 L46 161']];
     for (const [id, v, forward, reverse] of vectors) {
@@ -434,21 +455,21 @@
         route.mesh.material.opacity = active ? .24 : .04; route.glow.material.opacity = active ? .10 : 0; route.pulse.visible = active;
       }
     }
-    $('energy-pin-text').textContent = '⚡ ' + (d.soc !== null ? '电池 ' + d.soc.toFixed(0) + '%' : 'EnergyLIB · 待接入');
+    $('energy-pin-text').textContent = '⚡ ' + (d.soc !== null ? t('pinBattery', {soc: d.soc.toFixed(0)}) : t('pinPending'));
   }
 
   // ---------- Panel controls ----------
   function buildPanel() {
     $('energy-flow-defs').innerHTML = Object.entries(COLORS).map(([id, c]) => `<marker id="flow-arrow-${id}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 L3 5 Z" fill="${c}"/></marker>`).join('');
     for (const id of Object.keys(COLORS)) $('svg-' + id).style.setProperty('--flow-color', COLORS[id]);
-    $('energy-legend').innerHTML = [['solar', '光伏'], ['grid', '电网'], ['battery', '电池'], ['home', '家庭']].map(([id, label]) => `<span><i style="--flow-color:${COLORS[id]}"></i>${label}</span>`).join('');
+    $('energy-legend').innerHTML = [['solar', t('legendSolar')], ['grid', t('legendGrid')], ['battery', t('legendBattery')], ['home', t('legendHome')]].map(([id, label]) => `<span><i style="--flow-color:${COLORS[id]}"></i>${label}</span>`).join('');
     $('device-select').onchange = e => {
       device = devices.find(d => d.id === e.target.value) || device;
       try { localStorage.setItem(DEVICE_KEY, device.id); } catch { /* per-viewer convenience only */ }
       refresh();
     };
     $('quality-toggle').onclick = () => {
-      fine = !fine; $('quality-toggle').textContent = fine ? '细腻画质' : '流畅画质';
+      fine = !fine; $('quality-toggle').textContent = fine ? t('qualityFine') : t('qualitySmooth');
       $('quality-toggle').setAttribute('aria-pressed', fine); resize();
     };
     $('energy-mini-toggle').onclick = () => document.body.classList.toggle('energy-mini-hidden');
@@ -501,8 +522,9 @@
     renderFrame();
   }
 
-  function start() {
-    if (!window.THREE || !THREE.GLTFLoader || !window.MeshoptDecoder) { failLoading('页面文件加载失败，请重新加载'); return; }
+  async function start() {
+    await loadText();
+    if (!window.THREE || !THREE.GLTFLoader || !window.MeshoptDecoder) { failLoading(t('pageLoadFailed')); return; }
     initScene(); buildPanel(); loadModels(); buildGridPole(); buildFlows();
     refresh(); setInterval(refresh, 2000);
     window.energyTwin = {version: VERSION, focus: () => setView('energy'), getStatus: () => ({models: [...loaded], haConnected: !!hass, devices: devices.map(d => d.name), device: device && {name: device.name, entities: {...device.entities}}})};

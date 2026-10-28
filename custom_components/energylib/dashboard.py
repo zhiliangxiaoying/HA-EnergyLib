@@ -15,11 +15,12 @@ _REGISTERED = f"{DOMAIN}_dashboard_registered"
 
 
 def _content_hash() -> str:
-    """Hash of the strategy and the twin files it embeds (the twin reuses ?v=)."""
+    """Hash of the strategy, its translations and the twin files (all reuse ?v=)."""
     digest = hashlib.sha256((FRONTEND_DIR / STRATEGY_FILE).read_bytes())
-    for path in sorted(p for p in TWIN_DIR.rglob("*") if p.is_file()):
-        digest.update(path.relative_to(TWIN_DIR).as_posix().encode())
-        digest.update(path.read_bytes())
+    for folder in (FRONTEND_DIR / "translations", TWIN_DIR):
+        for path in sorted(p for p in folder.rglob("*") if p.is_file()):
+            digest.update(path.relative_to(folder.parent).as_posix().encode())
+            digest.update(path.read_bytes())
     return digest.hexdigest()[:10]
 
 

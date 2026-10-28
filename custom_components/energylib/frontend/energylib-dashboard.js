@@ -11,119 +11,26 @@
 const VERSION = new URL(import.meta.url).searchParams.get("v") || "dev";
 const TWIN_URL = `/energylib_twin/index.html?v=${encodeURIComponent(VERSION)}`;
 
-const TEXT = {
-  en: {
-    twin: "Digital twin",
-    overview: "Overview",
-    flow: "Live energy flow",
-    flowTitle: "Power flow",
-    flowMissing: "Some power values are unavailable; the flow appears again once the device reports.",
-    negativeLoad: "Home load reads {value}; shown as 0 W, likely a metering error. Check the wiring if it persists.",
-    battery: "Battery",
-    soc: "State of charge",
-    todayCharge: "Charged today",
-    todayDischarge: "Discharged today",
-    socTrend: "State of charge, 24 h",
-    signs: "Battery **+ = discharging, − = charging**; grid **+ = importing, − = exporting**.",
-    today: "Today",
-    todaySolar: "Solar",
-    todayLoad: "Home",
-    todayImport: "Grid import",
-    todayExport: "Grid export",
-    week: "Daily energy, last 7 days",
-    powerTrend: "Power, 24 h",
-    status: "Status",
-    alarms: "Faults and warnings",
-    controls: "Controls",
-    remote: "Remote dispatch",
-    startCharge: "Start charging",
-    startDischarge: "Start discharging",
-    stopRemote: "Stop immediately",
-    targetPower: "Battery power",
-    duration: "Duration (minutes)",
-    remoteNote:
-      "Enter a **positive power** and duration in **minutes**, then press Start. Editing the draft does not change the device or a running task. TOU must be exited first. Enable the new entities on the device page. Heartbeats run internally; the current timeout is 60 s with self-consumption as the fallback (firmware validation pending).",
-    controlsOff:
-      "Controls are off. Enable **Allow control** in the integration options to change EMS mode, SOC limits and remote dispatch.",
-    tou: "Time-of-use schedule",
-    touEdit: "Edit schedule",
-    deviceInfo: "Device",
-    totals: "Lifetime energy",
-    log: "Activity",
-    noDevice: "No EnergyLIB device found. Add the EnergyLIB integration first.",
-    solar: "Solar",
-    load: "Home",
-    batteryShort: "Battery",
-    grid: "Grid",
-    importing: "Importing",
-    exporting: "Exporting",
-    charging: "Charging",
-    discharging: "Discharging",
-    gridMissing: "Grid offline",
-    batteryMissing: "No battery",
-    offGrid: "Off-grid",
-    weekdays: { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" },
-    charge: "Charge",
-    discharge: "Discharge",
-    noPeriods: "No periods.",
-    activeDays: "Active",
-  },
-  zh: {
-    twin: "数字孪生",
-    overview: "总览",
-    flow: "实时能流",
-    flowTitle: "实时功率流向",
-    flowMissing: "部分功率数据暂不可用，恢复连接后自动显示流向。",
-    negativeLoad: "家庭负载读数为 {value}，已按 0 W 显示，可能是计量误差；持续出现时请核对接线。",
-    battery: "储能电池",
-    soc: "电池电量",
-    todayCharge: "今日充电",
-    todayDischarge: "今日放电",
-    socTrend: "24 小时电量",
-    signs: "电池 **正为放电、负为充电**；电网 **正为买电、负为卖电**。",
-    today: "今日电量",
-    todaySolar: "光伏发电",
-    todayLoad: "家庭用电",
-    todayImport: "电网购电",
-    todayExport: "上网电量",
-    week: "近 7 天每日电量",
-    powerTrend: "24 小时功率趋势",
-    status: "运行状态",
-    alarms: "故障与告警",
-    controls: "运行控制",
-    remote: "远程调度",
-    startCharge: "开始充电",
-    startDischarge: "开始放电",
-    stopRemote: "立即停止",
-    targetPower: "充放电功率",
-    duration: "充放电时长（分钟）",
-    remoteNote:
-      "输入**正数功率**和持续时间（**分钟**），再点击开始。修改草稿不会写设备，也不会改变运行中的任务；需要先退出定时充放电模式。在设备页启用新实体后可操作。心跳由后台维护；当前超时 60 秒、退出回到自发自用，固件行为待实机确认。",
-    controlsOff: "控制未开启。在集成选项中打开 **允许控制** 后，可以调整EMS模式、SOC 和远程调度。",
-    tou: "定时充放电",
-    touEdit: "编辑定时计划",
-    deviceInfo: "设备信息",
-    totals: "累计电量",
-    log: "运行记录",
-    noDevice: "没有找到 EnergyLIB 设备，请先添加 EnergyLIB 集成。",
-    solar: "光伏",
-    load: "家庭负载",
-    batteryShort: "储能电池",
-    grid: "电网",
-    importing: "买电",
-    exporting: "卖电",
-    charging: "充电",
-    discharging: "放电",
-    gridMissing: "电网断开",
-    batteryMissing: "电池未接入",
-    offGrid: "离网运行",
-    weekdays: { mon: "周一", tue: "周二", wed: "周三", thu: "周四", fri: "周五", sat: "周六", sun: "周日" },
-    charge: "充电",
-    discharge: "放电",
-    noPeriods: "暂无时段。",
-    activeDays: "生效",
-  },
-};
+// Every visible string lives in translations/<language>.json (shared with the
+// digital twin). A missing key falls back to English; a language without a file
+// shows English, except other Chinese variants, which use Simplified Chinese.
+const LANGUAGES = ["en", "zh-Hans"];
+const TRANSLATIONS = Object.fromEntries(await Promise.all(LANGUAGES.map(async (lang) => {
+  const url = new URL(`./translations/${lang}.json?v=${encodeURIComponent(VERSION)}`, import.meta.url);
+  return [lang, (await import(url.href, { with: { type: "json" } })).default];
+})));
+
+function language(hass) {
+  const lang = hass?.locale?.language || hass?.language || "en";
+  if (TRANSLATIONS[lang]) return lang;
+  if (lang.startsWith("zh")) return "zh-Hans";
+  const base = lang.split("-")[0];
+  return TRANSLATIONS[base] ? base : "en";
+}
+
+function translate(hass, section) {
+  return { ...TRANSLATIONS.en[section], ...TRANSLATIONS[language(hass)][section] };
+}
 
 // Map "domain.translation_key" -> entity_id for one device.
 function deviceEntities(hass, deviceId) {
@@ -380,7 +287,7 @@ class EnergyLibTwinViewStrategy extends HTMLElement {
 
 class EnergyLibDashboardStrategy extends HTMLElement {
   static async generate(config, hass) {
-    const t = (hass.locale?.language || hass.language || "en").startsWith("zh") ? TEXT.zh : TEXT.en;
+    const t = translate(hass, "dashboard");
     const devices = energyLibDevices(hass);
     if (!devices.length) {
       return {
@@ -425,7 +332,9 @@ if (!window.customStrategies.some((s) => s.type === "energylib")) {
 }
 
 // Exposed for in-browser checks; not part of the HA strategy API.
-window.energyLibDashboard = { buildView, deviceEntities, energyLibDevices, TEXT, flowModel, balanceWatts, flowSplit };
+window.energyLibDashboard = {
+  buildView, deviceEntities, energyLibDevices, TRANSLATIONS, language, translate, flowModel, balanceWatts, flowSplit,
+};
 
 // Built-in live energy flow (no third-party card), laid out like HA's energy card:
 // values inside the circles, one line per node-to-node flow with moving dots.
@@ -724,27 +633,11 @@ class EnergyLibAlarmCard extends HTMLElement {
     if (state === this._state && lang === this._lang) return;
     this._state = state; this._lang = lang;
     const opened = new Set([...this.querySelectorAll("details[open]")].map((d) => d.dataset.key));
-    const zh = lang.startsWith("zh");
+    const labels = translate(hass, "alarms");
+    const zh = language(hass) === "zh-Hans";
     const attrs = state?.attributes || {};
     const active = attrs.alarms || [];
     const complete = attrs.complete === true && !["unknown", "unavailable"].includes(state?.state);
-    const labels = zh ? {
-      title: "设备告警",
-      fault: "故障", warning: "警告", info: "提示", unknown: "未识别",
-      normal: "正常", abnormal: "有异常", unrecognized: "未识别异常",
-      partial: "数据不完整", offline: "通信不可用", stale: "上次有效状态，待刷新",
-      current: "当前异常", history: "最近记录", empty: "暂无异常",
-      first: "首次检测", last: "最近有效检测", cleared: "检测到恢复", pending: "未检测到恢复",
-      note: "时间为 HA 观察时间；设备实际发生时间可能更早。",
-    } : {
-      title: "Device alerts",
-      fault: "Fault", warning: "Warning", info: "Information", unknown: "Unrecognized",
-      normal: "Normal", abnormal: "Abnormal", unrecognized: "Unrecognized alarm",
-      partial: "Incomplete data", offline: "Communication unavailable", stale: "Last valid state, awaiting refresh",
-      current: "Active alarms", history: "Recent occurrences (up to 100)", empty: "No records",
-      first: "First observed", last: "Last valid observation", cleared: "Recovery observed", pending: "Recovery not observed",
-      note: "Times are HA observations, not the device event time.",
-    };
     const card = document.createElement("ha-card");
     const body = document.createElement("div");
     body.style.cssText = "padding:16px;line-height:1.6;overflow-wrap:anywhere";
@@ -755,8 +648,8 @@ class EnergyLibAlarmCard extends HTMLElement {
       ? labels.offline : !complete ? labels.partial : attrs.unknown_count ? labels.unrecognized
       : active.length ? labels.abnormal : labels.normal;
     add(body, "h3", labels.title).style.marginTop = "0";
-    add(body, "strong", complete && !active.length ? (zh ? "运行正常，无告警" : "No active alerts") : status);
-    const time = (value) => value ? new Date(value).toLocaleString(zh ? "zh-CN" : "en") : "—";
+    add(body, "strong", complete && !active.length ? labels.allClear : status);
+    const time = (value) => value ? new Date(value).toLocaleString(language(hass)) : "—";
     const item = (parent, alarm, history = false) => {
       const block = document.createElement("div");
       block.style.cssText = "border-left:3px solid var(--divider-color);padding:6px 10px;margin:8px 0";
@@ -797,32 +690,25 @@ class EnergyLibRemoteTaskCard extends HTMLElement {
   disconnectedCallback() { clearInterval(this.timer); this.timer = null; }
   render() {
     if (!this.config || !this._hass) return;
-    const zh = (this._hass.locale?.language || this._hass.language || "en").startsWith("zh");
+    const names = translate(this._hass, "remoteTask");
     const state = this._hass.states[this.config.entity];
     const attrs = state?.attributes || {};
     const status = state?.state || "unavailable";
-    const names = zh ? {
-      idle: "空闲", charging: "充电中", discharging: "放电中", holding: "零功率保持",
-      stopped: "已停止", completed: "已到期", unconfirmed: "执行未确认", unavailable: "通信不可用", unknown: "未知",
-    } : {
-      idle: "Idle", charging: "Charging", discharging: "Discharging", holding: "Holding at zero power",
-      stopped: "Stopped", completed: "Completed", unconfirmed: "Execution unconfirmed", unavailable: "Communication unavailable", unknown: "Unknown",
-    };
     const card = document.createElement("ha-card");
     const body = document.createElement("div"); body.style.cssText = "padding:16px;line-height:1.8";
     const add = (tag, text) => { const el = document.createElement(tag); el.textContent = text; body.append(el); };
     add("strong", names[status] || status);
     const power = (value) => typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)} kW` : "—";
-    add("div", `${zh ? "任务目标（负充正放）" : "Task target (− charge, + discharge)"}: ${power(attrs.target_power_kw)}`);
-    add("div", `${zh ? "实际电池功率" : "Actual battery power"}: ${power(attrs.actual_power_kw)}`);
+    add("div", `${names.target}: ${power(attrs.target_power_kw)}`);
+    add("div", `${names.actual}: ${power(attrs.actual_power_kw)}`);
     if (attrs.end_time) {
       const end = Date.parse(attrs.end_time);
       if (Number.isFinite(end)) {
-        add("div", `${zh ? "结束时间" : "Ends at"}: ${new Date(end).toLocaleString(zh ? "zh-CN" : "en")}`);
+        add("div", `${names.endsAt}: ${new Date(end).toLocaleString(language(this._hass))}`);
         const seconds = Math.max(0, Math.ceil((end - Date.now()) / 1000));
         add("div", seconds > 0
-          ? `${zh ? "剩余" : "Remaining"}: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-          : (zh ? "等待后台确认退出" : "Waiting for backend exit confirmation"));
+          ? `${names.remaining}: ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+          : names.waitingExit);
       }
     }
     card.append(body); this.replaceChildren(card);
@@ -897,29 +783,7 @@ class EnergyLibDispatchCard extends HTMLElement {
   disconnectedCallback() { clearInterval(this.timer); clearTimeout(this.saveTimer); this.timer = null; }
   getCardSize() { return 6; }
   get texts() {
-    return (this._hass.locale?.language || this._hass.language || "en").startsWith("zh") ? {
-      title: "电池强制充放电", charge: "充电", discharge: "放电", power: "功率", duration: "时长", minutes: "分钟",
-      startCharge: "开始充电", startDischarge: "开始放电", update: "按新设置开始", stop: "停止", busy: "正在处理…",
-      note: "设置后点击开始才生效。", runningNote: "修改数值不会影响当前任务，再次点击开始才更新。",
-      idle: "无手动任务", charging: "充电任务运行中", discharging: "放电任务运行中", holding: "保持任务运行中",
-      stopped: "手动任务已停止", completed: "手动任务已完成", unconfirmed: "执行结果未确认，请检查设备状态", unknown: "状态暂不可用",
-      target: "本次设定", actual: "实际功率", until: "预计结束时间", noTask: "暂无任务", noEnd: "待确认", pending: "正在确认任务结束…",
-      invalid: "请填写大于 0 的功率，以及 1～1440 的整数分钟。", powerLimit: "功率不能超过设备允许值",
-      tou: "当前正在使用定时充放电，退出后才能手动操作。", leaveTou: "退出定时模式", unavailable: "设备或操作参数暂不可用，请检查连接。",
-      access: "允许远程充放电", enable: "已关闭", disable: "已开启", offNote: "开启后恢复操作实体；点击开始才执行充放电。", onNote: "操作实体已启用。关闭时会先停止正在执行的任务。", syncing: "正在启用操作实体，请稍候。HA 完成加载后才能开始任务。",
-      controlsOff: "尚未开启控制权限。请在集成配置 → 控制权限中开启“允许控制”；充放电权限仍需单独开启。",
-    } : {
-      title: "Forced battery charge / discharge", charge: "Charge", discharge: "Discharge", power: "Power", duration: "Duration", minutes: "min",
-      startCharge: "Start charging", startDischarge: "Start discharging", update: "Start with new settings", stop: "Stop", busy: "Working…",
-      note: "Settings take effect when you press Start.", runningNote: "Edits do not change this task. Press Start again to apply them.",
-      idle: "No manual task", charging: "Charge task running", discharging: "Discharge task running", holding: "Hold task running",
-      stopped: "Manual task stopped", completed: "Manual task completed", unconfirmed: "Execution unconfirmed; check the device", unknown: "Status unavailable",
-      target: "This task", actual: "Actual power", until: "Estimated end time", noTask: "No active task", noEnd: "Unconfirmed", pending: "Waiting for exit confirmation…",
-      invalid: "Enter positive power and a whole duration of 1–1440 minutes.", powerLimit: "Power exceeds the device limit",
-      tou: "Time-of-use is active. Exit it before manual operation.", leaveTou: "Exit time-of-use mode", unavailable: "Device or operation settings unavailable. Check the connection.",
-      access: "Allow remote charge / discharge", enable: "Off", disable: "On", offNote: "Enable to restore operation entities; press Start to run a task.", onNote: "Operation entities enabled. Disabling first stops any active task.", syncing: "Enabling operation entities. Wait for Home Assistant to load them before starting a task.",
-      controlsOff: "Control access is off. Enable Allow control in the integration options; remote charge/discharge still requires its separate opt-in.",
-    };
+    return translate(this._hass, "dispatch");
   }
   snapshot(allowZero = false) {
     const power = Number(this.el("power").value), minutes = Number(this.el("duration").value);

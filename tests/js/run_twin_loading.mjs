@@ -27,7 +27,7 @@ function harness() {
         events.push(`request:${name}`); requests.set(name, {success, failure});
       }
     }},
-    window: {MeshoptDecoder: {}}, VERSION: 'test',
+    window: {MeshoptDecoder: {}}, VERSION: 'test', t: key => key,
     ENERGY_HUB: {x: 0, y: 0, z: 0}, CAR: {x: 0, y: 0, z: 0, length: 4.49},
     scene: {add(root) { events.push(`add:${root.name}`); }},
     controls: {update() {}}, renderFrame() { events.push('render'); },

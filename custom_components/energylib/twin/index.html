@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EnergyLIB 数字孪生</title>
+  <title>EnergyLIB digital twin</title>
   <style>
     :root {
       --bg: #182630;
@@ -63,8 +63,8 @@
     .energy-data { border-top: 1px solid #ffffff12; padding-top: 10px; }
     .energy-data summary { font-size: 11px; color: #a9bec5; cursor: pointer; list-style: none; padding: 5px 0; }
     .energy-data summary::-webkit-details-marker { display: none; }
-    .energy-data summary::after { content: '展开'; float: right; color: #6f969e; }
-    .energy-data[open] summary::after { content: '收起'; }
+    .energy-data summary::after { content: var(--i18n-expand, 'Expand'); float: right; color: #6f969e; }
+    .energy-data[open] summary::after { content: var(--i18n-collapse, 'Collapse'); }
     .energy-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
     .energy-metric { background: #91c3bb08; border: 1px solid #91c3bb11; border-radius: 9px; padding: 9px; min-width: 0; }
     .energy-metric span { font-size: 10px; color: #99b0b1; display: block; }
@@ -104,70 +104,70 @@
   </style>
 </head>
 <body class="twin-booting">
-  <div id="twin-loading" role="status" aria-live="polite"><span id="twin-loading-message">正在加载家庭视图…</span><button id="twin-loading-retry" type="button" hidden>重新加载</button></div>
+  <div id="twin-loading" role="status" aria-live="polite"><span id="twin-loading-message" data-i18n="loading">Loading the home view…</span><button id="twin-loading-retry" type="button" data-i18n="reload" hidden>Reload</button></div>
   <div id="canvas-container"></div>
-  <div id="pin-energy" class="floating-pin"><div class="pin-bubble" id="energy-pin-text">⚡ EnergyLIB · 待接入</div><div class="pin-arrow"></div></div>
+  <div id="pin-energy" class="floating-pin"><div class="pin-bubble" id="energy-pin-text">⚡ EnergyLIB · not connected</div><div class="pin-arrow"></div></div>
 
   <div class="hud-layer">
     <header>
       <div class="brand">
         <span class="brand-icon">⌂</span>
         <div>
-          <div class="brand-title">EnergyLIB 数字孪生</div>
-          <div class="brand-sub" id="ha-link-status">正在连接 Home Assistant…</div>
+          <div class="brand-title" data-i18n="title">EnergyLIB digital twin</div>
+          <div class="brand-sub" id="ha-link-status" data-i18n="connecting">Connecting to Home Assistant…</div>
         </div>
       </div>
       <div class="header-tools">
-        <select id="device-select" aria-label="选择 EnergyLIB 设备" hidden></select>
-        <button id="quality-toggle" type="button" aria-pressed="false">流畅画质</button>
-        <button id="energy-mini-toggle" type="button">能源面板</button>
+        <select id="device-select" aria-label="Select EnergyLIB device" data-i18n-aria="deviceSelect" hidden></select>
+        <button id="quality-toggle" type="button" aria-pressed="false" data-i18n="qualitySmooth">Smooth</button>
+        <button id="energy-mini-toggle" type="button" data-i18n="energyPanel">Energy panel</button>
       </div>
     </header>
 
     <div class="hud-left">
       <div class="glass-card">
         <div class="energy-top">
-          <div><div class="energy-kicker">HOME ENERGY SYSTEM</div><div class="energy-title">家庭能源流向</div></div>
-          <span id="energy-badge" class="energy-badge">数据待连接</span>
+          <div><div class="energy-kicker">HOME ENERGY SYSTEM</div><div class="energy-title" data-i18n="energyTitle">Home energy flow</div></div>
+          <span id="energy-badge" class="energy-badge" data-i18n="badgeWaiting">Waiting for data</span>
         </div>
         <div class="energy-device" id="energy-device"></div>
         <div class="energy-notice" id="energy-notice" hidden></div>
-        <svg id="energy-flow" viewBox="0 0 300 214" role="img" aria-label="光伏、电网、逆变器、储能电池和家庭负载之间的能量流向">
+        <svg id="energy-flow" viewBox="0 0 300 214" role="img" aria-label="Energy flow between PV, grid, inverter, battery and home load" data-i18n-aria="flowAria">
           <defs id="energy-flow-defs"></defs>
           <path id="svg-solar" class="stream inactive"/><path id="svg-grid" class="stream inactive"/><path id="svg-home" class="stream inactive"/><path id="svg-battery" class="stream inactive"/>
           <rect class="node" x="14" y="25" width="64" height="42" rx="8"/><rect class="node" x="222" y="25" width="64" height="42" rx="8"/><rect class="node" x="117" y="83" width="66" height="44" rx="8"/>
           <rect class="node" x="14" y="161" width="64" height="43" rx="8"/><rect class="node" x="118" y="161" width="64" height="43" rx="8"/>
-          <text x="46" y="42">光伏 PV</text><text x="46" y="57" id="flow-solar-val" class="power">—</text>
-          <text x="254" y="42">电网</text><text x="254" y="57" id="flow-grid-val" class="power">—</text>
-          <text x="150" y="100">逆变器</text><text x="150" y="117" id="flow-inverter-val" class="power">—</text>
-          <text x="46" y="179">储能电池</text><text x="46" y="194" id="flow-battery-val" class="power">—</text>
-          <text x="150" y="179">家庭负载</text><text x="150" y="194" id="flow-load-val" class="power">—</text>
-          <text x="150" y="13" id="flow-scenario">等待能源设备数据</text><text x="52" y="145" id="flow-battery-direction" class="power">待接入</text>
+          <text x="46" y="42" data-i18n="pv">PV</text><text x="46" y="57" id="flow-solar-val" class="power">—</text>
+          <text x="254" y="42" data-i18n="grid">Grid</text><text x="254" y="57" id="flow-grid-val" class="power">—</text>
+          <text x="150" y="100" data-i18n="inverter">Inverter</text><text x="150" y="117" id="flow-inverter-val" class="power">—</text>
+          <text x="46" y="179" data-i18n="battery">Battery</text><text x="46" y="194" id="flow-battery-val" class="power">—</text>
+          <text x="150" y="179" data-i18n="home">Home load</text><text x="150" y="194" id="flow-load-val" class="power">—</text>
+          <text x="150" y="13" id="flow-scenario" data-i18n="waitingEnergy">Waiting for energy data</text><text x="52" y="145" id="flow-battery-direction" class="power" data-i18n="pending">Not connected</text>
         </svg>
-        <div class="energy-legend" id="energy-legend" aria-label="能量线颜色图例"></div>
-        <div class="energy-sub" id="energy-explanation">光带与箭头表示能量流向，数据随设备状态更新。</div>
+        <div class="energy-legend" id="energy-legend" aria-label="Energy line colours" data-i18n-aria="legendAria"></div>
+        <div class="energy-sub" id="energy-explanation" data-i18n="explanationDefault">Light bands and arrows show the energy flow; data follows the device.</div>
         <div class="energy-sub" id="energy-updated"></div>
         <details class="energy-data" id="energy-data" open>
-          <summary id="energy-data-summary">设备数据 · 等待连接</summary>
+          <summary id="energy-data-summary">Device data · waiting</summary>
           <div class="energy-metrics">
-            <div class="energy-metric"><span>光伏发电</span><strong id="metric-solar">—</strong><small id="metric-solar-note">待接入</small></div>
-            <div class="energy-metric"><span>电池电量</span><strong id="metric-soc">—</strong><small id="metric-soc-note">待接入</small><div class="energy-soc"><div id="soc-fill"></div></div></div>
-            <div class="energy-metric"><span>电池功率</span><strong id="metric-battery">—</strong><small id="metric-battery-note">待接入</small></div>
-            <div class="energy-metric"><span>电网功率</span><strong id="metric-grid">—</strong><small id="metric-grid-note">待接入</small></div>
-            <div class="energy-metric"><span>家庭负载</span><strong id="metric-load">—</strong><small id="metric-load-note">待接入</small></div>
-            <div class="energy-metric"><span>运行状态</span><strong id="metric-state">—</strong><small id="metric-state-note">待接入</small></div>
+            <div class="energy-metric"><span data-i18n="metricSolar">PV output</span><strong id="metric-solar">—</strong><small id="metric-solar-note" data-i18n="pending">Not connected</small></div>
+            <div class="energy-metric"><span data-i18n="metricSoc">Battery SOC</span><strong id="metric-soc">—</strong><small id="metric-soc-note" data-i18n="pending">Not connected</small><div class="energy-soc"><div id="soc-fill"></div></div></div>
+            <div class="energy-metric"><span data-i18n="metricBattery">Battery power</span><strong id="metric-battery">—</strong><small id="metric-battery-note" data-i18n="pending">Not connected</small></div>
+            <div class="energy-metric"><span data-i18n="metricGrid">Grid power</span><strong id="metric-grid">—</strong><small id="metric-grid-note" data-i18n="pending">Not connected</small></div>
+            <div class="energy-metric"><span data-i18n="metricLoad">Home load</span><strong id="metric-load">—</strong><small id="metric-load-note" data-i18n="pending">Not connected</small></div>
+            <div class="energy-metric"><span data-i18n="metricState">Status</span><strong id="metric-state">—</strong><small id="metric-state-note" data-i18n="pending">Not connected</small></div>
           </div>
         </details>
-        <div class="energy-footer">按参考照片比例建模 · 未测量尺寸<br>功率流向依据 EnergyLIB 设备数据展示，接线拓扑以现场为准。</div>
+        <div class="energy-footer"><span data-i18n="footer1">Modelled to scale from reference photos · not measured</span><br><span data-i18n="footer2">Power flows follow EnergyLIB device data; the actual wiring may differ on site.</span></div>
       </div>
     </div>
 
     <div class="hud-bottom">
-      <button class="view-btn active" type="button" data-view="overview">📐 鸟瞰全景</button>
-      <button class="view-btn" type="button" data-view="living">🛋️ 客厅透视</button>
-      <button class="view-btn" type="button" data-view="energy">⚡ 能源特写</button>
-      <button class="view-btn" type="button" data-view="ev">🚘 光伏与汽车</button>
-      <button class="view-btn" type="button" id="daylight-toggle">昼夜光照</button>
+      <button class="view-btn active" type="button" data-view="overview" data-i18n="viewOverview">📐 Overview</button>
+      <button class="view-btn" type="button" data-view="living" data-i18n="viewLiving">🛋️ Living room</button>
+      <button class="view-btn" type="button" data-view="energy" data-i18n="viewEnergy">⚡ Energy close-up</button>
+      <button class="view-btn" type="button" data-view="ev" data-i18n="viewEv">🚘 PV &amp; EV</button>
+      <button class="view-btn" type="button" id="daylight-toggle" data-i18n="daylight">Day / night</button>
     </div>
   </div>
 
@@ -183,7 +183,7 @@
         'vendor/SSAOPass.js', 'vendor/SMAAShader.js', 'vendor/SMAAPass.js', 'twin.js'
       ];
       const failed = () => {
-        document.getElementById('twin-loading-message').textContent = '页面文件加载失败，请重新加载';
+        document.getElementById('twin-loading-message').textContent = 'Page files failed to load. Please reload.';
         document.getElementById('twin-loading-retry').hidden = false;
       };
       document.getElementById('twin-loading-retry').onclick = () => location.reload();

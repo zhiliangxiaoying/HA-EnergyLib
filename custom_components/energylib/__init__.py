@@ -1,7 +1,13 @@
 """EnergyLIB profile-aware integration. Physical profiles remain read-only."""
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PORT, EVENT_HOMEASSISTANT_STOP, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PORT,
+    EVENT_CORE_CONFIG_UPDATE,
+    EVENT_HOMEASSISTANT_STOP,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
@@ -93,6 +99,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await async_reload_entry(hass, updated_entry)
 
     entry.async_on_unload(entry.add_update_listener(updated))
+    # Entity and device names are translated once, in HA's system language;
+    # reload so they follow a later change of that language.
+    language = hass.config.language
+
+    async def core_config_changed(event):
+        if hass.config.language != language:
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
+    entry.async_on_unload(hass.bus.async_listen(EVENT_CORE_CONFIG_UPDATE, core_config_changed))
     async_register_services(hass)
     return True
 

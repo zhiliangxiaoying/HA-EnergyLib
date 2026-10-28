@@ -4,6 +4,11 @@ import vm from 'node:vm';
 
 // The shipped clamp: a negative home load never drives a reversed flow.
 const source = readFileSync(process.argv[2], 'utf8');
+const zh = JSON.parse(readFileSync(new URL('../../custom_components/energylib/frontend/translations/zh-Hans.json', import.meta.url), 'utf8')).twin;
+const t = (key, vars = {}) => {
+  assert.ok(key in zh, `missing twin text: ${key}`);
+  return zh[key].replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
+};
 const line = source.split(/\r?\n/).find(l => l.includes('const displayLoad ='));
 assert.ok(line, 'displayLoad missing');
 const context = vm.createContext({});
@@ -37,7 +42,7 @@ const states = Object.fromEntries(keys.map(key => ['sensor.renamed_' + key, {
 let parent = {states};
 const binding = vm.createContext({
   hass: null, device: null, devices: [], KEYS: keys, flowRoutes: routes,
-  $: element, findHass: () => parent, findDevices: () => [device],
+  $: element, findHass: () => parent, findDevices: () => [device], t, LOCALE: 'zh-Hans',
 });
 vm.runInContext(
   source.split(/\r?\n/).find(l => l.includes('const fmt =')) +
