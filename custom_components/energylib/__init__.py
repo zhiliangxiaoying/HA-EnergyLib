@@ -13,9 +13,10 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
+from . import auto_add
 from .const import DOMAIN, RETIRED_ALARM_ENTITIES, RETIRED_DIAGNOSTIC_ENTITIES
 from .coordinator import EnergyLibCoordinator
-from .dashboard import async_register_dashboard
+from .dashboard import async_register_dashboard, async_register_panel, async_unregister_panel
 from .energylib_core.legacy import IdentityMismatch, UnsupportedDevice
 from .energylib_core.runtime import DeviceRuntime
 from .energylib_core.transport.modbus_tcp import EnergyLibError, ModbusTcpClient
@@ -109,6 +110,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(hass.bus.async_listen(EVENT_CORE_CONFIG_UPDATE, core_config_changed))
     async_register_services(hass)
+    auto_add.async_update_control_issue(hass, entry)
+    await async_register_panel(hass)
     return True
 
 
@@ -167,6 +170,13 @@ async def async_unload_entry(hass, entry):
 
 
 async def async_remove_entry(hass, entry):
+    from homeassistant.helpers import issue_registry as ir
     from homeassistant.helpers.storage import Store
 
     await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.state").async_remove()
+    ir.async_delete_issue(hass, DOMAIN, auto_add.control_issue_id(entry))
+    if entry.source != "ignore":
+        # The user removed an inverter: never add one back without asking.
+        await auto_add.async_note_removal(hass)
+    if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
+        async_unregister_panel(hass)

@@ -27,7 +27,9 @@ class ConfigFlowDouble:
     def __new__(cls):
         instance = super().__new__(cls)
         instance.context = {}
+        instance.flow_id = "this"
         instance.entries = []
+        instance.flows = []
         instance.other_flow_id = None
         instance.other_logger = None
         instance.updates = []
@@ -44,10 +46,12 @@ class ConfigFlowDouble:
         if self.other_flow_id == unique_id:
             raise AbortFlow("already_in_progress")
 
-    def _async_current_entries(self):
+    def _async_current_entries(self, include_ignore=False):
         return self.entries
 
     def _async_in_progress(self, **kwargs):
+        if "match_context" not in kwargs:
+            return [{"flow_id": self.flow_id}, *self.flows]
         if kwargs["match_context"].get("energylib_logger_sn") == self.other_logger:
             return [{"flow_id": "other"}]
         return []
@@ -99,6 +103,8 @@ def load_flow_module():
         for name in [
             "homeassistant",
             "homeassistant.helpers",
+            "homeassistant.helpers.issue_registry",
+            "homeassistant.helpers.storage",
             "homeassistant.helpers.selector",
             "homeassistant.helpers.service_info",
             "homeassistant.helpers.service_info.zeroconf",
@@ -115,6 +121,8 @@ def load_flow_module():
     modules["homeassistant.const"].CONF_PORT = "port"
     modules["homeassistant.helpers.selector"].NumberSelector = NumberSelectorDouble
     modules["homeassistant.helpers.selector"].NumberSelectorConfig = dict
+    modules["homeassistant.helpers.storage"].Store = object
+    modules["homeassistant.helpers.issue_registry"].IssueSeverity = SimpleNamespace(WARNING="w")
     with patch.dict(sys.modules, modules):
         return importlib.import_module("energylib_under_test.config_flow")
 
@@ -131,11 +139,54 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.patch = patch.object(self.module, "async_probe", self.probe)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        # Automatic adding has its own tests below; elsewhere discovery asks.
+        self.auto_allowed = AsyncMock(return_value=False)
+        for target, value in (
+            ("async_allowed", self.auto_allowed),
+            ("SETTLE_SECONDS", 0),
+        ):
+            patcher = patch.object(self.module.auto_add, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def discovery(self, **properties):
         return SimpleNamespace(
             host="192.0.2.2", port=1502, properties={**txt_properties("LOGGER-001"), **properties}
         )
+
+    async def test_the_only_inverter_is_added_read_only_without_asking(self):
+        self.auto_allowed.return_value = True
+        result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"]["serial"], "TEST-001")
+        # Discovery alone never allows control; Repairs asks the user first.
+        self.assertEqual(result["options"], {"allow_control": False, "auto_added": True})
+
+    async def test_discovery_asks_when_automatic_adding_does_not_apply(self):
+        self.auto_allowed.return_value = True
+        cases = {
+            "another logger announced": lambda: self.flow.flows.append({"flow_id": "other"}),
+            "an inverter is configured": lambda: self.flow.entries.append(
+                SimpleNamespace(unique_id="energylib_OTHER", data={}, source="ignore")
+            ),
+            "the user removed one before": lambda: setattr(
+                self.auto_allowed, "return_value", False
+            ),
+        }
+        for name, arrange in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                self.auto_allowed.return_value = True
+                arrange()
+                result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+                self.assertEqual(result.get("step_id"), "discovery_confirm", result)
+
+    async def test_an_unreachable_inverter_is_never_added_automatically(self):
+        self.auto_allowed.return_value = True
+        self.probe.side_effect = self.module.EnergyLibError("offline")
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["step_id"], "discovery_confirm")
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
 
     async def test_discovery_requires_confirmation_and_uses_verified_identity(self):
         form = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))

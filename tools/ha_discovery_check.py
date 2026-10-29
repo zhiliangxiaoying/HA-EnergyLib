@@ -80,6 +80,57 @@ async def check():
 
     try:
         assert await async_setup_component(hass, "homeassistant", {})
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.energylib import auto_add, repairs
+
+        auto_add.SETTLE_SECONDS = 0.2
+        issues = ir.async_get(hass)
+
+        # Two loggers announcing together: neither is added without asking.
+        pa, pb = await peer("AUTO-INVERTER-A", 7), await peer("AUTO-INVERTER-B", 7)
+        both = await asyncio.gather(discover("AUTO-LOGGER-A", pa), discover("AUTO-LOGGER-B", pb))
+        assert [f["type"] for f in both] == ["form", "form"], both
+        for flow in both:
+            hass.config_entries.flow.async_abort(flow["flow_id"])
+        assert not hass.config_entries.async_entries("energylib")
+        results.append("two loggers on the network: both wait for confirmation")
+
+        # The only logger: added read-only, with a Repairs confirmation for control.
+        auto = await discover("AUTO-LOGGER-A", pa)
+        assert auto["type"] == "create_entry", auto
+        await hass.async_block_till_done()
+        entry = auto["result"]
+        assert entry.state is ConfigEntryState.LOADED
+        assert entry.options == {"allow_control": False, "auto_added": True}, entry.options
+        issue_id = auto_add.control_issue_id(entry)
+        assert issues.async_get_issue("energylib", issue_id).is_fixable
+        assert not [
+            e
+            for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+            if e.domain in ("select", "number", "switch") and e.disabled_by is None
+        ], "an automatically added inverter must start without controls"
+        results.append("the only logger is added read-only and Repairs asks before control")
+
+        fix = await repairs.async_create_fix_flow(hass, issue_id, {"entry_id": entry.entry_id})
+        fix.hass = hass
+        form = await fix.async_step_init()
+        assert form["type"] == "form" and form["step_id"] == "confirm", form
+        assert form["description_placeholders"]["serial"] == "AUTO-INVERTER-A"
+        assert (await fix.async_step_confirm({}))["type"] == "create_entry"
+        await hass.async_block_till_done()
+        assert entry.options == {"allow_control": True}, entry.options
+        assert issues.async_get_issue("energylib", issue_id) is None
+        results.append("confirming in Repairs allows control and closes the issue")
+
+        # Removed by the user: never added back automatically.
+        assert await hass.config_entries.async_remove(entry.entry_id)
+        await hass.async_block_till_done()
+        again = await discover("AUTO-LOGGER-A", pa)
+        assert again["type"] == "form", again
+        hass.config_entries.flow.async_abort(again["flow_id"])
+        results.append("after the user removes an inverter, discovery asks again")
+
         p1 = await peer("MDNS-INVERTER-001", 7)
         flow = await discover("MDNS-LOGGER-001", p1)
         assert flow["type"] == "form" and not hass.config_entries.async_entries("energylib")

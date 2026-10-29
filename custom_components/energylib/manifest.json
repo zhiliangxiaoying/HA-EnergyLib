@@ -1,6 +1,9 @@
 {
   "domain": "energylib",
   "name": "EnergyLIB",
+  "after_dependencies": [
+    "lovelace"
+  ],
   "codeowners": [
     "@zhiliangxiaoying"
   ],

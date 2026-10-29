@@ -2,6 +2,9 @@
 
 ## 0.8.43.dev1
 
+- Automatic setup: when a verified logger is the only EnergyLIB logger announcing itself, no EnergyLIB entry exists (ignored ones included) and the user has never removed one, discovery adds it without asking, read-only. A Repairs issue ("Is this your inverter?") allows control once confirmed; discovery alone never enables control. After the user removes an inverter, or when several loggers announce together, discovery asks as before.
+- Apple Home without hand-written entity IDs: the inverter power switch is now a main control instead of a configuration entity, and a new "EMS" selector offers the EMS modes as words in HA's system language (for example "自发自用", "Battery backup"); HomeKit names each option after its value, so Siri can switch modes by name. A HomeKit bridge that includes the `switch` and `select` domains picks both up for any inverter. The key-based "EMS mode" selector is unchanged for automations; both write the same register.
+- The EnergyLIB dashboard appears in the sidebar by itself (a read-only strategy page at `/energylib`), unless the user already added a dashboard from the EnergyLIB strategy.
 - English first: the overview cards, alarm, remote-task and dispatch cards and the digital twin read their text from shared translation files (`frontend/translations/en.json`, `zh-Hans.json`) and follow the user's Home Assistant language; other languages fall back to English. Adding a language needs one more file there plus the integration's `translations/`. The twin now defaults to English.
 - Entity and device names follow a change of Home Assistant's system language without a restart (the entry reloads itself).
 - English entity states read naturally (for example "Self-consumption", "On-grid", "Charge period" instead of lower-case codes).

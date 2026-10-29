@@ -49,6 +49,9 @@ class EnergyLibSwitch(EnergyLibControl, SwitchEntity):
         self._attr_translation_key = definition.key
         if definition.key == "inverter_power":
             self._attr_icon = "mdi:power"
+            # A main control, not a setting: HomeKit bridges then include it
+            # with the switch domain instead of by entity ID.
+            self._attr_entity_category = None
 
     @property
     def is_on(self):

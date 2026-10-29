@@ -334,6 +334,21 @@
           "peak_shaving": "Peak shaving",
           "other": "Other"
         }
+      },
+      "home_mode": {
+        "name": "EMS",
+        "state": {
+          "self_consumption": "Self consumption",
+          "time_of_use": "Scheduled",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Battery backup",
+          "remote": "Manual",
+          "pv_charge_priority": "Solar first",
+          "feed_in_priority": "Export first",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
+        }
       }
     },
     "number": {
@@ -502,6 +517,22 @@
         "backup": "Backup",
         "pv_charge_priority": "PV charge priority",
         "feed_in_priority": "Feed-in priority"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Confirm the automatically added EnergyLIB inverter",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Is this your inverter?",
+            "description": "EnergyLIB inverter {serial} at {host} was added automatically. Confirm it is your inverter to allow control: EMS mode, power on/off and battery settings. Select Submit to allow control."
+          }
+        },
+        "abort": {
+          "entry_removed": "This inverter has been removed."
+        }
       }
     }
   }

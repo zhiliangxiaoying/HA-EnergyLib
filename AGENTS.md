@@ -11,7 +11,7 @@ Build a Home Assistant integration for EnergyLIB devices. The project has an exp
 - Verify discovery metadata through the device interface before trusting identity. The current plain Modbus TCP profile has no authentication; SN verification is not cryptographic authentication. Reject advertised authentication requirements that are not implemented; never enable controls based on discovery alone.
 - Use a stable device ID; never use an IP address or user-editable name as unique identity.
 - Deduplicate devices and refresh changed addresses without changing entity identity.
-- Do not create a config entry silently from a discovery callback; ask for confirmation through HA's native config flow.
+- Do not create a config entry silently from a discovery callback; ask for confirmation through HA's native config flow. Only exception (user decision, 2026-10-29): when a verified logger is the only EnergyLIB logger announcing itself, no EnergyLIB entry exists (ignored ones included) and the user has never removed an EnergyLIB entry, it may be added read-only (`allow_control: false`); controls stay off until the user confirms in Repairs.
 
 ## Device data and controls
 

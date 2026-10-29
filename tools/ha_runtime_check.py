@@ -217,11 +217,12 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        # 7 basic + remote access/drafts + 3 advanced battery limits (default disabled).
-        assert len(controls) == 13
+        # 8 basic + remote access/drafts + 3 advanced battery limits (default disabled).
+        assert len(controls) == 14
         basic = {
             "inverter_power",
             "work_mode",
+            "home_mode",
             "backup_soc",
             "min_soc",
             "export_limit",
@@ -236,7 +237,7 @@ async def check():
         assert not lab.runtime_data.remote_enabled
         assert lab_peer.write_count == 0, "Enabling basic controls must not write the inverter"
         results.append(
-            "native options enable seven basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
+            "native options enable eight basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))
@@ -361,6 +362,33 @@ async def check():
             assert lab_peer.write_count - before_writes == 1
             assert list(lab_peer.read_log) == [(3, 1, address, 2)]
         results.append("EMS mode and switches also use one write and one exact target readback")
+
+        # Apple Home: power and the worded EMS selector are main controls, so a
+        # HomeKit bridge including the switch and select domains exposes them.
+        home = next(e for e in controls if e.translation_key == "home_mode")
+        power = next(e for e in controls if e.translation_key == "inverter_power")
+        mode_control = next(e for e in controls if e.translation_key == "work_mode")
+        assert home.entity_category is None and power.entity_category is None
+        assert mode_control.entity_category is not None
+        state = hass.states.get(home.entity_id)
+        assert state.state == "Battery backup", state
+        assert "Self consumption" in state.attributes["options"], state.attributes["options"]
+        assert not any("_" in option for option in state.attributes["options"])
+        before_writes = lab_peer.write_count
+        lab_peer.read_log.clear()
+        await hass.services.async_call(
+            "select",
+            "select_option",
+            {"entity_id": home.entity_id, "option": "Self consumption"},
+            blocking=True,
+        )
+        assert lab_peer.write_count - before_writes == 1
+        assert list(lab_peer.read_log) == [(3, 1, 0x300C, 2)]
+        assert hass.states.get(mode_control.entity_id).state == "self_consumption"
+        assert hass.states.get(home.entity_id).state == "Self consumption"
+        results.append(
+            "Apple Home: power switch and worded EMS selector are main controls; a worded option writes the same EMS mode"
+        )
 
         # Power on/off: a one-shot command confirmed by the DCAC state bit.
         power = next(e for e in controls if e.translation_key == "inverter_power")

@@ -22,7 +22,9 @@ profile language. English and Simplified Chinese are included.
 
 ## 2. Add the device
 
-**Discovered (recommended)**: in **Settings → Devices & services**, find **EnergyLIB**
+**Automatic**: when your network has only one EnergyLIB inverter, it is added by itself about a minute after installation, and its data is shown. To control it (EMS mode, power on/off, battery settings), open **Settings → Repairs**, choose “Is this your inverter?” and **Submit**.
+
+**Discovered**: with several inverters, or after you removed one, go to **Settings → Devices & services**, find **EnergyLIB**
 under *Discovered*, select **Add**, then **Submit**. The port and other details are filled in.
 
 **Manually**: select **Add integration** and search for **EnergyLIB**.
@@ -38,6 +40,10 @@ The integration page then shows your device:
 ![Integration page](images/user-guide/en/06-integration.png)
 
 ## 3. Open the dashboard
+
+**EnergyLIB** appears in the sidebar by itself once the inverter is added; open it for the overview, and switch to **Digital twin** at the top.
+
+If it does not appear (for example because you added an EnergyLIB dashboard yourself earlier), add it by hand:
 
 1. Go to **Settings → Dashboards** and select **Add dashboard**.
 2. Under **Community dashboards**, choose **EnergyLIB**.
@@ -119,6 +125,7 @@ to the device and read back to confirm.
 | Minimum SOC | Lowest battery level |
 | Grid charging | When off, the grid never charges the battery |
 | Inverter power | Tap the icon and confirm to switch on or off; when off, PV and the battery stop, and without the grid the home loses power |
+| EMS | The same setting as "EMS mode", with the modes as words, for Apple Home and Siri (for example "Turn on Self consumption") |
 | Export limit + Export limit enabled | Caps how much power is exported; set both |
 
 ## 9. Time-of-use schedule

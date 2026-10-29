@@ -1,5 +1,6 @@
 """Native manual and Zeroconf configuration for one inverter per entry."""
 
+import asyncio
 import re
 from typing import Any
 
@@ -9,6 +10,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
+from . import auto_add
 from .const import (
     CONF_ALLOW_CONTROL,
     CONF_PROFILE,
@@ -215,7 +217,30 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             # Allow the user to adjust unit ID/port when the advertised endpoint
             # is not ready. No config entry is created on a failed probe.
             errors["base"] = "cannot_connect"
+        if not errors and await self._only_inverter():
+            # The verified identity is the home's only EnergyLIB inverter: add it
+            # read-only. Repairs asks the user before any control is allowed.
+            return self.async_create_entry(
+                title="EnergyLIB",
+                data=self._data,
+                options={CONF_ALLOW_CONTROL: False, auto_add.CONF_AUTO_ADDED: True},
+            )
         return self._connection_form("discovery_confirm", errors)
+
+    async def _only_inverter(self) -> bool:
+        """Whether this discovery may be added without asking (see auto_add)."""
+        if self._async_current_entries(include_ignore=True):
+            return False
+        if not await auto_add.async_allowed(self.hass):
+            return False
+        # Other loggers on the network announce within seconds; let them show up.
+        await asyncio.sleep(auto_add.SETTLE_SECONDS)
+        others = [
+            flow
+            for flow in self._async_in_progress(include_uninitialized=True)
+            if flow["flow_id"] != self.flow_id
+        ]
+        return not others and not self._async_current_entries(include_ignore=True)
 
     async def async_step_discovery_confirm(
         self, user_input: dict[str, Any] | None = None

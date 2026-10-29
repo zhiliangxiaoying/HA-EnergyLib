@@ -334,6 +334,21 @@
           "peak_shaving": "削峰填谷",
           "other": "其他"
         }
+      },
+      "home_mode": {
+        "name": "EMS",
+        "state": {
+          "self_consumption": "自发自用",
+          "time_of_use": "定时充放电",
+          "dynamic_tariff": "分时电价",
+          "backup": "电池备电",
+          "remote": "手动控制",
+          "pv_charge_priority": "光伏优先",
+          "feed_in_priority": "卖电优先",
+          "voltage_regulation": "调压",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
       }
     },
     "number": {
@@ -502,6 +517,22 @@
         "backup": "备电模式",
         "pv_charge_priority": "光伏优先充电",
         "feed_in_priority": "卖电优先模式"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "确认自动接入的 EnergyLIB 逆变器",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "这是你家的逆变器吗？",
+            "description": "已自动接入 EnergyLIB 逆变器（序列号 {serial}，地址 {host}）。确认是你家的逆变器后，才会开放控制：EMS 模式、开关机和电池设置。点“提交”开启控制。"
+          }
+        },
+        "abort": {
+          "entry_removed": "这台逆变器已被删除。"
+        }
       }
     }
   }
