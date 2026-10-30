@@ -83,22 +83,33 @@
     .pin-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #ebbd7366; }
 
     @media (max-width: 1100px) { .hud-left { width: 276px; } .brand-title { font-size: 15px; } }
-    @media (max-width: 760px) {
-      .hud-layer { padding: 10px; }
-      header { padding: 12px !important; gap: 8px; }
+    @media (max-width: 760px), (max-height: 540px) {
+      .hud-layer { padding: 10px 10px max(10px, env(safe-area-inset-bottom, 10px)); }
+      header { padding: 9px 12px !important; gap: 8px; border-radius: 12px; }
       .brand-icon, .brand-sub { display: none; }
-      .brand-title { font-size: 13px; }
-      .header-tools { gap: 5px; }
-      .header-tools button, .header-tools select { padding: 7px 8px; font-size: 10px; }
+      .brand-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .header-tools { gap: 6px; }
+      .header-tools button, .header-tools select { padding: 6px 9px; font-size: 10px; border-radius: 8px; }
       .header-tools select { max-width: 120px; }
       #energy-mini-toggle { display: inline-block; }
-      .hud-left { left: 10px; right: 10px; top: auto; bottom: 72px; width: auto; max-height: 42vh; }
-      .glass-card { padding: 14px; }
-      .energy-title { font-size: 16px; }
-      .energy-metric strong { font-size: 16px; }
-      .hud-bottom { max-width: calc(100vw - 20px); overflow: auto; justify-content: flex-start; padding: 6px 10px; }
-      .view-btn { padding: 9px 10px; font-size: 10px; }
-      .energy-mini-hidden .hud-left, .energy-mini-hidden .floating-pin { display: none !important; }
+      .glass-card { padding: 13px; border-radius: 14px; }
+      .energy-title { font-size: 15px; }
+      .energy-metric strong { font-size: 15px; }
+      .hud-bottom { max-width: calc(100vw - 20px); overflow-x: auto; justify-content: flex-start; padding: 5px 9px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+      .hud-bottom::-webkit-scrollbar { display: none; }
+      .view-btn { padding: 7px 10px; font-size: 10px; }
+      .energy-mini-hidden .hud-left { display: none !important; }
+      body:not(.energy-mini-hidden) .floating-pin { display: none !important; }
+    }
+    @media (max-width: 760px) and (min-height: 541px) {
+      .hud-left { left: 10px; right: 10px; top: auto; bottom: 62px; width: auto; max-height: 46vh; }
+    }
+    @media (max-height: 540px) {
+      .hud-layer { padding: 8px 12px max(8px, env(safe-area-inset-bottom, 8px)); }
+      header { padding: 6px 12px !important; }
+      .hud-left { left: 12px; right: auto; top: 50px; bottom: 48px; width: min(296px, 46vw); max-height: none; }
+      .hud-bottom { padding: 4px 8px; }
+      .view-btn { padding: 5px 10px; font-size: 10px; }
     }
     @media (prefers-reduced-motion: reduce) { #twin-loading::before, #energy-flow .stream { animation: none; } }
   </style>
@@ -120,7 +131,7 @@
       <div class="header-tools">
         <select id="device-select" aria-label="Select EnergyLIB device" data-i18n-aria="deviceSelect" hidden></select>
         <button id="quality-toggle" type="button" aria-pressed="false" data-i18n="qualitySmooth">Smooth</button>
-        <button id="energy-mini-toggle" type="button" data-i18n="energyPanel">Energy panel</button>
+        <button id="energy-mini-toggle" type="button" aria-pressed="false" data-i18n="energyPanel">Energy panel</button>
       </div>
     </header>
 

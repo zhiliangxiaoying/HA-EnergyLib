@@ -134,16 +134,24 @@
       // Offscreen SSAO loses native canvas MSAA. Apply SMAA last, in display colour space.
       aaPass = new THREE.SMAAPass(1, 1); composer.addPass(aaPass);
     } catch (e) { console.warn('Ambient shading unavailable', e.message); composer = null; }
+    if (isMobile()) document.body.classList.add('energy-mini-hidden');
     resize(); addEventListener('resize', resize);
   }
 
   function renderFrame() { if (composer && fine) composer.render(); else renderer.render(scene, camera); }
 
+  const isMobile = () => innerWidth <= 760 || innerHeight <= 540;
   function resize() {
-    const w = innerWidth, h = innerHeight;
-    camera.aspect = w / h; camera.updateProjectionMatrix();
-    // Centre the model in the open area beside the energy panel.
-    camera.setViewOffset(w, h, w > 760 ? -Math.min(160, w * .125) : 0, 0, w, h);
+    const w = innerWidth, h = Math.max(1, innerHeight), aspect = w / h, mobile = isMobile();
+    camera.aspect = aspect;
+    // Preserve horizontal framing on narrow mobile portrait screens without altering desktop/landscape.
+    camera.fov = mobile && aspect < 1
+      ? Math.min(68, 2 * Math.atan(Math.tan(20 * Math.PI / 180) / Math.max(aspect, .45)) * 180 / Math.PI)
+      : 40;
+    // Centre the model in the open area beside the energy panel when shown side-by-side.
+    const sidePanel = (!mobile && w > 760) || (mobile && h <= 540 && !document.body.classList.contains('energy-mini-hidden'));
+    camera.setViewOffset(w, h, sidePanel ? -Math.min(160, w * .125) : 0, 0, w, h);
+    camera.updateProjectionMatrix();
     const scale = fine ? Math.min(2, Math.max(1.5, devicePixelRatio)) : Math.min(devicePixelRatio, 1);
     renderer.setPixelRatio(Math.min(scale, renderer.capabilities.maxTextureSize / Math.max(w, h)));
     renderer.setSize(w, h);
@@ -472,7 +480,15 @@
       fine = !fine; $('quality-toggle').textContent = fine ? t('qualityFine') : t('qualitySmooth');
       $('quality-toggle').setAttribute('aria-pressed', fine); resize();
     };
-    $('energy-mini-toggle').onclick = () => document.body.classList.toggle('energy-mini-hidden');
+    const syncMiniToggle = () => {
+      $('energy-mini-toggle').setAttribute('aria-pressed', String(!document.body.classList.contains('energy-mini-hidden')));
+    };
+    syncMiniToggle();
+    $('energy-mini-toggle').onclick = () => {
+      document.body.classList.toggle('energy-mini-hidden');
+      syncMiniToggle();
+      resize();
+    };
     for (const button of document.querySelectorAll('[data-view]')) button.onclick = () => setView(button.dataset.view);
     $('daylight-toggle').onclick = () => {
       evening = !evening;
