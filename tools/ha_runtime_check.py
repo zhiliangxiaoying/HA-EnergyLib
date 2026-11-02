@@ -217,8 +217,44 @@ async def check():
         assert lab.state is ConfigEntryState.LOADED
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
-        # 8 basic + remote access/drafts + 3 advanced battery limits (default disabled).
+        # A new installation has a single EMS selector, the worded HomeKit one.
+        assert len(controls) == 13
+        assert not any(e.translation_key == "work_mode" for e in controls)
+        home = next(e for e in controls if e.translation_key == "home_mode")
+        await hass.services.async_call(
+            "energylib",
+            "set_ems_mode",
+            {"device_id": lab_device.id, "mode": "backup"},
+            blocking=True,
+        )
+        assert lab.runtime_data.device.controls["work_mode"] == "backup"
+        # Upgrade: preserve the old entity ID and its fixed-key behavior.
+        legacy_select = registry.async_get_or_create(
+            "select",
+            "energylib",
+            f"{lab.unique_id}_work_mode",
+            config_entry=lab,
+            device_id=lab_device.id,
+            suggested_object_id="legacy_ems_mode",
+        )
+        old_id = legacy_select.entity_id
+        registry.async_update_entity(old_id, disabled_by=er.RegistryEntryDisabler.USER)
+        assert await hass.config_entries.async_reload(lab.entry_id)
+        await hass.async_block_till_done()
+        assert registry.async_get(old_id).disabled_by is er.RegistryEntryDisabler.USER
+        assert hass.states.get(old_id) is None
+        registry.async_update_entity(old_id, disabled_by=None)
+        assert await hass.config_entries.async_reload(lab.entry_id)
+        await hass.async_block_till_done()
+        assert hass.states.get(old_id) is not None
+        entities = er.async_entries_for_config_entry(registry, lab.entry_id)
+        controls = [e for e in entities if e.domain in ("number", "switch", "select")]
         assert len(controls) == 14
+        assert registry.async_get(old_id) is not None
+        assert registry.async_get(home.entity_id) is not None
+        results.append(
+            "new device has one selector; upgrade retains old entity ID and user-disabled state"
+        )
         basic = {
             "inverter_power",
             "work_mode",
@@ -235,9 +271,9 @@ async def check():
         assert all(e.disabled_by is not None for e in controls if e.translation_key in advanced)
         assert hass.states.get(read_mode.entity_id).attributes["control_access_enabled"] is True
         assert not lab.runtime_data.remote_enabled
-        assert lab_peer.write_count == 0, "Enabling basic controls must not write the inverter"
+        assert lab_peer.write_count == 1, "Only the explicit simulator EMS service should write"
         results.append(
-            "native options enable eight basic controls without device writes; advanced battery limits, remote permission and operation helpers remain disabled"
+            "basic controls load; advanced battery limits, remote permission and operation helpers remain disabled"
         )
 
         backup_control = next(e for e in controls if e.unique_id.endswith("_backup_soc"))

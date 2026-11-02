@@ -39,7 +39,9 @@ class MetadataTests(unittest.TestCase):
                 platform = "binary_sensor" if point.kind in BINARY_KINDS else "sensor"
                 self.assertIn(point.key, data["entity"][platform])
             for control in CONTROLS + DRAFTS:
-                self.assertIn(control.key, data["entity"][control.platform])
+                # The EMS mode's one selector uses the worded home_mode translation.
+                key = "home_mode" if control.key == "work_mode" else control.key
+                self.assertIn(key, data["entity"][control.platform])
             self.assertEqual(set(data["entity"]["button"]), set(BUTTONS))
             self.assertIn("command_failed", data["options"]["abort"])
         self.assertEqual(
@@ -51,6 +53,7 @@ class MetadataTests(unittest.TestCase):
                 "set_remote_access",
                 "set_tou_schedule",
                 "clear_tou_schedule",
+                "set_ems_mode",
             },
         )
 

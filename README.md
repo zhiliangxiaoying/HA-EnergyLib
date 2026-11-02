@@ -122,8 +122,8 @@ integration converts them.
 
 | Entity | Purpose |
 |---|---|
-| EMS mode (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above) |
-| EMS (select) | the same setting with the modes as words in Home Assistant's language, for Apple Home and Siri ("Turn on Self consumption"); automations should use EMS mode |
+| EMS (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above); options use HA's language for Apple Home and Siri |
+| EMS mode (legacy select) | retained only for devices already registered with it, preserving existing automations and fixed option values |
 | Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
 | Grid charging (switch) | allow charging the battery from the grid |
 | Export limit (number) | maximum feed-in power, up to the inverter rating |
@@ -135,7 +135,7 @@ Draft edits do not write the inverter or change a running task. Drafts persist; 
 
 Remote charge/discharge has its own **Allow remote charge/discharge** switch, default off. Enabling only unlocks the combined overview card; Start executes the task. The native permission switch, parameter inputs and action buttons are disabled by default. Older sliders and switches were removed from the UI; the public services stay compatible.
 
-The work-mode UI is named **EMS mode**. Its selector is first in device Configuration and overview controls; entity IDs and mode values are unchanged.
+New devices have one EMS selector. Existing devices retain the legacy selector and its entity ID so automations continue working; after migrating those automations, disable the legacy entity in HA. For new automations, use `energylib.set_ems_mode` with `device_id` and a stable mode key such as `self_consumption` or `backup`.
 
 Remote control writes a heartbeat; if Home Assistant stops, the inverter falls back to
 self-consumption after the timeout.
@@ -172,6 +172,7 @@ data:
 
 - `energylib.set_battery_power` — `power_kw` (negative = charge) and `duration` in seconds
 - `energylib.stop_battery_power` — stop remote dispatch immediately
+- `energylib.set_ems_mode` — set an EMS mode using a device ID and stable mode key
 - `energylib.clear_tou_schedule` — remove all periods
 
 Each `set_tou_schedule` call replaces the whole table.

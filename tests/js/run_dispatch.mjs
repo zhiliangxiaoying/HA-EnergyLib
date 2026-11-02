@@ -21,14 +21,15 @@ globalThis.setInterval = () => 1; globalThis.clearInterval = () => {};
 await import(pathToFileURL(process.argv[2]).href); await Promise.resolve();
 const Card = classes.get("energylib-dispatch");
 const calls = [];
-const config = { device_id: "test-device", power_entity: "number.power", duration_entity: "number.minutes", status_entity: "sensor.task", work_mode_entity: "select.mode", control_status_entity: "sensor.mode" };
+const config = { device_id: "test-device", power_entity: "number.power", duration_entity: "number.minutes", status_entity: "sensor.task", work_mode_entity: "sensor.ems", ems_entity: "select.mode", control_status_entity: "sensor.mode" };
 const hass = {
   language: "zh-Hans",
   states: {
     "number.power": { state: "0", attributes: { max: 5 } },
     "number.minutes": { state: "5", attributes: {} },
     "sensor.task": { state: "idle", attributes: { remote_access_enabled: false } },
-    "select.mode": { state: "self_consumption", attributes: {} },
+    "select.mode": { state: "自发自用", attributes: {} },
+    "sensor.ems": { state: "self_consumption", attributes: {} },
     "sensor.mode": { state: "self_consumption", attributes: { control_access_enabled: true } },
   },
   async callService(domain, action, data) { calls.push({ domain, action, data }); },
@@ -84,12 +85,12 @@ hass.states["sensor.task"].state = "charging";
 hass.states["sensor.task"].attributes.end_time = activeEnd; card.hass = hass;
 calls.length = 0; await card.stop();
 assert.deepEqual(calls, [{ domain: "energylib", action: "stop_battery_power", data: { device_id: "test-device" } }]);
-hass.states["select.mode"].state = "time_of_use"; card.hass = hass;
+hass.states["sensor.ems"].state = "time_of_use"; card.hass = hass;
 assert.equal(card.el("start").disabled, true); assert.match(card.el("warning").textContent, /定时充放电/);
 assert.equal(card.el("leave-tou").hidden, false);
 calls.length = 0; await card.leaveTou();
-assert.deepEqual(calls, [{ domain: "select", action: "select_option", data: { entity_id: "select.mode", option: "self_consumption" } }]);
-hass.states["select.mode"].state = "self_consumption";
+assert.deepEqual(calls, [{ domain: "energylib", action: "set_ems_mode", data: { device_id: "test-device", mode: "self_consumption" } }]);
+hass.states["sensor.ems"].state = "self_consumption";
 
 // A failure stays a visible error, never an optimistic success state.
 hass.callService = async (domain) => { if (domain === "energylib") throw new Error("Readback failed"); };

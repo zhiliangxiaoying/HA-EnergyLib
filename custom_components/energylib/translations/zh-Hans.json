@@ -320,23 +320,8 @@
       }
     },
     "select": {
-      "work_mode": {
-        "name": "EMS模式",
-        "state": {
-          "self_consumption": "自发自用模式",
-          "time_of_use": "定时充放电模式",
-          "dynamic_tariff": "分时电价",
-          "backup": "备电模式",
-          "remote": "手动控制",
-          "pv_charge_priority": "光伏优先充电",
-          "feed_in_priority": "卖电优先模式",
-          "voltage_regulation": "调压",
-          "peak_shaving": "削峰填谷",
-          "other": "其他"
-        }
-      },
       "home_mode": {
-        "name": "EMS",
+        "name": "EMS模式",
         "state": {
           "self_consumption": "自发自用",
           "time_of_use": "定时充放电",
@@ -491,6 +476,20 @@
           "name": "允许远程充放电"
         }
       }
+    },
+    "set_ems_mode": {
+      "name": "设置 EMS 模式",
+      "description": "按固定代码切换 EMS 模式，不受系统语言影响。需要在集成选项中打开“允许控制”。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "EnergyLIB 设备。"
+        },
+        "mode": {
+          "name": "EMS 模式",
+          "description": "自发自用、定时充放电、备电、光伏优先充电、卖电优先或削峰填谷（机型支持时）。"
+        }
+      }
     }
   },
   "selector": {
@@ -517,6 +516,16 @@
         "backup": "备电模式",
         "pv_charge_priority": "光伏优先充电",
         "feed_in_priority": "卖电优先模式"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "自发自用",
+        "time_of_use": "定时充放电",
+        "backup": "备电",
+        "pv_charge_priority": "光伏优先充电",
+        "feed_in_priority": "卖电优先",
+        "peak_shaving": "削峰填谷"
       }
     }
   },

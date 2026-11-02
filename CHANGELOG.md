@@ -2,6 +2,8 @@
 
 ## 0.8.43.dev1
 
+- New devices expose one worded EMS selector for the overview and Apple Home. Upgrades retain any registered key-based selector and its entity ID (including its disabled state) so existing automations keep working. The new `energylib.set_ems_mode` action offers stable keys for new automations; after migrating existing automations, users may disable the legacy selector.
+
 - Automatic setup: when a verified logger is the only EnergyLIB logger announcing itself, no EnergyLIB entry exists (ignored ones included) and the user has never removed one, discovery adds it without asking, read-only. A Repairs issue ("Is this your inverter?") allows control once confirmed; discovery alone never enables control. After the user removes an inverter, or when several loggers announce together, discovery asks as before.
 - Apple Home without hand-written entity IDs: the inverter power switch is now a main control instead of a configuration entity, and a new "EMS" selector offers the EMS modes as words in HA's system language (for example "自发自用", "Battery backup"); HomeKit names each option after its value, so Siri can switch modes by name. A HomeKit bridge that includes the `switch` and `select` domains picks both up for any inverter. The key-based "EMS mode" selector is unchanged for automations; both write the same register.
 - The EnergyLIB dashboard appears in the sidebar by itself (a read-only strategy page at `/energylib`), unless the user already added a dashboard from the EnergyLIB strategy.

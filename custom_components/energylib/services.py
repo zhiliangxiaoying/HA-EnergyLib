@@ -14,11 +14,14 @@ def async_register_services(hass):
 
     def coordinator(device_id):
         device = dr.async_get(hass).async_get(device_id)
-        entries = (
-            []
-            if device is None
-            else [hass.config_entries.async_get_entry(i) for i in device.config_entries]
-        )
+        # HA 2026.10 gives each device one entry (config_entry_id) and deprecates the set.
+        if device is None:
+            entry_ids = []
+        elif (entry_id := getattr(device, "config_entry_id", None)) is not None:
+            entry_ids = [entry_id]
+        else:
+            entry_ids = list(device.config_entries)
+        entries = [hass.config_entries.async_get_entry(i) for i in entry_ids]
         entries = [
             e
             for e in entries
@@ -58,8 +61,25 @@ def async_register_services(hass):
     async def stop(call):
         await coordinator(call.data["device_id"]).async_command("stop_remote")
 
+    async def ems_mode(call):
+        # The EMS selector shows the modes as words in HA's language (for Apple
+        # Home); automations name the mode by its fixed key here instead.
+        from .energylib_core.model.points import CONTROLS
+
+        c = coordinator(call.data["device_id"])
+        definition = next(d for d in CONTROLS if d.key == "work_mode")
+        if call.data["mode"] not in c.device.control_options(definition):
+            raise HomeAssistantError(f"EMS mode {call.data['mode']} is not offered by this device")
+        await c.async_command("work_mode", call.data["mode"])
+
     hass.services.async_register(
         DOMAIN, "stop_battery_power", stop, schema=vol.Schema({vol.Required("device_id"): str})
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_ems_mode",
+        ems_mode,
+        schema=vol.Schema({vol.Required("device_id"): str, vol.Required("mode"): str}),
     )
     hass.services.async_register(
         DOMAIN,

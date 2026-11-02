@@ -2,6 +2,7 @@
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 
 from .const import DOMAIN
@@ -13,7 +14,14 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(hass, entry, async_add_entities):
     c = entry.runtime_data
     selects = controls_for(c, "select")
-    entities = [EnergyLibSelect(c, d) for d in selects]
+    # Existing automations may address the key-based selector. Keep it for
+    # existing registrations; new devices only create the worded selector.
+    registry = er.async_get(hass)
+    legacy_exists = (
+        registry.async_get_entity_id("select", DOMAIN, f"{c.device.unique_id}_work_mode")
+        is not None
+    )
+    entities = [EnergyLibSelect(c, d) for d in selects if d.key != "work_mode" or legacy_exists]
     if work_mode := next((d for d in selects if d.key == "work_mode"), None):
         # HomeKit names each option after its raw value, so Apple Home needs a
         # selector whose options are already words in HA's system language.
@@ -53,11 +61,13 @@ class EnergyLibSelect(EnergyLibControl, SelectEntity):
 
 
 class EnergyLibHomeMode(EnergyLibSelect):
-    """The EMS mode for Apple Home and Siri: options are words, not keys.
+    """The EMS mode selector: options are words in HA's language, not keys.
 
-    Not a configuration entity, so HomeKit bridges that include the select
-    domain pick it up without listing entity IDs. Automations should keep
-    using the key-based EMS mode select.
+    HomeKit names each option after its value, so words make the modes usable
+    from Apple Home and Siri. Not a configuration entity, so HomeKit bridges
+    that include the select domain pick it up without listing entity IDs.
+    New automations use the energylib.set_ems_mode action and EMS mode sensor.
+    Existing key-based selectors remain available for older automations.
     """
 
     _attr_entity_category = None

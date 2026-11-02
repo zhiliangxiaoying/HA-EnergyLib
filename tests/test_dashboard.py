@@ -34,7 +34,11 @@ def fake_hass(devices, language, controls=True):
             and (controls or p.key not in ("remote_status", "remote_end_time"))
         ]
         if controls:
-            keys += [(c.platform, c.key) for c in CONTROLS + DRAFTS]
+            # The EMS mode has one worded selector (translation key home_mode).
+            keys += [
+                ("select", "home_mode") if c.key == "work_mode" else (c.platform, c.key)
+                for c in CONTROLS + DRAFTS
+            ]
             keys += [("button", key) for key in BUTTONS]
             keys += [("switch", "allow_remote_control")]
         for domain, key in keys:
@@ -104,7 +108,7 @@ class StrategyOutputTests(unittest.TestCase):
             {"name": "two", "flow": True, "hass": fake_hass(["dev1", "dev2"], "en")},
         ]
         remote_only = fake_hass(["dev1"], "en")
-        legacy_keys = {c.key for c in CONTROLS}
+        legacy_keys = {c.key for c in CONTROLS} | {"home_mode"}
         remote_only["entities"] = {
             key: value
             for key, value in remote_only["entities"].items()
@@ -157,7 +161,7 @@ class StrategyOutputTests(unittest.TestCase):
             if p.enabled
         }
         expected |= {
-            f"{c.platform}.dev1_renamed_{c.key}"
+            f"{c.platform}.dev1_renamed_{'home_mode' if c.key == 'work_mode' else c.key}"
             for c in CONTROLS + DRAFTS
             if c.key not in ("remote_power", "remote_control")
         }
@@ -226,7 +230,7 @@ class StrategyOutputTests(unittest.TestCase):
 
     def test_read_only_ems_modes_show_the_sensor_instead_of_unknown_selector(self):
         cards = self.out["full_zh"]["views"][0]["sections"][-1]["cards"]
-        selector = "select.dev1_renamed_work_mode"
+        selector = "select.dev1_renamed_home_mode"
         sensor = "sensor.dev1_renamed_work_mode"
         editable = next(c for c in cards if c.get("card", {}).get("entity") == selector)
         observed = next(c for c in cards if c.get("card", {}).get("entity") == sensor)

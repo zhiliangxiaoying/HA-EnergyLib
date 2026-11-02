@@ -129,7 +129,8 @@ function buildView(hass, device, t, multiple) {
   ]);
 
   const controls = [
-    ["select.work_mode", "mdi:cog-transfer", "indigo", [{ type: "select-options" }]],
+    // The one EMS selector: options are words in HA's language (also for Apple Home).
+    ["select.home_mode", "mdi:cog-transfer", "indigo", [{ type: "select-options" }]],
     ["number.backup_soc", "mdi:battery-lock", "teal", [{ type: "numeric-input", style: "slider" }]],
     ["number.min_soc", "mdi:battery-low", "orange", [{ type: "numeric-input", style: "slider" }]],
     ["number.export_limit", "mdi:transmission-tower-export", "cyan", [{ type: "numeric-input", style: "slider" }]],
@@ -146,7 +147,7 @@ function buildView(hass, device, t, multiple) {
       ? { icon_tap_action: { action: "toggle", confirmation: { text: t.powerConfirm } } }
       : { features });
     if (!card) return [];
-    if (key !== "select.work_mode" || !s("work_mode")) return [card];
+    if (key !== "select.home_mode" || !s("work_mode")) return [card];
     // Read-only modes are not selectable options. Display the authoritative
     // sensor while one is active instead of an "unknown" native selector.
     const readOnlyModes = ["dynamic_tariff", "remote", "voltage_regulation"];
@@ -160,7 +161,9 @@ function buildView(hass, device, t, multiple) {
     power_entity: ent["number.remote_target_power"], duration_entity: ent["number.remote_duration"],
     status_entity: s("remote_status"),
     control_status_entity: s("work_mode"),
-    work_mode_entity: ent["select.work_mode"] || s("work_mode"),
+    // State from the sensor (fixed keys); leaving TOU uses energylib.set_ems_mode.
+    work_mode_entity: s("work_mode"),
+    ems_entity: ent["select.home_mode"],
   };
   const statusCards = compact([
     heading(t.status, "mdi:information-outline"),
@@ -257,7 +260,7 @@ function buildView(hass, device, t, multiple) {
     {
       type: "logbook",
       hours_to_show: 24,
-      entities: compact([s("running_state"), s("alarm_status"), ent["select.work_mode"] || s("work_mode"), ent["switch.grid_charge"]]),
+      entities: compact([s("running_state"), s("alarm_status"), s("work_mode"), ent["switch.grid_charge"]]),
     },
   ]);
 
@@ -846,10 +849,10 @@ class EnergyLibDispatchCard extends HTMLElement {
     finally { this.busy = false; this.render(); }
   }
   async leaveTou() {
-    if (this.busy || !this.accessEnabled || !this.config.work_mode_entity?.startsWith("select.")) return;
+    if (this.busy || !this.accessEnabled || !this.config.ems_entity) return;
     this.busy = true; this.el("error").hidden = true; this.render();
     try {
-      await this._hass.callService("select", "select_option", { entity_id: this.config.work_mode_entity, option: "self_consumption" });
+      await this._hass.callService("energylib", "set_ems_mode", { device_id: this.config.device_id, mode: "self_consumption" });
     } catch (error) { this.showError(error); }
     finally { this.busy = false; this.render(); }
   }
@@ -905,7 +908,7 @@ class EnergyLibDispatchCard extends HTMLElement {
     text("note", running ? t.runningNote : t.note);
     const tou = states[this.config.work_mode_entity]?.state === "time_of_use";
     text("warning", !available ? t.unavailable : tou ? t.tou : "");
-    this.el("leave-tou").hidden = !tou || !this.config.work_mode_entity?.startsWith("select.");
+    this.el("leave-tou").hidden = !tou || !this.config.ems_entity;
     this.el("leave-tou").disabled = this.busy; text("leave-tou", t.leaveTou);
     let valid = false; try { this.snapshot(); valid = true; } catch { /* inline constraints; no command */ }
     this.el("start").disabled = this.busy || this.controlsDisabled || !this.accessEnabled || syncing || !available || !valid || tou;

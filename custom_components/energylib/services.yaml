@@ -33,6 +33,25 @@ set_remote_parameters:
           step: 1
           unit_of_measurement: min
           mode: box
+set_ems_mode:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    mode:
+      required: true
+      selector:
+        select:
+          translation_key: ems_mode
+          options:
+            - self_consumption
+            - time_of_use
+            - backup
+            - pv_charge_priority
+            - feed_in_priority
+            - peak_shaving
 stop_battery_power:
   fields:
     device_id:
