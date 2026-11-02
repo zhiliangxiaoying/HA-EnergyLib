@@ -113,11 +113,13 @@ to the device and read back to confirm.
 
 | EMS mode | In one sentence |
 |---|---|
-| Self-consumption | Everyday choice: PV powers the home first, then charges the battery, then exports |
-| Time-of-use | Charges or discharges in the periods from section 9; suits peak/off-peak tariffs |
-| Backup | Keeps the battery full (charging from the grid if needed); use before an outage |
-| PV charge priority | PV charges the battery first; the home runs from the grid; the grid never charges the battery |
-| Feed-in priority | PV powers the home first, exports the surplus, and charges the battery last |
+| Self consumption | Everyday choice: PV powers the home first, then charges the battery, then exports |
+| Scheduled | Charges or discharges in the periods from section 9; suits peak/off-peak tariffs |
+| Battery backup | Keeps the battery full (charging from the grid if needed); use before an outage |
+| Solar first | PV charges the battery first; the home runs from the grid; the grid never charges the battery |
+| Export first | PV powers the home first, exports the surplus, and charges the battery last |
+
+EMS mode and inverter power are bridged to Apple Home; you can tell Siri “Turn on Self consumption”. Devices upgraded from an earlier version also show “EMS mode (legacy)” under Configuration on the device page, kept for existing automations; once your automations use the “Set EMS mode” action, you can disable it.
 
 | Setting | What it does |
 |---|---|
@@ -125,7 +127,6 @@ to the device and read back to confirm.
 | Minimum SOC | Lowest battery level |
 | Grid charging | When off, the grid never charges the battery |
 | Inverter power | Tap the icon and confirm to switch on or off; when off, PV and the battery stop, and without the grid the home loses power |
-| EMS | The same setting as "EMS mode", with the modes as words, for Apple Home and Siri (for example "Turn on Self consumption") |
 | Export limit + Export limit enabled | Caps how much power is exported; set both |
 
 ## 9. Time-of-use schedule

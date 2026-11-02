@@ -122,8 +122,8 @@ integration converts them.
 
 | Entity | Purpose |
 |---|---|
-| EMS (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above); options use HA's language for Apple Home and Siri |
-| EMS mode (legacy select) | retained only for devices already registered with it, preserving existing automations and fixed option values |
+| EMS mode (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above); options use HA's language for Apple Home and Siri |
+| EMS mode (legacy) (select) | only on devices upgraded from earlier versions: the key-based selector, kept with its entity ID for existing automations |
 | Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
 | Grid charging (switch) | allow charging the battery from the grid |
 | Export limit (number) | maximum feed-in power, up to the inverter rating |

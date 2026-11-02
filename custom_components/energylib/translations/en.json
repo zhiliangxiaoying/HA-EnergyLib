@@ -320,6 +320,21 @@
       }
     },
     "select": {
+      "work_mode": {
+        "name": "EMS mode (legacy)",
+        "state": {
+          "self_consumption": "Self-consumption",
+          "time_of_use": "Time-of-use",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Backup",
+          "remote": "Remote control",
+          "pv_charge_priority": "PV charge priority",
+          "feed_in_priority": "Feed-in priority",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
+        }
+      },
       "home_mode": {
         "name": "EMS mode",
         "state": {

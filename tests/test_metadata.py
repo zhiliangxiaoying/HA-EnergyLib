@@ -42,6 +42,8 @@ class MetadataTests(unittest.TestCase):
                 # The EMS mode's one selector uses the worded home_mode translation.
                 key = "home_mode" if control.key == "work_mode" else control.key
                 self.assertIn(key, data["entity"][control.platform])
+            # Devices upgraded from earlier versions keep the key-based selector.
+            self.assertIn("work_mode", data["entity"]["select"])
             self.assertEqual(set(data["entity"]["button"]), set(BUTTONS))
             self.assertIn("command_failed", data["options"]["abort"])
         self.assertEqual(

@@ -246,7 +246,11 @@ async def check():
         registry.async_update_entity(old_id, disabled_by=None)
         assert await hass.config_entries.async_reload(lab.entry_id)
         await hass.async_block_till_done()
-        assert hass.states.get(old_id) is not None
+        legacy_state = hass.states.get(old_id)
+        assert legacy_state is not None
+        # Still named and still offering its fixed keys, apart from the worded one.
+        assert legacy_state.attributes["friendly_name"].endswith("EMS mode (legacy)"), legacy_state
+        assert "self_consumption" in legacy_state.attributes["options"], legacy_state
         entities = er.async_entries_for_config_entry(registry, lab.entry_id)
         controls = [e for e in entities if e.domain in ("number", "switch", "select")]
         assert len(controls) == 14

@@ -320,6 +320,21 @@
       }
     },
     "select": {
+      "work_mode": {
+        "name": "EMS模式（旧）",
+        "state": {
+          "self_consumption": "自发自用模式",
+          "time_of_use": "定时充放电模式",
+          "dynamic_tariff": "分时电价",
+          "backup": "备电模式",
+          "remote": "手动控制",
+          "pv_charge_priority": "光伏优先充电",
+          "feed_in_priority": "卖电优先模式",
+          "voltage_regulation": "调压",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      },
       "home_mode": {
         "name": "EMS模式",
         "state": {
