@@ -20,14 +20,18 @@ Pages and entity names follow Home Assistant's language (English and Simplified 
 
 ## Features
 
-- Automatic discovery via mDNS (`_energylib._tcp.local.`) or manual setup
+- Automatic discovery via mDNS (`_energylib._tcp.local.`) or manual setup; when it is the only
+  EnergyLIB inverter on the network, it is added by itself, read-only, and Repairs asks you to
+  confirm before controls are allowed
 - Identity check by reading the inverter serial number; no duplicate devices on address changes
 - 13 main measurements plus one alert status enabled by default (PV, battery, load and grid power; six cumulative
   energy counters; total SOC; running state; alert status; work mode)
 - More diagnostic sensors available but disabled by default (grid voltage/frequency,
   battery voltage/current/SOH, PV strings, temperatures, faults)
-- Controls (on by default for new devices, can be turned off): work mode, backup SOC, minimum SOC, grid charging,
+- Controls (on by default for new devices, can be turned off): EMS mode, backup SOC, minimum SOC, grid charging,
   export limit, inverter power on/off, remote charge/discharge with a finite lease
+- Apple Home and Siri through Home Assistant's HomeKit Bridge: inverter power and an EMS selector
+  with the modes as words, no entity IDs to list
 - Time-of-use editor (up to 6 charge + 6 discharge periods) and services for automations
 - Unavailable data is shown as *unavailable*, never as 0; diagnostics are redacted
 
@@ -56,6 +60,11 @@ directory and restart Home Assistant.
 
 ## Configuration
 
+- **Added automatically:** when the inverter is the only EnergyLIB device on the network and
+  none was added or removed before, it appears about a minute after installation, showing
+  readings only. To allow control, open *Settings → Repairs → Is this your inverter?* and
+  select **Submit**. Discovery alone never enables control. Once you remove an inverter, or when
+  several loggers announce themselves, discovery asks as below instead.
 - **Discovered device:** *Settings → Devices & services* shows **EnergyLIB** under
   *Discovered*. Select **Add**, check the address and confirm.
   Discovery requires the new logger TXT contract (`sn`, `model`, `fw`, `transport`,
@@ -75,6 +84,8 @@ inverter display before relying on them.
 
 ### EnergyLIB dashboard
 
+The **EnergyLIB** dashboard appears in the sidebar by itself once an inverter is added
+(unless you already added one from the strategy). To add it yourself:
 *Settings → Dashboards → Add dashboard → EnergyLIB* creates a ready-made page from your
 devices: energy flow, battery, today's and lifetime energy, a 7-day chart, status,
 time-of-use schedule and activity. Control tiles appear only after you enable
@@ -111,7 +122,8 @@ integration converts them.
 
 | Entity | Purpose |
 |---|---|
-| Work mode (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving |
+| EMS mode (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above) |
+| EMS (select) | the same setting with the modes as words in Home Assistant's language, for Apple Home and Siri ("Turn on Self consumption"); automations should use EMS mode |
 | Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
 | Grid charging (switch) | allow charging the battery from the grid |
 | Export limit (number) | maximum feed-in power, up to the inverter rating |
@@ -121,8 +133,19 @@ integration converts them.
 
 Draft edits do not write the inverter or change a running task. Drafts persist; tasks never resume after HA restart. See the [remote operation guide](docs/REMOTE_DISPATCH.md).
 
+Remote charge/discharge has its own **Allow remote charge/discharge** switch, default off. Enabling only unlocks the combined overview card; Start executes the task. The native permission switch, parameter inputs and action buttons are disabled by default. Older sliders and switches were removed from the UI; the public services stay compatible.
+
+The work-mode UI is named **EMS mode**. Its selector is first in device Configuration and overview controls; entity IDs and mode values are unchanged.
+
 Remote control writes a heartbeat; if Home Assistant stops, the inverter falls back to
 self-consumption after the timeout.
+
+### Apple Home and Siri
+
+Inverter power and EMS are main controls, so a HomeKit Bridge that includes the `switch` and
+`select` domains exposes them for any inverter without listing entity IDs. Other controls are
+configuration entities, which HomeKit leaves out unless listed one by one. Put the inverter in
+its own room in Apple Home so "turn off everything" does not switch it off.
 
 ### Time-of-use schedule
 
@@ -187,7 +210,3 @@ belong to their respective owners.
 [Apache License 2.0](LICENSE) — Copyright 2026 zhiliangxiaoying. See [NOTICE](NOTICE).
 The vendor protocol document is not included; the license does not cover brand images
 or trademarks.
-
-Remote charge/discharge has its own **Allow remote charge/discharge** switch, default off. Enabling only unlocks the combined overview card; Start executes the task. The native permission switch, parameter inputs and action buttons are disabled by default. See [Remote operation](docs/REMOTE_DISPATCH.md).
-
-The work-mode UI is named **EMS mode**. Its selector is first in device Configuration and overview controls; entity IDs and mode values are unchanged.
