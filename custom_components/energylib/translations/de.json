@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "EnergyLIB verbinden",
+        "description": "Geben Sie die Modbus-TCP-Adresse des EnergyLIB-Datenloggers ein. Steuerungen sind für neue Geräte aktiviert und können in den Integrationsoptionen deaktiviert werden.",
+        "data": {
+          "host": "IP-Adresse oder Hostname",
+          "port": "Modbus-TCP-Port",
+          "unit_id": "Modbus-Geräte-ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "EnergyLIB-Gerät bestätigen",
+        "description": "**Logger-SN:** {logger_sn}\n\n**Logger-Modell:** {logger_model}\n\n**Logger-Firmware:** {logger_firmware}\n\nDiese Angaben werden vom Datenlogger gesendet. Die Seriennummer des Wechselrichters wird beim Verbinden separat geprüft. Bestätigen Sie unten die Verbindungseinstellungen. Steuerungen sind standardmäßig aktiviert und können in den Integrationsoptionen deaktiviert werden.",
+        "data": {
+          "host": "IP-Adresse oder Hostname",
+          "port": "Modbus-TCP-Port",
+          "unit_id": "Modbus-Geräte-ID"
+        }
+      },
+      "aecc_confirm": {
+        "title": "AECC-Gerät hinzufügen",
+        "description": "**Seriennummer:** {serial}\n\n**Adresse:** {host}:{port}\n\nEin AECC-Gerät im lokalen Netz. EnergyLIB liest Leistung und Batterieladung; es wird nichts in das Gerät geschrieben. Die Leistungsrichtungen sind an einem AECC-Gerät noch nicht geprüft."
+      }
+    },
+    "error": {
+      "cannot_connect": "Gerät kann nicht gelesen werden. Prüfen Sie Adresse, Port und Geräte-ID.",
+      "unsupported_device": "Das Gerät entspricht nicht diesem Profil.",
+      "identity_mismatch": "Geräteidentität stimmt nicht mit der Erkennung überein."
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert.",
+      "already_in_progress": "Konfiguration läuft bereits.",
+      "identity_mismatch": "Geräteidentität stimmt nicht mit der Erkennung überein.",
+      "unsupported_discovery": "Nicht unterstütztes Übertragungs-, Authentifizierungs- oder Erkennungsprotokoll."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB-Einstellungen",
+        "menu_options": {
+          "control": "Steuerungszugriff",
+          "tou": "Zeitplan (Time-of-Use)"
+        }
+      },
+      "control": {
+        "title": "Steuerungszugriff",
+        "description": "Bei neu hinzugefügten Geräten aktiviert. Unterstützte Steuerungen des Wechselrichters (EMS-Modus, SOC, Netzladen, Einspeisebegrenzung) werden angezeigt; das Ein- oder Ausschalten ändert von sich aus keine Geräteeinstellung.",
+        "data": {
+          "allow_control": "Steuerung erlauben"
+        }
+      },
+      "tou": {
+        "title": "Zeitplan-Entwurf",
+        "description": "Änderungen bleiben bis zum Speichern im Entwurf.",
+        "menu_options": {
+          "add": "Zeitfenster hinzufügen",
+          "edit": "Zeitfenster bearbeiten",
+          "delete": "Zeitfenster löschen",
+          "settings": "Wochentage und Modus außerhalb der Zeitfenster",
+          "save": "Vorschau und Speichern"
+        }
+      },
+      "settings": {
+        "title": "Zeitplaneinstellungen",
+        "data": {
+          "weekdays": "Wochentage",
+          "outside_mode": "Modus außerhalb der Zeitfenster"
+        }
+      },
+      "save": {
+        "title": "Zeitplan speichern",
+        "description": "Entwurf:\n{preview}\nDas Speichern über mehrere Rahmen ist nicht atomar. Ein Fehler kann einen unvollständigen Plan hinterlassen.",
+        "data": {
+          "activate": "Nach dem Speichern in den Zeitplanmodus wechseln"
+        }
+      },
+      "add": {
+        "title": "Zeitfenster hinzufügen",
+        "data": {
+          "type": "Typ",
+          "start": "Beginn",
+          "end": "Ende",
+          "power": "Leistung (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Zeitfenster bearbeiten",
+        "data": {
+          "type": "Typ",
+          "start": "Beginn",
+          "end": "Ende",
+          "power": "Leistung (kW)"
+        }
+      },
+      "edit": {
+        "title": "Zeitfenster auswählen",
+        "data": {
+          "period": "Zeitfenster"
+        }
+      },
+      "delete": {
+        "title": "Zeitfenster auswählen",
+        "data": {
+          "period": "Zeitfenster"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "Dieses Gerät stellt die Steuerregister nicht bereit.",
+      "cannot_connect": "Gerät kann nicht gelesen werden. Prüfen Sie Adresse, Port und Geräte-ID.",
+      "invalid_schedule": "Ungültige Zeitfenster, Überschneidung, Wochentage oder Leistung.",
+      "command_failed": "Speichern fehlgeschlagen oder nur teilweise angewendet. Prüfen Sie vor einem erneuten Versuch den tatsächlichen Gerätezustand."
+    },
+    "abort": {
+      "control_unverified": "Dieses Gerät stellt die Steuerregister nicht bereit.",
+      "cannot_connect": "Gerät kann nicht gelesen werden. Prüfen Sie Adresse, Port und Geräte-ID.",
+      "command_failed": "Speichern fehlgeschlagen oder nur teilweise angewendet. Öffnen Sie die Optionen erneut, um den aktuellen Geräteplan vor einem neuen Versuch einzulesen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Batterieladestand"
+      },
+      "battery_total_soc": {
+        "name": "Batterie-Ladezustand (SOC)"
+      },
+      "grid_import_energy": {
+        "name": "Netzbezugsenergie"
+      },
+      "grid_export_energy": {
+        "name": "Netzeinspeiseenergie"
+      },
+      "solar_energy": {
+        "name": "Solarenergie"
+      },
+      "battery_charge_energy": {
+        "name": "Batterieladeenergie"
+      },
+      "battery_discharge_energy": {
+        "name": "Batterieentladeenergie"
+      },
+      "load_energy": {
+        "name": "Verbrauchsenergie"
+      },
+      "solar_power": {
+        "name": "Solarleistung"
+      },
+      "battery_power": {
+        "name": "Batterieleistung"
+      },
+      "load_power": {
+        "name": "Hauslastleistung"
+      },
+      "grid_power": {
+        "name": "Netzleistung"
+      },
+      "running_state": {
+        "name": "Betriebszustand",
+        "state": {
+          "standby": "Standby",
+          "ready": "Bereit",
+          "off_grid": "Inselbetrieb",
+          "on_grid": "Netzparallel",
+          "other": "Sonstiges"
+        }
+      },
+      "active_alarms": {
+        "name": "Aktive Alarme"
+      },
+      "work_mode": {
+        "name": "EMS-Modus",
+        "state": {
+          "self_consumption": "Eigenverbrauch",
+          "time_of_use": "Zeitplan",
+          "dynamic_tariff": "Dynamischer Tarif",
+          "backup": "Notstromreserve",
+          "remote": "Fernsteuerung",
+          "pv_charge_priority": "PV-Ladung zuerst",
+          "feed_in_priority": "Einspeisung zuerst",
+          "voltage_regulation": "Spannungshaltung",
+          "peak_shaving": "Lastspitzenkappung",
+          "other": "Sonstiges"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Netzspannung L1"
+      },
+      "grid_voltage_b": {
+        "name": "Netzspannung L2"
+      },
+      "grid_voltage_c": {
+        "name": "Netzspannung L3"
+      },
+      "grid_frequency": {
+        "name": "Netzfrequenz"
+      },
+      "battery_voltage": {
+        "name": "Batteriespannung"
+      },
+      "battery_current": {
+        "name": "Batteriestrom"
+      },
+      "battery_soh": {
+        "name": "Batteriezustand (SOH)"
+      },
+      "battery_capacity": {
+        "name": "Installierte Batteriekapazität"
+      },
+      "battery_remaining_energy": {
+        "name": "Verbleibende Batterieenergie"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Maximale Batteriezellspannung"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Minimale Batteriezellspannung"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Maximale Batteriezelltemperatur"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Minimale Batteriezelltemperatur"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS-Ladestromgrenze"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS-Entladestromgrenze"
+      },
+      "battery_2_soc": {
+        "name": "Batterie 2 Ladezustand"
+      },
+      "battery_2_power": {
+        "name": "Batterie 2 Leistung"
+      },
+      "battery_2_voltage": {
+        "name": "Batterie 2 Spannung"
+      },
+      "battery_2_current": {
+        "name": "Batterie 2 Strom"
+      },
+      "pv1_power": {
+        "name": "PV1-Leistung"
+      },
+      "pv2_power": {
+        "name": "PV2-Leistung"
+      },
+      "pv3_power": {
+        "name": "PV3-Leistung"
+      },
+      "pv4_power": {
+        "name": "PV4-Leistung"
+      },
+      "backup_load_power": {
+        "name": "Notstromlast"
+      },
+      "generator_power": {
+        "name": "Generatorleistung"
+      },
+      "ac_couple_power": {
+        "name": "AC-Kopplungsleistung"
+      },
+      "inverter_temperature": {
+        "name": "Wechselrichtertemperatur"
+      },
+      "tou_schedule": {
+        "name": "Zeitplan (Time-of-Use)",
+        "state": {
+          "charge": "Ladezeitfenster",
+          "discharge": "Entladezeitfenster",
+          "outside_period": "Außerhalb der Zeitfenster",
+          "expired": "Gültigkeit abgelaufen",
+          "inactive": "Inaktiv",
+          "remote": "Fernsteuerung"
+        }
+      },
+      "fault_count": {
+        "name": "Aktive Fehler"
+      },
+      "warning_count": {
+        "name": "Aktive Warnungen"
+      },
+      "alarm_status": {
+        "name": "Gerätemeldungen",
+        "state": {
+          "normal": "Normal",
+          "abnormal": "Auffällig",
+          "unrecognized": "Unbekannter Alarm",
+          "incomplete": "Unvollständige Daten",
+          "offline": "Kommunikation nicht verfügbar"
+        }
+      },
+      "remote_status": {
+        "name": "Batteriebetrieb",
+        "state": {
+          "idle": "Leerlauf",
+          "charging": "Lädt",
+          "discharging": "Entlädt",
+          "holding": "Hält Nulllast",
+          "stopped": "Gestoppt",
+          "completed": "Abgeschlossen",
+          "unconfirmed": "Ausführung unbestätigt"
+        }
+      },
+      "remote_end_time": {
+        "name": "Voraussichtliches Ende der Fernladung/-entladung"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Fehler liegt vor"
+      },
+      "any_warning": {
+        "name": "Warnung liegt vor"
+      },
+      "meter_online": {
+        "name": "Zähler online"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS-Modus (Legacy)",
+        "state": {
+          "self_consumption": "Eigenverbrauch",
+          "time_of_use": "Zeitplan",
+          "dynamic_tariff": "Dynamischer Tarif",
+          "backup": "Notstromreserve",
+          "remote": "Fernsteuerung",
+          "pv_charge_priority": "PV-Ladung zuerst",
+          "feed_in_priority": "Einspeisung zuerst",
+          "voltage_regulation": "Spannungshaltung",
+          "peak_shaving": "Lastspitzenkappung",
+          "other": "Sonstiges"
+        }
+      },
+      "home_mode": {
+        "name": "EMS-Modus",
+        "state": {
+          "self_consumption": "Eigenverbrauch",
+          "time_of_use": "Zeitplan",
+          "dynamic_tariff": "Dynamischer Tarif",
+          "backup": "Notstromreserve",
+          "remote": "Manuell",
+          "pv_charge_priority": "Solar zuerst",
+          "feed_in_priority": "Einspeisung zuerst",
+          "voltage_regulation": "Spannungshaltung",
+          "peak_shaving": "Lastspitzenkappung",
+          "other": "Sonstiges"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "Notstrom-SOC"
+      },
+      "min_soc": {
+        "name": "Minimaler SOC"
+      },
+      "export_limit": {
+        "name": "Einspeisebegrenzung"
+      },
+      "max_soc": {
+        "name": "Maximaler SOC"
+      },
+      "max_charge_current": {
+        "name": "Maximaler Ladestrom"
+      },
+      "max_discharge_current": {
+        "name": "Maximaler Entladestrom"
+      },
+      "remote_power": {
+        "name": "Fernsteuerleistung (Legacy, sofort, 5 Minuten)"
+      },
+      "remote_target_power": {
+        "name": "Batterieleistung"
+      },
+      "remote_duration": {
+        "name": "Dauer"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Netzladen"
+      },
+      "export_limit_enable": {
+        "name": "Einspeisebegrenzung aktiviert"
+      },
+      "inverter_power": {
+        "name": "Wechselrichter"
+      },
+      "remote_control": {
+        "name": "Fernsteuerung (Legacy, sofort, 5 Minuten)"
+      },
+      "allow_remote_control": {
+        "name": "Fernladen/-entladen erlauben"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Laden starten"
+      },
+      "start_discharge": {
+        "name": "Entladen starten"
+      },
+      "stop_remote": {
+        "name": "Sofort stoppen"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Batterieleistung einstellen",
+      "description": "Erfordert Steuerungszugriff in der Integration sowie aktiviertes Fernladen/-entladen. Das bloße Aktivieren der Berechtigung startet noch keinen Vorgang.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät"
+        },
+        "power_kw": {
+          "name": "Leistung (kW), negativ = Laden"
+        },
+        "duration": {
+          "name": "Dauer (Sekunden), erforderlich"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Zeitplan ersetzen",
+      "description": "Erfordert aktivierten Steuerungszugriff in den Integrationsoptionen und ein Gerät, das die Steuerregister bereitstellt.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät"
+        },
+        "periods": {
+          "name": "Zeitfenster"
+        },
+        "weekdays": {
+          "name": "Wochentage"
+        },
+        "outside_mode": {
+          "name": "Modus außerhalb der Zeitfenster"
+        },
+        "activate": {
+          "name": "Nach Überprüfung aktivieren"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Zeitplan löschen",
+      "description": "Erfordert aktivierten Steuerungszugriff in den Integrationsoptionen und ein Gerät, das die Steuerregister bereitstellt.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Batterie-Fernsteuerung stoppen",
+      "description": "Fernsteuerung sofort beenden und Rücklesewert prüfen.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "EnergyLIB-Gerät."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Lade-/Entladeparameter einstellen",
+      "description": "Leistung und volle Minuten lokal speichern, ohne einen Vorgang zu starten oder auf das Gerät zu schreiben.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät"
+        },
+        "power_kw": {
+          "name": "Leistung"
+        },
+        "duration_minutes": {
+          "name": "Dauer (Minuten)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Berechtigung für Fernladen/-entladen einstellen",
+      "description": "Das Aktivieren schaltet nur das Bedienfeld frei; beim Deaktivieren wird zuerst das Beenden eines laufenden Fernsteuervorgangs bestätigt.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät"
+        },
+        "enabled": {
+          "name": "Fernladen/-entladen erlauben"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "EMS-Modus einstellen",
+      "description": "Wechselt den EMS-Modus über seinen festen Schlüssel, unabhängig von der Systemsprache. Erfordert aktivierte Steuerung.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "EnergyLIB-Gerät."
+        },
+        "mode": {
+          "name": "EMS-Modus",
+          "description": "Eigenverbrauch, Zeitplan, Notstromreserve, PV-Ladung zuerst, Einspeisung zuerst oder Lastspitzenkappung (sofern unterstützt)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Laden",
+        "discharge": "Entladen"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Montag",
+        "tue": "Dienstag",
+        "wed": "Mittwoch",
+        "thu": "Donnerstag",
+        "fri": "Freitag",
+        "sat": "Samstag",
+        "sun": "Sonntag"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Eigenverbrauch",
+        "backup": "Notstromreserve",
+        "pv_charge_priority": "PV-Ladung zuerst",
+        "feed_in_priority": "Einspeisung zuerst"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Eigenverbrauch",
+        "time_of_use": "Zeitplan",
+        "backup": "Notstromreserve",
+        "pv_charge_priority": "PV-Ladung zuerst",
+        "feed_in_priority": "Einspeisung zuerst",
+        "peak_shaving": "Lastspitzenkappung"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Automatisch hinzugefügten EnergyLIB-Wechselrichter bestätigen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Ist dies Ihr Wechselrichter?",
+            "description": "Der EnergyLIB-Wechselrichter {serial} unter {host} wurde automatisch hinzugefügt. Bestätigen Sie, dass es sich um Ihren Wechselrichter handelt, um die Steuerung freizugeben: EMS-Modus, Ein-/Ausschalten und Batterieeinstellungen. Wählen Sie Absenden, um die Steuerung zu erlauben."
+          }
+        },
+        "abort": {
+          "entry_removed": "Dieser Wechselrichter wurde entfernt."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Wurde ein EnergyLIB-Wechselrichter ersetzt?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{old} durch {new} ersetzen?",
+            "description": "{old} ist offline und ein neuer EnergyLIB-Wechselrichter, {new}, wurde gefunden. Wenn Sie den Wechselrichter ersetzt haben, wählen Sie Absenden: Der neue übernimmt Verlauf, Energie-Dashboard, Raum, Automationen und Steuerungseinstellung des alten, und der alte wird entfernt. Ist {new} ein zusätzlicher Wechselrichter, ignorieren Sie dies und fügen Sie ihn stattdessen unter den gefundenen Geräten hinzu.",
+            "data": {
+              "old": "Ersetzter Wechselrichter"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Dieser Wechselrichter wurde entfernt.",
+          "already_added": "Der neue Wechselrichter wurde bereits hinzugefügt.",
+          "old_online": "Der alte Wechselrichter ist wieder online, es wurde nichts ersetzt."
+        }
+      }
+    }
+  }
+}

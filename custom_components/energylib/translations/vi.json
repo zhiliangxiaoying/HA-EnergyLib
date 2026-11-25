@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Kết nối EnergyLIB",
+        "description": "Nhập địa chỉ Modbus TCP của bộ ghi dữ liệu EnergyLIB. Thiết bị mới được bật điều khiển và có thể tắt trong tùy chọn tích hợp.",
+        "data": {
+          "host": "Địa chỉ IP hoặc tên máy chủ",
+          "port": "Cổng Modbus TCP",
+          "unit_id": "ID đơn vị Modbus"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Xác nhận thiết bị EnergyLIB",
+        "description": "**SN bộ ghi:** {logger_sn}\n\n**Mẫu bộ ghi:** {logger_model}\n\n**Firmware bộ ghi:** {logger_firmware}\n\nCác thông tin này do bộ ghi phát ra. SN biến tần được kiểm tra riêng khi kết nối. Hãy xác nhận cài đặt kết nối bên dưới. Điều khiển được bật mặc định và có thể tắt trong tùy chọn tích hợp.",
+        "data": {
+          "host": "Địa chỉ IP hoặc tên máy chủ",
+          "port": "Cổng Modbus TCP",
+          "unit_id": "ID đơn vị Modbus"
+        }
+      },
+      "aecc_confirm": {
+        "title": "Thêm thiết bị AECC",
+        "description": "**Số sê-ri:** {serial}\n\n**Địa chỉ:** {host}:{port}\n\nMột thiết bị AECC trong mạng nội bộ. EnergyLIB chỉ đọc công suất và mức pin, không ghi gì vào thiết bị. Chiều công suất chưa được kiểm tra trên thiết bị AECC thật."
+      }
+    },
+    "error": {
+      "cannot_connect": "Không đọc được thiết bị. Kiểm tra địa chỉ, cổng và ID đơn vị.",
+      "unsupported_device": "Thiết bị không khớp với cấu hình này.",
+      "identity_mismatch": "Danh tính thiết bị không khớp với thông tin phát hiện."
+    },
+    "abort": {
+      "already_configured": "Thiết bị đã được cấu hình.",
+      "already_in_progress": "Đang cấu hình rồi.",
+      "identity_mismatch": "Danh tính thiết bị không khớp với thông tin phát hiện.",
+      "unsupported_discovery": "Không hỗ trợ kiểu truyền, xác thực hoặc phát hiện này."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cài đặt EnergyLIB",
+        "menu_options": {
+          "control": "Quyền điều khiển",
+          "tou": "Lịch giá điện theo giờ"
+        }
+      },
+      "control": {
+        "title": "Quyền điều khiển",
+        "description": "Bật cho thiết bị mới. Hiển thị các điều khiển biến tần hỗ trợ (chế độ EMS, SOC, sạc từ lưới, giới hạn bán lên lưới); bật hay tắt tự nó không đổi cài đặt thiết bị.",
+        "data": {
+          "allow_control": "Cho phép điều khiển"
+        }
+      },
+      "tou": {
+        "title": "Bản nháp lịch theo giờ",
+        "description": "Thay đổi nằm trong bản nháp cho đến khi Lưu.",
+        "menu_options": {
+          "add": "Thêm khung giờ",
+          "edit": "Sửa khung giờ",
+          "delete": "Xóa khung giờ",
+          "settings": "Ngày và chế độ ngoài khung giờ",
+          "save": "Xem trước và lưu"
+        }
+      },
+      "settings": {
+        "title": "Cài đặt lịch",
+        "data": {
+          "weekdays": "Các ngày trong tuần",
+          "outside_mode": "Chế độ ngoài khung giờ"
+        }
+      },
+      "save": {
+        "title": "Lưu lịch",
+        "description": "Bản nháp:\n{preview}\nLưu nhiều khung không mang tính nguyên tử. Lỗi có thể để lại lịch dở dang.",
+        "data": {
+          "activate": "Chuyển sang giá theo giờ sau khi lưu"
+        }
+      },
+      "add": {
+        "title": "Thêm khung giờ",
+        "data": {
+          "type": "Loại",
+          "start": "Bắt đầu",
+          "end": "Kết thúc",
+          "power": "Công suất (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Sửa khung giờ",
+        "data": {
+          "type": "Loại",
+          "start": "Bắt đầu",
+          "end": "Kết thúc",
+          "power": "Công suất (kW)"
+        }
+      },
+      "edit": {
+        "title": "Chọn khung giờ",
+        "data": {
+          "period": "Khung giờ"
+        }
+      },
+      "delete": {
+        "title": "Chọn khung giờ",
+        "data": {
+          "period": "Khung giờ"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "Thiết bị này không cung cấp thanh ghi điều khiển.",
+      "cannot_connect": "Không đọc được thiết bị. Kiểm tra địa chỉ, cổng và ID đơn vị.",
+      "invalid_schedule": "Khung giờ, chồng lấn, ngày hoặc công suất không hợp lệ.",
+      "command_failed": "Lưu thất bại hoặc chỉ áp dụng một phần. Hãy kiểm tra trạng thái thực của thiết bị trước khi thử lại."
+    },
+    "abort": {
+      "control_unverified": "Thiết bị này không cung cấp thanh ghi điều khiển.",
+      "cannot_connect": "Không đọc được thiết bị. Kiểm tra địa chỉ, cổng và ID đơn vị.",
+      "command_failed": "Lưu thất bại hoặc chỉ áp dụng một phần. Hãy mở lại tùy chọn để đọc lịch thực của thiết bị trước khi thử lại."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Mức sạc pin"
+      },
+      "battery_total_soc": {
+        "name": "Trạng thái sạc pin"
+      },
+      "grid_import_energy": {
+        "name": "Điện năng mua từ lưới"
+      },
+      "grid_export_energy": {
+        "name": "Điện năng bán lên lưới"
+      },
+      "solar_energy": {
+        "name": "Điện năng mặt trời"
+      },
+      "battery_charge_energy": {
+        "name": "Điện năng sạc pin"
+      },
+      "battery_discharge_energy": {
+        "name": "Điện năng xả pin"
+      },
+      "load_energy": {
+        "name": "Điện năng tiêu thụ"
+      },
+      "solar_power": {
+        "name": "Công suất mặt trời"
+      },
+      "battery_power": {
+        "name": "Công suất pin"
+      },
+      "load_power": {
+        "name": "Công suất tải"
+      },
+      "grid_power": {
+        "name": "Công suất lưới"
+      },
+      "running_state": {
+        "name": "Trạng thái vận hành",
+        "state": {
+          "standby": "Chờ",
+          "ready": "Sẵn sàng",
+          "off_grid": "Độc lập lưới",
+          "on_grid": "Hòa lưới",
+          "other": "Khác"
+        }
+      },
+      "active_alarms": {
+        "name": "Cảnh báo đang có"
+      },
+      "work_mode": {
+        "name": "Chế độ EMS",
+        "state": {
+          "self_consumption": "Tự dùng",
+          "time_of_use": "Giá điện theo giờ",
+          "dynamic_tariff": "Giá điện động",
+          "backup": "Dự phòng",
+          "remote": "Điều khiển từ xa",
+          "pv_charge_priority": "Ưu tiên sạc từ mặt trời",
+          "feed_in_priority": "Ưu tiên bán lên lưới",
+          "voltage_regulation": "Điều chỉnh điện áp",
+          "peak_shaving": "Cắt đỉnh",
+          "other": "Khác"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Điện áp lưới pha A"
+      },
+      "grid_voltage_b": {
+        "name": "Điện áp lưới pha B"
+      },
+      "grid_voltage_c": {
+        "name": "Điện áp lưới pha C"
+      },
+      "grid_frequency": {
+        "name": "Tần số lưới"
+      },
+      "battery_voltage": {
+        "name": "Điện áp pin"
+      },
+      "battery_current": {
+        "name": "Dòng điện pin"
+      },
+      "battery_soh": {
+        "name": "Tình trạng pin"
+      },
+      "battery_capacity": {
+        "name": "Dung lượng pin lắp đặt"
+      },
+      "battery_remaining_energy": {
+        "name": "Năng lượng pin còn lại"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Điện áp cell cao nhất"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Điện áp cell thấp nhất"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Nhiệt độ cell cao nhất"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Nhiệt độ cell thấp nhất"
+      },
+      "bms_charge_current_limit": {
+        "name": "Giới hạn dòng sạc BMS"
+      },
+      "bms_discharge_current_limit": {
+        "name": "Giới hạn dòng xả BMS"
+      },
+      "battery_2_soc": {
+        "name": "Mức sạc pin 2"
+      },
+      "battery_2_power": {
+        "name": "Công suất pin 2"
+      },
+      "battery_2_voltage": {
+        "name": "Điện áp pin 2"
+      },
+      "battery_2_current": {
+        "name": "Dòng điện pin 2"
+      },
+      "pv1_power": {
+        "name": "Công suất PV1"
+      },
+      "pv2_power": {
+        "name": "Công suất PV2"
+      },
+      "pv3_power": {
+        "name": "Công suất PV3"
+      },
+      "pv4_power": {
+        "name": "Công suất PV4"
+      },
+      "backup_load_power": {
+        "name": "Công suất tải dự phòng"
+      },
+      "generator_power": {
+        "name": "Công suất máy phát"
+      },
+      "ac_couple_power": {
+        "name": "Công suất ghép AC"
+      },
+      "inverter_temperature": {
+        "name": "Nhiệt độ biến tần"
+      },
+      "tou_schedule": {
+        "name": "Lịch giá điện theo giờ",
+        "state": {
+          "charge": "Khung giờ sạc",
+          "discharge": "Khung giờ xả",
+          "outside_period": "Ngoài khung giờ",
+          "expired": "Đã hết hiệu lực",
+          "inactive": "Không hoạt động",
+          "remote": "Điều khiển từ xa"
+        }
+      },
+      "fault_count": {
+        "name": "Lỗi đang có"
+      },
+      "warning_count": {
+        "name": "Cảnh báo đang có"
+      },
+      "alarm_status": {
+        "name": "Cảnh báo thiết bị",
+        "state": {
+          "normal": "Bình thường",
+          "abnormal": "Bất thường",
+          "unrecognized": "Cảnh báo không nhận dạng",
+          "incomplete": "Dữ liệu chưa đủ",
+          "offline": "Mất liên lạc"
+        }
+      },
+      "remote_status": {
+        "name": "Vận hành pin",
+        "state": {
+          "idle": "Rảnh",
+          "charging": "Đang sạc",
+          "discharging": "Đang xả",
+          "holding": "Giữ công suất bằng 0",
+          "stopped": "Đã dừng",
+          "completed": "Đã xong",
+          "unconfirmed": "Chưa xác nhận thực hiện"
+        }
+      },
+      "remote_end_time": {
+        "name": "Thời điểm dự kiến kết thúc sạc/xả từ xa"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Có lỗi"
+      },
+      "any_warning": {
+        "name": "Có cảnh báo"
+      },
+      "meter_online": {
+        "name": "Đồng hồ trực tuyến"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Chế độ EMS (cũ)",
+        "state": {
+          "self_consumption": "Tự dùng",
+          "time_of_use": "Giá điện theo giờ",
+          "dynamic_tariff": "Giá điện động",
+          "backup": "Dự phòng",
+          "remote": "Điều khiển từ xa",
+          "pv_charge_priority": "Ưu tiên sạc từ mặt trời",
+          "feed_in_priority": "Ưu tiên bán lên lưới",
+          "voltage_regulation": "Điều chỉnh điện áp",
+          "peak_shaving": "Cắt đỉnh",
+          "other": "Khác"
+        }
+      },
+      "home_mode": {
+        "name": "Chế độ EMS",
+        "state": {
+          "self_consumption": "Tự dùng",
+          "time_of_use": "Theo lịch",
+          "dynamic_tariff": "Giá điện động",
+          "backup": "Dự phòng bằng pin",
+          "remote": "Thủ công",
+          "pv_charge_priority": "Ưu tiên mặt trời",
+          "feed_in_priority": "Ưu tiên bán điện",
+          "voltage_regulation": "Điều chỉnh điện áp",
+          "peak_shaving": "Cắt đỉnh",
+          "other": "Khác"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "SOC dự phòng"
+      },
+      "min_soc": {
+        "name": "SOC tối thiểu"
+      },
+      "export_limit": {
+        "name": "Giới hạn bán lên lưới"
+      },
+      "max_soc": {
+        "name": "SOC tối đa"
+      },
+      "max_charge_current": {
+        "name": "Dòng sạc tối đa"
+      },
+      "max_discharge_current": {
+        "name": "Dòng xả tối đa"
+      },
+      "remote_power": {
+        "name": "Công suất từ xa kiểu cũ (ngay lập tức, 5 phút)"
+      },
+      "remote_target_power": {
+        "name": "Công suất pin"
+      },
+      "remote_duration": {
+        "name": "Thời lượng"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Sạc từ lưới"
+      },
+      "export_limit_enable": {
+        "name": "Bật giới hạn bán lên lưới"
+      },
+      "inverter_power": {
+        "name": "Nguồn biến tần"
+      },
+      "remote_control": {
+        "name": "Điều khiển từ xa kiểu cũ (ngay lập tức, 5 phút)"
+      },
+      "allow_remote_control": {
+        "name": "Cho phép sạc/xả từ xa"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Bắt đầu sạc"
+      },
+      "start_discharge": {
+        "name": "Bắt đầu xả"
+      },
+      "stop_remote": {
+        "name": "Dừng ngay"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Đặt công suất pin",
+      "description": "Cần quyền điều khiển của tích hợp và “Cho phép sạc/xả từ xa”. Chỉ bật quyền thì không bao giờ tự chạy tác vụ.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị"
+        },
+        "power_kw": {
+          "name": "Công suất (kW), âm là sạc"
+        },
+        "duration": {
+          "name": "Thời lượng (giây), bắt buộc"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Thay lịch giá theo giờ",
+      "description": "Cần “cho phép điều khiển” trong tùy chọn tích hợp và thiết bị có thanh ghi điều khiển.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị"
+        },
+        "periods": {
+          "name": "Các khung giờ"
+        },
+        "weekdays": {
+          "name": "Các ngày trong tuần"
+        },
+        "outside_mode": {
+          "name": "Chế độ ngoài khung giờ"
+        },
+        "activate": {
+          "name": "Bật sau khi kiểm tra"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Xóa lịch giá theo giờ",
+      "description": "Cần “cho phép điều khiển” trong tùy chọn tích hợp và thiết bị có thanh ghi điều khiển.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Dừng điều phối pin từ xa",
+      "description": "Kết thúc điều khiển từ xa ngay và đọc lại để kiểm tra.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị",
+          "description": "Thiết bị EnergyLIB."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Đặt thông số sạc/xả",
+      "description": "Lưu công suất và số phút nguyên tại chỗ, không chạy tác vụ hay ghi vào thiết bị.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị"
+        },
+        "power_kw": {
+          "name": "Công suất"
+        },
+        "duration_minutes": {
+          "name": "Thời lượng (phút)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Đặt quyền sạc/xả từ xa",
+      "description": "Bật chỉ mở khóa bảng điều khiển; tắt sẽ xác nhận thoát tác vụ từ xa đang chạy trước.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị"
+        },
+        "enabled": {
+          "name": "Cho phép sạc/xả từ xa"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "Đặt chế độ EMS",
+      "description": "Chuyển chế độ EMS theo mã cố định, không phụ thuộc ngôn ngữ. Cần Cho phép điều khiển.",
+      "fields": {
+        "device_id": {
+          "name": "Thiết bị",
+          "description": "Thiết bị EnergyLIB."
+        },
+        "mode": {
+          "name": "Chế độ EMS",
+          "description": "Tự dùng, giá theo giờ, dự phòng, ưu tiên sạc từ mặt trời, ưu tiên bán lên lưới hoặc cắt đỉnh (tùy dòng máy)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Sạc",
+        "discharge": "Xả"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Thứ Hai",
+        "tue": "Thứ Ba",
+        "wed": "Thứ Tư",
+        "thu": "Thứ Năm",
+        "fri": "Thứ Sáu",
+        "sat": "Thứ Bảy",
+        "sun": "Chủ Nhật"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Tự dùng",
+        "backup": "Dự phòng",
+        "pv_charge_priority": "Ưu tiên sạc từ mặt trời",
+        "feed_in_priority": "Ưu tiên bán lên lưới"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Tự dùng",
+        "time_of_use": "Giá điện theo giờ",
+        "backup": "Dự phòng",
+        "pv_charge_priority": "Ưu tiên sạc từ mặt trời",
+        "feed_in_priority": "Ưu tiên bán lên lưới",
+        "peak_shaving": "Cắt đỉnh"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Xác nhận biến tần EnergyLIB được thêm tự động",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Đây có phải biến tần của bạn?",
+            "description": "Biến tần EnergyLIB {serial} tại {host} đã được thêm tự động. Hãy xác nhận đó là của bạn để cho phép điều khiển: chế độ EMS, bật/tắt và cài đặt pin. Chọn Gửi để cho phép điều khiển."
+          }
+        },
+        "abort": {
+          "entry_removed": "Biến tần này đã bị xóa."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Bạn đã thay biến tần EnergyLIB?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Thay {old} bằng {new}?",
+            "description": "{old} đang ngoại tuyến và đã tìm thấy biến tần EnergyLIB mới là {new}. Nếu bạn đã thay biến tần, chọn Gửi: biến tần mới kế thừa lịch sử, bảng năng lượng, phòng, tự động hóa và cài đặt điều khiển của cái cũ, cái cũ sẽ bị xóa. Nếu {new} là biến tần thêm vào, hãy bỏ qua và thêm nó từ các thiết bị đã phát hiện.",
+            "data": {
+              "old": "Biến tần đã bị thay"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Biến tần này đã bị xóa.",
+          "already_added": "Biến tần mới đã được thêm rồi.",
+          "old_online": "Biến tần cũ đã trực tuyến lại nên không thay gì."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+# Only needed by the standalone local inverter peer, never by the HA integration.
+zeroconf==0.148.0

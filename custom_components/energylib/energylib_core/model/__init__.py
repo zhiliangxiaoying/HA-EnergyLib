@@ -1,0 +1,1 @@
+"""Standard device models."""

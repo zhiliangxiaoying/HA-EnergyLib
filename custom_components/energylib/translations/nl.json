@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "EnergyLIB verbinden",
+        "description": "Voer het Modbus TCP-adres van de EnergyLIB-datalogger in. Bediening staat aan voor nieuwe apparaten en kan in de integratie-opties worden uitgeschakeld.",
+        "data": {
+          "host": "IP-adres of hostnaam",
+          "port": "Modbus TCP-poort",
+          "unit_id": "Modbus unit-ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "EnergyLIB-apparaat bevestigen",
+        "description": "**Logger-SN:** {logger_sn}\n\n**Loggermodel:** {logger_model}\n\n**Loggerfirmware:** {logger_firmware}\n\nDeze gegevens worden door de logger gemeld. Het serienummer van de omvormer wordt bij het verbinden apart gecontroleerd. Bevestig hieronder de verbindingsinstellingen. Bediening staat standaard aan en kan in de integratie-opties worden uitgeschakeld.",
+        "data": {
+          "host": "IP-adres of hostnaam",
+          "port": "Modbus TCP-poort",
+          "unit_id": "Modbus unit-ID"
+        }
+      },
+      "aecc_confirm": {
+        "title": "AECC-apparaat toevoegen",
+        "description": "**Serienummer:** {serial}\n\n**Adres:** {host}:{port}\n\nEen AECC-apparaat in het lokale netwerk. EnergyLIB leest vermogen en batterijlading; er wordt niets naar het apparaat geschreven. De vermogensrichtingen zijn nog niet op een AECC-apparaat gecontroleerd."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan het apparaat niet uitlezen. Controleer adres, poort en unit-ID.",
+      "unsupported_device": "Het apparaat past niet bij dit profiel.",
+      "identity_mismatch": "De identiteit van het apparaat komt niet overeen met de detectie."
+    },
+    "abort": {
+      "already_configured": "Apparaat is al geconfigureerd.",
+      "already_in_progress": "De configuratie is al bezig.",
+      "identity_mismatch": "De identiteit van het apparaat komt niet overeen met de detectie.",
+      "unsupported_discovery": "Niet-ondersteund transport, authenticatie of detectiecontract."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB-instellingen",
+        "menu_options": {
+          "control": "Toegang tot bediening",
+          "tou": "Tijdschema"
+        }
+      },
+      "control": {
+        "title": "Toegang tot bediening",
+        "description": "Staat aan voor nieuw toegevoegde apparaten. De bediening die de omvormer ondersteunt (EMS-modus, SOC, laden vanaf het net, exportlimiet) wordt getoond; in- of uitschakelen verandert op zichzelf geen enkele apparaatinstelling.",
+        "data": {
+          "allow_control": "Bediening toestaan"
+        }
+      },
+      "tou": {
+        "title": "Concept-tijdschema",
+        "description": "Wijzigingen blijven in het concept tot je opslaat.",
+        "menu_options": {
+          "add": "Periode toevoegen",
+          "edit": "Periode bewerken",
+          "delete": "Periode verwijderen",
+          "settings": "Weekdagen en modus buiten periodes",
+          "save": "Voorbeeld en opslaan"
+        }
+      },
+      "settings": {
+        "title": "Schema-instellingen",
+        "data": {
+          "weekdays": "Weekdagen",
+          "outside_mode": "Modus buiten periodes"
+        }
+      },
+      "save": {
+        "title": "Schema opslaan",
+        "description": "Concept:\n{preview}\nOpslaan in meerdere stappen is niet atomair. Bij een fout kan een deel van het schema achterblijven.",
+        "data": {
+          "activate": "Na opslaan naar tijdschema schakelen"
+        }
+      },
+      "add": {
+        "title": "Periode toevoegen",
+        "data": {
+          "type": "Type",
+          "start": "Begin",
+          "end": "Einde",
+          "power": "Vermogen (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Periode bewerken",
+        "data": {
+          "type": "Type",
+          "start": "Begin",
+          "end": "Einde",
+          "power": "Vermogen (kW)"
+        }
+      },
+      "edit": {
+        "title": "Periode kiezen",
+        "data": {
+          "period": "Periode"
+        }
+      },
+      "delete": {
+        "title": "Periode kiezen",
+        "data": {
+          "period": "Periode"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "Dit apparaat biedt de bedieningsregisters niet aan.",
+      "cannot_connect": "Kan het apparaat niet uitlezen. Controleer adres, poort en unit-ID.",
+      "invalid_schedule": "Ongeldige periodes, overlap, weekdagen of vermogen.",
+      "command_failed": "Opslaan mislukt of mogelijk gedeeltelijk toegepast. Controleer de werkelijke toestand van het apparaat voordat je het opnieuw probeert."
+    },
+    "abort": {
+      "control_unverified": "Dit apparaat biedt de bedieningsregisters niet aan.",
+      "cannot_connect": "Kan het apparaat niet uitlezen. Controleer adres, poort en unit-ID.",
+      "command_failed": "Opslaan mislukt of mogelijk gedeeltelijk toegepast. Open de opties opnieuw om het werkelijke schema van het apparaat te lezen voordat je het opnieuw probeert."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Laadniveau batterij"
+      },
+      "battery_total_soc": {
+        "name": "Laadtoestand batterij"
+      },
+      "grid_import_energy": {
+        "name": "Energie van het net"
+      },
+      "grid_export_energy": {
+        "name": "Energie naar het net"
+      },
+      "solar_energy": {
+        "name": "Zonne-energie"
+      },
+      "battery_charge_energy": {
+        "name": "Laadenergie batterij"
+      },
+      "battery_discharge_energy": {
+        "name": "Ontlaadenergie batterij"
+      },
+      "load_energy": {
+        "name": "Energieverbruik"
+      },
+      "solar_power": {
+        "name": "Zonnevermogen"
+      },
+      "battery_power": {
+        "name": "Batterijvermogen"
+      },
+      "load_power": {
+        "name": "Verbruiksvermogen"
+      },
+      "grid_power": {
+        "name": "Netvermogen"
+      },
+      "running_state": {
+        "name": "Bedrijfstoestand",
+        "state": {
+          "standby": "Stand-by",
+          "ready": "Gereed",
+          "off_grid": "Eilandbedrijf",
+          "on_grid": "Netgekoppeld",
+          "other": "Overig"
+        }
+      },
+      "active_alarms": {
+        "name": "Actieve alarmen"
+      },
+      "work_mode": {
+        "name": "EMS-modus",
+        "state": {
+          "self_consumption": "Eigen verbruik",
+          "time_of_use": "Tijdschema",
+          "dynamic_tariff": "Dynamisch tarief",
+          "backup": "Noodstroom",
+          "remote": "Bediening op afstand",
+          "pv_charge_priority": "Voorrang PV-laden",
+          "feed_in_priority": "Voorrang teruglevering",
+          "voltage_regulation": "Spanningsregeling",
+          "peak_shaving": "Piekafvlakking",
+          "other": "Overig"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Netspanning A"
+      },
+      "grid_voltage_b": {
+        "name": "Netspanning B"
+      },
+      "grid_voltage_c": {
+        "name": "Netspanning C"
+      },
+      "grid_frequency": {
+        "name": "Netfrequentie"
+      },
+      "battery_voltage": {
+        "name": "Batterijspanning"
+      },
+      "battery_current": {
+        "name": "Batterijstroom"
+      },
+      "battery_soh": {
+        "name": "Batterijconditie"
+      },
+      "battery_capacity": {
+        "name": "Geïnstalleerde batterijcapaciteit"
+      },
+      "battery_remaining_energy": {
+        "name": "Resterende batterij-energie"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Hoogste celspanning batterij"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Laagste celspanning batterij"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Hoogste celtemperatuur batterij"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Laagste celtemperatuur batterij"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS-laadstroomlimiet"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS-ontlaadstroomlimiet"
+      },
+      "battery_2_soc": {
+        "name": "Laadtoestand batterij 2"
+      },
+      "battery_2_power": {
+        "name": "Vermogen batterij 2"
+      },
+      "battery_2_voltage": {
+        "name": "Spanning batterij 2"
+      },
+      "battery_2_current": {
+        "name": "Stroom batterij 2"
+      },
+      "pv1_power": {
+        "name": "PV1-vermogen"
+      },
+      "pv2_power": {
+        "name": "PV2-vermogen"
+      },
+      "pv3_power": {
+        "name": "PV3-vermogen"
+      },
+      "pv4_power": {
+        "name": "PV4-vermogen"
+      },
+      "backup_load_power": {
+        "name": "Vermogen noodstroomverbruikers"
+      },
+      "generator_power": {
+        "name": "Generatorvermogen"
+      },
+      "ac_couple_power": {
+        "name": "Vermogen AC-koppeling"
+      },
+      "inverter_temperature": {
+        "name": "Omvormertemperatuur"
+      },
+      "tou_schedule": {
+        "name": "Tijdschema",
+        "state": {
+          "charge": "Laadperiode",
+          "discharge": "Ontlaadperiode",
+          "outside_period": "Buiten periodes",
+          "expired": "Geldigheid verlopen",
+          "inactive": "Inactief",
+          "remote": "Bediening op afstand"
+        }
+      },
+      "fault_count": {
+        "name": "Actieve storingen"
+      },
+      "warning_count": {
+        "name": "Actieve waarschuwingen"
+      },
+      "alarm_status": {
+        "name": "Apparaatmeldingen",
+        "state": {
+          "normal": "Normaal",
+          "abnormal": "Afwijkend",
+          "unrecognized": "Onbekend alarm",
+          "incomplete": "Onvolledige gegevens",
+          "offline": "Communicatie niet beschikbaar"
+        }
+      },
+      "remote_status": {
+        "name": "Batterijbedrijf",
+        "state": {
+          "idle": "Rust",
+          "charging": "Laden",
+          "discharging": "Ontladen",
+          "holding": "Vasthouden op nul vermogen",
+          "stopped": "Gestopt",
+          "completed": "Voltooid",
+          "unconfirmed": "Uitvoering niet bevestigd"
+        }
+      },
+      "remote_end_time": {
+        "name": "Geschatte eindtijd laden/ontladen op afstand"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Storing aanwezig"
+      },
+      "any_warning": {
+        "name": "Waarschuwing aanwezig"
+      },
+      "meter_online": {
+        "name": "Meter online"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS-modus (oud)",
+        "state": {
+          "self_consumption": "Eigen verbruik",
+          "time_of_use": "Tijdschema",
+          "dynamic_tariff": "Dynamisch tarief",
+          "backup": "Noodstroom",
+          "remote": "Bediening op afstand",
+          "pv_charge_priority": "Voorrang PV-laden",
+          "feed_in_priority": "Voorrang teruglevering",
+          "voltage_regulation": "Spanningsregeling",
+          "peak_shaving": "Piekafvlakking",
+          "other": "Overig"
+        }
+      },
+      "home_mode": {
+        "name": "EMS-modus",
+        "state": {
+          "self_consumption": "Eigen verbruik",
+          "time_of_use": "Tijdschema",
+          "dynamic_tariff": "Dynamisch tarief",
+          "backup": "Batterij noodstroom",
+          "remote": "Handmatig",
+          "pv_charge_priority": "Zon eerst",
+          "feed_in_priority": "Teruglevering eerst",
+          "voltage_regulation": "Spanningsregeling",
+          "peak_shaving": "Piekafvlakking",
+          "other": "Overig"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "Noodstroom-SOC"
+      },
+      "min_soc": {
+        "name": "Minimale SOC"
+      },
+      "export_limit": {
+        "name": "Exportlimiet"
+      },
+      "max_soc": {
+        "name": "Maximale SOC"
+      },
+      "max_charge_current": {
+        "name": "Maximale laadstroom"
+      },
+      "max_discharge_current": {
+        "name": "Maximale ontlaadstroom"
+      },
+      "remote_power": {
+        "name": "Oud vermogen op afstand (direct, 5 minuten)"
+      },
+      "remote_target_power": {
+        "name": "Batterijvermogen"
+      },
+      "remote_duration": {
+        "name": "Duur"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Laden vanaf het net"
+      },
+      "export_limit_enable": {
+        "name": "Exportlimiet ingeschakeld"
+      },
+      "inverter_power": {
+        "name": "Omvormer aan/uit"
+      },
+      "remote_control": {
+        "name": "Oude bediening op afstand (direct, 5 minuten)"
+      },
+      "allow_remote_control": {
+        "name": "Laden/ontladen op afstand toestaan"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Laden starten"
+      },
+      "start_discharge": {
+        "name": "Ontladen starten"
+      },
+      "stop_remote": {
+        "name": "Direct stoppen"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Batterijvermogen instellen",
+      "description": "Vereist toegang tot bediening in de integratie en ‘Laden/ontladen op afstand toestaan’. Alleen de toegang inschakelen start nooit een taak.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat"
+        },
+        "power_kw": {
+          "name": "Vermogen (kW), negatief is laden"
+        },
+        "duration": {
+          "name": "Duur (seconden), verplicht"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Tijdschema vervangen",
+      "description": "Vereist ‘bediening toestaan’ in de integratie-opties en een apparaat dat de bedieningsregisters aanbiedt.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat"
+        },
+        "periods": {
+          "name": "Periodes"
+        },
+        "weekdays": {
+          "name": "Weekdagen"
+        },
+        "outside_mode": {
+          "name": "Modus buiten periodes"
+        },
+        "activate": {
+          "name": "Activeren na controle"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Tijdschema wissen",
+      "description": "Vereist ‘bediening toestaan’ in de integratie-opties en een apparaat dat de bedieningsregisters aanbiedt.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Batterijsturing op afstand stoppen",
+      "description": "Beëindig de bediening op afstand direct en controleer door terug te lezen.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "EnergyLIB-apparaat."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Laad-/ontlaadparameters instellen",
+      "description": "Sla vermogen en hele minuten lokaal op, zonder een taak te starten of naar het apparaat te schrijven.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat"
+        },
+        "power_kw": {
+          "name": "Vermogen"
+        },
+        "duration_minutes": {
+          "name": "Duur (minuten)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Toegang tot laden/ontladen op afstand instellen",
+      "description": "Inschakelen ontgrendelt alleen het bedieningspaneel; uitschakelen bevestigt eerst dat een actieve taak op afstand is beëindigd.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat"
+        },
+        "enabled": {
+          "name": "Laden/ontladen op afstand toestaan"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "EMS-modus instellen",
+      "description": "Schakel de EMS-modus via de vaste sleutel, onafhankelijk van de taal. Vereist ‘Bediening toestaan’.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "EnergyLIB-apparaat."
+        },
+        "mode": {
+          "name": "EMS-modus",
+          "description": "Eigen verbruik, tijdschema, noodstroom, voorrang PV-laden, voorrang teruglevering of piekafvlakking (waar beschikbaar)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Laden",
+        "discharge": "Ontladen"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Maandag",
+        "tue": "Dinsdag",
+        "wed": "Woensdag",
+        "thu": "Donderdag",
+        "fri": "Vrijdag",
+        "sat": "Zaterdag",
+        "sun": "Zondag"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Eigen verbruik",
+        "backup": "Noodstroom",
+        "pv_charge_priority": "Voorrang PV-laden",
+        "feed_in_priority": "Voorrang teruglevering"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Eigen verbruik",
+        "time_of_use": "Tijdschema",
+        "backup": "Noodstroom",
+        "pv_charge_priority": "Voorrang PV-laden",
+        "feed_in_priority": "Voorrang teruglevering",
+        "peak_shaving": "Piekafvlakking"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Bevestig de automatisch toegevoegde EnergyLIB-omvormer",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Is dit jouw omvormer?",
+            "description": "EnergyLIB-omvormer {serial} op {host} is automatisch toegevoegd. Bevestig dat dit jouw omvormer is om bediening toe te staan: EMS-modus, aan/uit en batterij-instellingen. Kies Verzenden om bediening toe te staan."
+          }
+        },
+        "abort": {
+          "entry_removed": "Deze omvormer is verwijderd."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Is een EnergyLIB-omvormer vervangen?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{old} vervangen door {new}?",
+            "description": "{old} is offline en er is een nieuwe EnergyLIB-omvormer gevonden: {new}. Hebt u de omvormer vervangen, kies dan Verzenden: de nieuwe neemt de geschiedenis, het energiedashboard, de ruimte, de automatiseringen en de bedieningsinstelling van de oude over, en de oude wordt verwijderd. Is {new} een extra omvormer, negeer dit dan en voeg hem toe bij de gevonden apparaten.",
+            "data": {
+              "old": "Vervangen omvormer"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Deze omvormer is verwijderd.",
+          "already_added": "De nieuwe omvormer is al toegevoegd.",
+          "old_online": "De oude omvormer is weer online, er is niets vervangen."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+# Keep original vendor protocols local unless distribution is explicitly approved.
+*
+!.gitignore
+!README.md

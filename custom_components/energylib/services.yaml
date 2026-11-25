@@ -1,0 +1,127 @@
+set_remote_access:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    enabled:
+      required: true
+      selector:
+        boolean:
+set_remote_parameters:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    power_kw:
+      required: true
+      selector:
+        number:
+          min: 0
+          step: 0.1
+          unit_of_measurement: kW
+          mode: box
+    duration_minutes:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+          mode: box
+set_ems_mode:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    mode:
+      required: true
+      selector:
+        select:
+          translation_key: ems_mode
+          options:
+            - self_consumption
+            - time_of_use
+            - backup
+            - pv_charge_priority
+            - feed_in_priority
+            - peak_shaving
+stop_battery_power:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+set_battery_power:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    power_kw:
+      required: true
+      selector:
+        number:
+          min: -50
+          max: 50
+          step: 0.1
+          unit_of_measurement: kW
+          mode: box
+    duration:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 86400
+          unit_of_measurement: s
+          mode: box
+set_tou_schedule:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib
+    periods:
+      required: true
+      selector:
+        object:
+    weekdays:
+      selector:
+        select:
+          multiple: true
+          options:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+    outside_mode:
+      selector:
+        select:
+          options:
+            - self_consumption
+            - backup
+            - pv_charge_priority
+            - feed_in_priority
+    activate:
+      default: false
+      selector:
+        boolean:
+clear_tou_schedule:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: energylib

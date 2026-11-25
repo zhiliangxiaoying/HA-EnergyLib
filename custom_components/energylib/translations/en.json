@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Connect EnergyLIB",
+        "description": "Enter the Modbus TCP address of the EnergyLIB data logger. Controls are on for new devices and can be turned off in the integration options.",
+        "data": {
+          "host": "IP address or hostname",
+          "port": "Modbus TCP port",
+          "unit_id": "Modbus unit ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Confirm EnergyLIB device",
+        "description": "**Logger SN:** {logger_sn}\n\n**Logger model:** {logger_model}\n\n**Logger firmware:** {logger_firmware}\n\nThese details are advertised by the logger. The inverter SN is checked separately when connecting. Confirm the connection settings below. Controls are on by default and can be turned off in the integration options.",
+        "data": {
+          "host": "IP address or hostname",
+          "port": "Modbus TCP port",
+          "unit_id": "Modbus unit ID"
+        }
+      },
+      "aecc_confirm": {
+        "title": "Add AECC device",
+        "description": "**Serial:** {serial}\n\n**Address:** {host}:{port}\n\nAn AECC device on the local network. EnergyLIB reads its power and battery level; nothing is written to the device. Power directions are not yet verified on an AECC device."
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "unsupported_device": "The device does not match this profile.",
+      "identity_mismatch": "Device identity does not match discovery."
+    },
+    "abort": {
+      "already_configured": "Device already configured.",
+      "already_in_progress": "Configuration is already in progress.",
+      "identity_mismatch": "Device identity does not match discovery.",
+      "unsupported_discovery": "Unsupported transport, authentication or discovery contract."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB settings",
+        "menu_options": {
+          "control": "Control access",
+          "tou": "Time-of-use schedule"
+        }
+      },
+      "control": {
+        "title": "Control access",
+        "description": "On for newly added devices. Controls the inverter supports (EMS mode, SOC, grid charging, export limit) are shown; turning this on or off does not change any device setting by itself.",
+        "data": {
+          "allow_control": "Allow control"
+        }
+      },
+      "tou": {
+        "title": "Time-of-use draft",
+        "description": "Edits stay in the draft until Save.",
+        "menu_options": {
+          "add": "Add period",
+          "edit": "Edit period",
+          "delete": "Delete period",
+          "settings": "Weekdays and outside mode",
+          "save": "Preview and save"
+        }
+      },
+      "settings": {
+        "title": "Schedule settings",
+        "data": {
+          "weekdays": "Weekdays",
+          "outside_mode": "Outside-period mode"
+        }
+      },
+      "save": {
+        "title": "Save schedule",
+        "description": "Draft:\n{preview}\nA multi-frame save is not atomic. A failure can leave a partial plan.",
+        "data": {
+          "activate": "Switch to time-of-use after saving"
+        }
+      },
+      "add": {
+        "title": "Add period",
+        "data": {
+          "type": "Type",
+          "start": "Start",
+          "end": "End",
+          "power": "Power (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Edit period",
+        "data": {
+          "type": "Type",
+          "start": "Start",
+          "end": "End",
+          "power": "Power (kW)"
+        }
+      },
+      "edit": {
+        "title": "Choose period",
+        "data": {
+          "period": "Period"
+        }
+      },
+      "delete": {
+        "title": "Choose period",
+        "data": {
+          "period": "Period"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "This device does not expose the control registers.",
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "invalid_schedule": "Invalid periods, overlap, weekdays or power.",
+      "command_failed": "Save failed or may be partially applied. Inspect actual device state before retrying."
+    },
+    "abort": {
+      "control_unverified": "This device does not expose the control registers.",
+      "cannot_connect": "Cannot read the device. Check address, port and unit ID.",
+      "command_failed": "Save failed or may be partially applied. Reopen options to read the actual device plan before retrying."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Battery charge level"
+      },
+      "battery_total_soc": {
+        "name": "Battery state of charge"
+      },
+      "grid_import_energy": {
+        "name": "Grid import energy"
+      },
+      "grid_export_energy": {
+        "name": "Grid export energy"
+      },
+      "solar_energy": {
+        "name": "Solar energy"
+      },
+      "battery_charge_energy": {
+        "name": "Battery charge energy"
+      },
+      "battery_discharge_energy": {
+        "name": "Battery discharge energy"
+      },
+      "load_energy": {
+        "name": "Load energy"
+      },
+      "solar_power": {
+        "name": "Solar power"
+      },
+      "battery_power": {
+        "name": "Battery power"
+      },
+      "load_power": {
+        "name": "Load power"
+      },
+      "grid_power": {
+        "name": "Grid power"
+      },
+      "running_state": {
+        "name": "Running state",
+        "state": {
+          "standby": "Standby",
+          "ready": "Ready",
+          "off_grid": "Off-grid",
+          "on_grid": "On-grid",
+          "other": "Other"
+        }
+      },
+      "active_alarms": {
+        "name": "Active alarms"
+      },
+      "work_mode": {
+        "name": "EMS mode",
+        "state": {
+          "self_consumption": "Self-consumption",
+          "time_of_use": "Time-of-use",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Backup",
+          "remote": "Remote control",
+          "pv_charge_priority": "PV charge priority",
+          "feed_in_priority": "Feed-in priority",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Grid voltage A"
+      },
+      "grid_voltage_b": {
+        "name": "Grid voltage B"
+      },
+      "grid_voltage_c": {
+        "name": "Grid voltage C"
+      },
+      "grid_frequency": {
+        "name": "Grid frequency"
+      },
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
+      "battery_current": {
+        "name": "Battery current"
+      },
+      "battery_soh": {
+        "name": "Battery health"
+      },
+      "battery_capacity": {
+        "name": "Battery installed capacity"
+      },
+      "battery_remaining_energy": {
+        "name": "Battery remaining energy"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Battery max cell voltage"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Battery min cell voltage"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Battery max cell temperature"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Battery min cell temperature"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS charge current limit"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS discharge current limit"
+      },
+      "battery_2_soc": {
+        "name": "Battery 2 state of charge"
+      },
+      "battery_2_power": {
+        "name": "Battery 2 power"
+      },
+      "battery_2_voltage": {
+        "name": "Battery 2 voltage"
+      },
+      "battery_2_current": {
+        "name": "Battery 2 current"
+      },
+      "pv1_power": {
+        "name": "PV1 power"
+      },
+      "pv2_power": {
+        "name": "PV2 power"
+      },
+      "pv3_power": {
+        "name": "PV3 power"
+      },
+      "pv4_power": {
+        "name": "PV4 power"
+      },
+      "backup_load_power": {
+        "name": "Backup load power"
+      },
+      "generator_power": {
+        "name": "Generator power"
+      },
+      "ac_couple_power": {
+        "name": "AC coupling power"
+      },
+      "inverter_temperature": {
+        "name": "Inverter temperature"
+      },
+      "tou_schedule": {
+        "name": "Time-of-use schedule",
+        "state": {
+          "charge": "Charge period",
+          "discharge": "Discharge period",
+          "outside_period": "Outside periods",
+          "expired": "Validity expired",
+          "inactive": "Inactive",
+          "remote": "Remote control"
+        }
+      },
+      "fault_count": {
+        "name": "Active faults"
+      },
+      "warning_count": {
+        "name": "Active warnings"
+      },
+      "alarm_status": {
+        "name": "Device alerts",
+        "state": {
+          "normal": "Normal",
+          "abnormal": "Abnormal",
+          "unrecognized": "Unrecognized alarm",
+          "incomplete": "Incomplete data",
+          "offline": "Communication unavailable"
+        }
+      },
+      "remote_status": {
+        "name": "Battery operation",
+        "state": {
+          "idle": "Idle",
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "holding": "Holding at zero power",
+          "stopped": "Stopped",
+          "completed": "Completed",
+          "unconfirmed": "Execution unconfirmed"
+        }
+      },
+      "remote_end_time": {
+        "name": "Remote charge/discharge estimated end time"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Fault present"
+      },
+      "any_warning": {
+        "name": "Warning present"
+      },
+      "meter_online": {
+        "name": "Meter online"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS mode (legacy)",
+        "state": {
+          "self_consumption": "Self-consumption",
+          "time_of_use": "Time-of-use",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Backup",
+          "remote": "Remote control",
+          "pv_charge_priority": "PV charge priority",
+          "feed_in_priority": "Feed-in priority",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
+        }
+      },
+      "home_mode": {
+        "name": "EMS mode",
+        "state": {
+          "self_consumption": "Self consumption",
+          "time_of_use": "Scheduled",
+          "dynamic_tariff": "Dynamic tariff",
+          "backup": "Battery backup",
+          "remote": "Manual",
+          "pv_charge_priority": "Solar first",
+          "feed_in_priority": "Export first",
+          "voltage_regulation": "Voltage regulation",
+          "peak_shaving": "Peak shaving",
+          "other": "Other"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "Backup SOC"
+      },
+      "min_soc": {
+        "name": "Minimum SOC"
+      },
+      "export_limit": {
+        "name": "Export limit"
+      },
+      "max_soc": {
+        "name": "Maximum SOC"
+      },
+      "max_charge_current": {
+        "name": "Maximum charge current"
+      },
+      "max_discharge_current": {
+        "name": "Maximum discharge current"
+      },
+      "remote_power": {
+        "name": "Legacy remote power (immediate, 5 minutes)"
+      },
+      "remote_target_power": {
+        "name": "Battery power"
+      },
+      "remote_duration": {
+        "name": "Duration"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Grid charging"
+      },
+      "export_limit_enable": {
+        "name": "Export limit enabled"
+      },
+      "inverter_power": {
+        "name": "Inverter power"
+      },
+      "remote_control": {
+        "name": "Legacy remote control (immediate, 5 minutes)"
+      },
+      "allow_remote_control": {
+        "name": "Allow remote charge/discharge"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Start charging"
+      },
+      "start_discharge": {
+        "name": "Start discharging"
+      },
+      "stop_remote": {
+        "name": "Stop immediately"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Set battery power",
+      "description": "Requires integration control access and Allow remote charge/discharge. Enabling access alone never starts a task.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "power_kw": {
+          "name": "Power (kW), negative charge"
+        },
+        "duration": {
+          "name": "Duration (seconds), required"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Replace time-of-use schedule",
+      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "periods": {
+          "name": "Periods"
+        },
+        "weekdays": {
+          "name": "Weekdays"
+        },
+        "outside_mode": {
+          "name": "Outside-period mode"
+        },
+        "activate": {
+          "name": "Activate after verification"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Clear time-of-use schedule",
+      "description": "Requires \"allow control\" in the integration options and a device that exposes the control registers.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Stop remote battery dispatch",
+      "description": "End remote control immediately and verify readback.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "EnergyLIB device."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Set charge/discharge parameters",
+      "description": "Save power and whole minutes locally, without starting a task or writing the device.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "power_kw": {
+          "name": "Power"
+        },
+        "duration_minutes": {
+          "name": "Duration (minutes)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Set remote charge/discharge access",
+      "description": "Enabling only unlocks the operation panel; disabling first confirms exit from an active remote task.",
+      "fields": {
+        "device_id": {
+          "name": "Device"
+        },
+        "enabled": {
+          "name": "Allow remote charge/discharge"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "Set EMS mode",
+      "description": "Switch the EMS mode by its fixed key, independent of the language. Needs Allow control.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "EnergyLIB device."
+        },
+        "mode": {
+          "name": "EMS mode",
+          "description": "Self-consumption, time-of-use, backup, PV charge priority, feed-in priority or peak shaving (where offered)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Charge",
+        "discharge": "Discharge"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Self-consumption",
+        "backup": "Backup",
+        "pv_charge_priority": "PV charge priority",
+        "feed_in_priority": "Feed-in priority"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Self-consumption",
+        "time_of_use": "Time-of-use",
+        "backup": "Backup",
+        "pv_charge_priority": "PV charge priority",
+        "feed_in_priority": "Feed-in priority",
+        "peak_shaving": "Peak shaving"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Confirm the automatically added EnergyLIB inverter",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Is this your inverter?",
+            "description": "EnergyLIB inverter {serial} at {host} was added automatically. Confirm it is your inverter to allow control: EMS mode, power on/off and battery settings. Select Submit to allow control."
+          }
+        },
+        "abort": {
+          "entry_removed": "This inverter has been removed."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Was an EnergyLIB inverter replaced?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Replace {old} with {new}?",
+            "description": "{old} is offline and a new EnergyLIB inverter, {new}, was found. If you replaced the inverter, select Submit: the new one takes over the old one's history, energy dashboard, room, automations and control setting, and the old one is removed. If {new} is an additional inverter, ignore this and add it from the discovered devices instead.",
+            "data": {
+              "old": "Inverter that was replaced"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "This inverter has been removed.",
+          "already_added": "The new inverter has already been added.",
+          "old_online": "The old inverter is online again, so nothing was replaced."
+        }
+      }
+    }
+  }
+}

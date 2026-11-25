@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "EnergyLIB سے جڑیں",
+        "description": "EnergyLIB ڈیٹا لاگر کا Modbus TCP پتہ درج کریں۔ نئے آلات کے لیے کنٹرول آن ہوتا ہے اور انٹیگریشن کے اختیارات میں بند کیا جا سکتا ہے۔",
+        "data": {
+          "host": "IP پتہ یا ہوسٹ نام",
+          "port": "Modbus TCP پورٹ",
+          "unit_id": "Modbus یونٹ ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "EnergyLIB آلے کی تصدیق کریں",
+        "description": "**لاگر SN:** {logger_sn}\n\n**لاگر ماڈل:** {logger_model}\n\n**لاگر فرم ویئر:** {logger_firmware}\n\nیہ تفصیلات لاگر خود بتاتا ہے۔ انورٹر کا SN جڑتے وقت الگ سے جانچا جاتا ہے۔ نیچے دی گئی کنکشن کی ترتیبات کی تصدیق کریں۔ کنٹرول پہلے سے آن ہے اور انٹیگریشن کے اختیارات میں بند کیا جا سکتا ہے۔",
+        "data": {
+          "host": "IP پتہ یا ہوسٹ نام",
+          "port": "Modbus TCP پورٹ",
+          "unit_id": "Modbus یونٹ ID"
+        }
+      },
+      "aecc_confirm": {
+        "title": "AECC ڈیوائس شامل کریں",
+        "description": "**سیریل نمبر:** {serial}\n\n**پتہ:** {host}:{port}\n\nمقامی نیٹ ورک پر ایک AECC ڈیوائس۔ EnergyLIB صرف پاور اور بیٹری کی سطح پڑھتا ہے اور ڈیوائس میں کچھ نہیں لکھتا۔ پاور کی سمتیں ابھی AECC ڈیوائس پر جانچی نہیں گئیں۔"
+      }
+    },
+    "error": {
+      "cannot_connect": "آلے کو پڑھا نہیں جا سکا۔ پتہ، پورٹ اور یونٹ ID چیک کریں۔",
+      "unsupported_device": "آلہ اس پروفائل سے مطابقت نہیں رکھتا۔",
+      "identity_mismatch": "آلے کی شناخت دریافت شدہ معلومات سے نہیں ملتی۔"
+    },
+    "abort": {
+      "already_configured": "آلہ پہلے سے ترتیب دیا جا چکا ہے۔",
+      "already_in_progress": "ترتیب کا عمل پہلے سے جاری ہے۔",
+      "identity_mismatch": "آلے کی شناخت دریافت شدہ معلومات سے نہیں ملتی۔",
+      "unsupported_discovery": "غیر تعاون یافتہ ٹرانسپورٹ، تصدیق یا دریافت کا طریقہ۔"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB کی ترتیبات",
+        "menu_options": {
+          "control": "کنٹرول کی اجازت",
+          "tou": "اوقات کا شیڈول"
+        }
+      },
+      "control": {
+        "title": "کنٹرول کی اجازت",
+        "description": "نئے شامل کیے گئے آلات کے لیے آن ہے۔ وہ کنٹرول دکھائے جاتے ہیں جنہیں انورٹر سپورٹ کرتا ہے (EMS موڈ، SOC، گرڈ سے چارجنگ، ایکسپورٹ کی حد)؛ اسے آن یا آف کرنے سے آلے کی کوئی ترتیب خود بخود نہیں بدلتی۔",
+        "data": {
+          "allow_control": "کنٹرول کی اجازت دیں"
+        }
+      },
+      "tou": {
+        "title": "اوقات کے شیڈول کا مسودہ",
+        "description": "تبدیلیاں محفوظ کرنے تک مسودے میں رہتی ہیں۔",
+        "menu_options": {
+          "add": "وقفہ شامل کریں",
+          "edit": "وقفے میں ترمیم کریں",
+          "delete": "وقفہ حذف کریں",
+          "settings": "ہفتے کے دن اور وقفوں سے باہر کا موڈ",
+          "save": "پیش نظارہ اور محفوظ کریں"
+        }
+      },
+      "settings": {
+        "title": "شیڈول کی ترتیبات",
+        "data": {
+          "weekdays": "ہفتے کے دن",
+          "outside_mode": "وقفوں سے باہر کا موڈ"
+        }
+      },
+      "save": {
+        "title": "شیڈول محفوظ کریں",
+        "description": "مسودہ:\n{preview}\nکئی فریموں میں محفوظ کرنا ایک ساتھ مکمل نہیں ہوتا۔ ناکامی کی صورت میں ادھورا پلان رہ سکتا ہے۔",
+        "data": {
+          "activate": "محفوظ کرنے کے بعد اوقات کے شیڈول پر جائیں"
+        }
+      },
+      "add": {
+        "title": "وقفہ شامل کریں",
+        "data": {
+          "type": "قسم",
+          "start": "آغاز",
+          "end": "اختتام",
+          "power": "پاور (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "وقفے میں ترمیم کریں",
+        "data": {
+          "type": "قسم",
+          "start": "آغاز",
+          "end": "اختتام",
+          "power": "پاور (kW)"
+        }
+      },
+      "edit": {
+        "title": "وقفہ منتخب کریں",
+        "data": {
+          "period": "وقفہ"
+        }
+      },
+      "delete": {
+        "title": "وقفہ منتخب کریں",
+        "data": {
+          "period": "وقفہ"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "یہ آلہ کنٹرول رجسٹر فراہم نہیں کرتا۔",
+      "cannot_connect": "آلے کو پڑھا نہیں جا سکا۔ پتہ، پورٹ اور یونٹ ID چیک کریں۔",
+      "invalid_schedule": "وقفے، اوورلیپ، ہفتے کے دن یا پاور درست نہیں۔",
+      "command_failed": "محفوظ کرنا ناکام رہا یا ممکن ہے جزوی طور پر لاگو ہوا ہو۔ دوبارہ کوشش سے پہلے آلے کی اصل حالت دیکھیں۔"
+    },
+    "abort": {
+      "control_unverified": "یہ آلہ کنٹرول رجسٹر فراہم نہیں کرتا۔",
+      "cannot_connect": "آلے کو پڑھا نہیں جا سکا۔ پتہ، پورٹ اور یونٹ ID چیک کریں۔",
+      "command_failed": "محفوظ کرنا ناکام رہا یا ممکن ہے جزوی طور پر لاگو ہوا ہو۔ دوبارہ کوشش سے پہلے اختیارات دوبارہ کھول کر آلے کا اصل پلان پڑھیں۔"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "بیٹری چارج کی سطح"
+      },
+      "battery_total_soc": {
+        "name": "بیٹری چارج کی حالت"
+      },
+      "grid_import_energy": {
+        "name": "گرڈ سے لی گئی توانائی"
+      },
+      "grid_export_energy": {
+        "name": "گرڈ کو دی گئی توانائی"
+      },
+      "solar_energy": {
+        "name": "شمسی توانائی"
+      },
+      "battery_charge_energy": {
+        "name": "بیٹری چارج توانائی"
+      },
+      "battery_discharge_energy": {
+        "name": "بیٹری ڈسچارج توانائی"
+      },
+      "load_energy": {
+        "name": "لوڈ توانائی"
+      },
+      "solar_power": {
+        "name": "شمسی پاور"
+      },
+      "battery_power": {
+        "name": "بیٹری پاور"
+      },
+      "load_power": {
+        "name": "لوڈ پاور"
+      },
+      "grid_power": {
+        "name": "گرڈ پاور"
+      },
+      "running_state": {
+        "name": "چلنے کی حالت",
+        "state": {
+          "standby": "اسٹینڈ بائی",
+          "ready": "تیار",
+          "off_grid": "آف گرڈ",
+          "on_grid": "آن گرڈ",
+          "other": "دیگر"
+        }
+      },
+      "active_alarms": {
+        "name": "فعال الارم"
+      },
+      "work_mode": {
+        "name": "EMS موڈ",
+        "state": {
+          "self_consumption": "ذاتی استعمال",
+          "time_of_use": "اوقات کے مطابق",
+          "dynamic_tariff": "متحرک ٹیرف",
+          "backup": "بیک اپ",
+          "remote": "ریموٹ کنٹرول",
+          "pv_charge_priority": "شمسی چارجنگ کو ترجیح",
+          "feed_in_priority": "گرڈ کو فراہمی کو ترجیح",
+          "voltage_regulation": "وولٹیج ریگولیشن",
+          "peak_shaving": "پیک شیونگ",
+          "other": "دیگر"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "گرڈ وولٹیج A"
+      },
+      "grid_voltage_b": {
+        "name": "گرڈ وولٹیج B"
+      },
+      "grid_voltage_c": {
+        "name": "گرڈ وولٹیج C"
+      },
+      "grid_frequency": {
+        "name": "گرڈ فریکوئنسی"
+      },
+      "battery_voltage": {
+        "name": "بیٹری وولٹیج"
+      },
+      "battery_current": {
+        "name": "بیٹری کرنٹ"
+      },
+      "battery_soh": {
+        "name": "بیٹری کی صحت"
+      },
+      "battery_capacity": {
+        "name": "بیٹری کی نصب شدہ گنجائش"
+      },
+      "battery_remaining_energy": {
+        "name": "بیٹری کی باقی توانائی"
+      },
+      "battery_cell_voltage_max": {
+        "name": "بیٹری سیل کا زیادہ سے زیادہ وولٹیج"
+      },
+      "battery_cell_voltage_min": {
+        "name": "بیٹری سیل کا کم سے کم وولٹیج"
+      },
+      "battery_cell_temperature_max": {
+        "name": "بیٹری سیل کا زیادہ سے زیادہ درجہ حرارت"
+      },
+      "battery_cell_temperature_min": {
+        "name": "بیٹری سیل کا کم سے کم درجہ حرارت"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS چارج کرنٹ کی حد"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS ڈسچارج کرنٹ کی حد"
+      },
+      "battery_2_soc": {
+        "name": "بیٹری 2 چارج کی حالت"
+      },
+      "battery_2_power": {
+        "name": "بیٹری 2 پاور"
+      },
+      "battery_2_voltage": {
+        "name": "بیٹری 2 وولٹیج"
+      },
+      "battery_2_current": {
+        "name": "بیٹری 2 کرنٹ"
+      },
+      "pv1_power": {
+        "name": "PV1 پاور"
+      },
+      "pv2_power": {
+        "name": "PV2 پاور"
+      },
+      "pv3_power": {
+        "name": "PV3 پاور"
+      },
+      "pv4_power": {
+        "name": "PV4 پاور"
+      },
+      "backup_load_power": {
+        "name": "بیک اپ لوڈ پاور"
+      },
+      "generator_power": {
+        "name": "جنریٹر پاور"
+      },
+      "ac_couple_power": {
+        "name": "AC کپلنگ پاور"
+      },
+      "inverter_temperature": {
+        "name": "انورٹر کا درجہ حرارت"
+      },
+      "tou_schedule": {
+        "name": "اوقات کا شیڈول",
+        "state": {
+          "charge": "چارج کا وقفہ",
+          "discharge": "ڈسچارج کا وقفہ",
+          "outside_period": "وقفوں سے باہر",
+          "expired": "میعاد ختم",
+          "inactive": "غیر فعال",
+          "remote": "ریموٹ کنٹرول"
+        }
+      },
+      "fault_count": {
+        "name": "فعال خرابیاں"
+      },
+      "warning_count": {
+        "name": "فعال انتباہات"
+      },
+      "alarm_status": {
+        "name": "آلے کے الرٹس",
+        "state": {
+          "normal": "معمول",
+          "abnormal": "غیر معمولی",
+          "unrecognized": "نامعلوم الارم",
+          "incomplete": "نامکمل ڈیٹا",
+          "offline": "رابطہ دستیاب نہیں"
+        }
+      },
+      "remote_status": {
+        "name": "بیٹری آپریشن",
+        "state": {
+          "idle": "فارغ",
+          "charging": "چارج ہو رہی ہے",
+          "discharging": "ڈسچارج ہو رہی ہے",
+          "holding": "صفر پاور پر برقرار",
+          "stopped": "رک گیا",
+          "completed": "مکمل",
+          "unconfirmed": "عمل درآمد کی تصدیق نہیں ہوئی"
+        }
+      },
+      "remote_end_time": {
+        "name": "ریموٹ چارج/ڈسچارج کے ختم ہونے کا تخمینی وقت"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "خرابی موجود ہے"
+      },
+      "any_warning": {
+        "name": "انتباہ موجود ہے"
+      },
+      "meter_online": {
+        "name": "میٹر آن لائن"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS موڈ (پرانا)",
+        "state": {
+          "self_consumption": "ذاتی استعمال",
+          "time_of_use": "اوقات کے مطابق",
+          "dynamic_tariff": "متحرک ٹیرف",
+          "backup": "بیک اپ",
+          "remote": "ریموٹ کنٹرول",
+          "pv_charge_priority": "شمسی چارجنگ کو ترجیح",
+          "feed_in_priority": "گرڈ کو فراہمی کو ترجیح",
+          "voltage_regulation": "وولٹیج ریگولیشن",
+          "peak_shaving": "پیک شیونگ",
+          "other": "دیگر"
+        }
+      },
+      "home_mode": {
+        "name": "EMS موڈ",
+        "state": {
+          "self_consumption": "ذاتی استعمال",
+          "time_of_use": "شیڈول",
+          "dynamic_tariff": "متحرک ٹیرف",
+          "backup": "بیٹری بیک اپ",
+          "remote": "دستی",
+          "pv_charge_priority": "پہلے شمسی",
+          "feed_in_priority": "پہلے ایکسپورٹ",
+          "voltage_regulation": "وولٹیج ریگولیشن",
+          "peak_shaving": "پیک شیونگ",
+          "other": "دیگر"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "بیک اپ SOC"
+      },
+      "min_soc": {
+        "name": "کم سے کم SOC"
+      },
+      "export_limit": {
+        "name": "ایکسپورٹ کی حد"
+      },
+      "max_soc": {
+        "name": "زیادہ سے زیادہ SOC"
+      },
+      "max_charge_current": {
+        "name": "زیادہ سے زیادہ چارج کرنٹ"
+      },
+      "max_discharge_current": {
+        "name": "زیادہ سے زیادہ ڈسچارج کرنٹ"
+      },
+      "remote_power": {
+        "name": "پرانی ریموٹ پاور (فوری، 5 منٹ)"
+      },
+      "remote_target_power": {
+        "name": "بیٹری پاور"
+      },
+      "remote_duration": {
+        "name": "دورانیہ"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "گرڈ سے چارجنگ"
+      },
+      "export_limit_enable": {
+        "name": "ایکسپورٹ کی حد فعال"
+      },
+      "inverter_power": {
+        "name": "انورٹر آن/آف"
+      },
+      "remote_control": {
+        "name": "پرانا ریموٹ کنٹرول (فوری، 5 منٹ)"
+      },
+      "allow_remote_control": {
+        "name": "ریموٹ چارج/ڈسچارج کی اجازت دیں"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "چارجنگ شروع کریں"
+      },
+      "start_discharge": {
+        "name": "ڈسچارجنگ شروع کریں"
+      },
+      "stop_remote": {
+        "name": "فوراً روکیں"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "بیٹری پاور مقرر کریں",
+      "description": "اس کے لیے انٹیگریشن میں کنٹرول کی اجازت اور ”ریموٹ چارج/ڈسچارج کی اجازت دیں“ درکار ہے۔ صرف اجازت آن کرنے سے کوئی کام شروع نہیں ہوتا۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ"
+        },
+        "power_kw": {
+          "name": "پاور (kW)، منفی قدر چارج ہے"
+        },
+        "duration": {
+          "name": "دورانیہ (سیکنڈ)، لازمی"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "اوقات کا شیڈول بدلیں",
+      "description": "اس کے لیے انٹیگریشن کے اختیارات میں ”کنٹرول کی اجازت دیں“ اور ایسا آلہ درکار ہے جو کنٹرول رجسٹر فراہم کرتا ہو۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ"
+        },
+        "periods": {
+          "name": "وقفے"
+        },
+        "weekdays": {
+          "name": "ہفتے کے دن"
+        },
+        "outside_mode": {
+          "name": "وقفوں سے باہر کا موڈ"
+        },
+        "activate": {
+          "name": "تصدیق کے بعد فعال کریں"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "اوقات کا شیڈول صاف کریں",
+      "description": "اس کے لیے انٹیگریشن کے اختیارات میں ”کنٹرول کی اجازت دیں“ اور ایسا آلہ درکار ہے جو کنٹرول رجسٹر فراہم کرتا ہو۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "ریموٹ بیٹری ڈسپیچ روکیں",
+      "description": "ریموٹ کنٹرول فوراً ختم کریں اور واپس پڑھ کر تصدیق کریں۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ",
+          "description": "EnergyLIB آلہ۔"
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "چارج/ڈسچارج کے پیرامیٹر مقرر کریں",
+      "description": "پاور اور پورے منٹ مقامی طور پر محفوظ کریں، کوئی کام شروع کیے بغیر اور آلے پر کچھ لکھے بغیر۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ"
+        },
+        "power_kw": {
+          "name": "پاور"
+        },
+        "duration_minutes": {
+          "name": "دورانیہ (منٹ)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "ریموٹ چارج/ڈسچارج کی اجازت مقرر کریں",
+      "description": "آن کرنے سے صرف آپریشن پینل کھلتا ہے؛ آف کرنے پر پہلے یہ تصدیق ہوتی ہے کہ جاری ریموٹ کام ختم ہو چکا ہے۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ"
+        },
+        "enabled": {
+          "name": "ریموٹ چارج/ڈسچارج کی اجازت دیں"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "EMS موڈ مقرر کریں",
+      "description": "EMS موڈ کو اس کی مقررہ کلید سے بدلیں، جو زبان پر منحصر نہیں۔ ”کنٹرول کی اجازت دیں“ درکار ہے۔",
+      "fields": {
+        "device_id": {
+          "name": "آلہ",
+          "description": "EnergyLIB آلہ۔"
+        },
+        "mode": {
+          "name": "EMS موڈ",
+          "description": "ذاتی استعمال، اوقات کے مطابق، بیک اپ، شمسی چارجنگ کو ترجیح، گرڈ کو فراہمی کو ترجیح یا پیک شیونگ (جہاں دستیاب ہو)۔"
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "چارج",
+        "discharge": "ڈسچارج"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "پیر",
+        "tue": "منگل",
+        "wed": "بدھ",
+        "thu": "جمعرات",
+        "fri": "جمعہ",
+        "sat": "ہفتہ",
+        "sun": "اتوار"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "ذاتی استعمال",
+        "backup": "بیک اپ",
+        "pv_charge_priority": "شمسی چارجنگ کو ترجیح",
+        "feed_in_priority": "گرڈ کو فراہمی کو ترجیح"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "ذاتی استعمال",
+        "time_of_use": "اوقات کے مطابق",
+        "backup": "بیک اپ",
+        "pv_charge_priority": "شمسی چارجنگ کو ترجیح",
+        "feed_in_priority": "گرڈ کو فراہمی کو ترجیح",
+        "peak_shaving": "پیک شیونگ"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "خودکار طور پر شامل کیے گئے EnergyLIB انورٹر کی تصدیق کریں",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "کیا یہ آپ کا انورٹر ہے؟",
+            "description": "EnergyLIB انورٹر {serial} جو {host} پر ہے خودکار طور پر شامل کیا گیا۔ کنٹرول کی اجازت دینے کے لیے تصدیق کریں کہ یہ آپ کا انورٹر ہے: EMS موڈ، آن/آف اور بیٹری کی ترتیبات۔ کنٹرول کی اجازت دینے کے لیے ”جمع کرائیں“ منتخب کریں۔"
+          }
+        },
+        "abort": {
+          "entry_removed": "یہ انورٹر ہٹا دیا گیا ہے۔"
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "کیا EnergyLIB انورٹر تبدیل کیا گیا؟",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{old} کو {new} سے بدلیں؟",
+            "description": "{old} آف لائن ہے اور ایک نیا EnergyLIB انورٹر {new} ملا ہے۔ اگر آپ نے انورٹر بدلا ہے تو جمع کرائیں منتخب کریں: نیا انورٹر پرانے کی تاریخ، توانائی ڈیش بورڈ، کمرہ، خودکار عمل اور کنٹرول کی ترتیب لے لے گا اور پرانا ہٹا دیا جائے گا۔ اگر {new} ایک اضافی انورٹر ہے تو اسے نظرانداز کریں اور دریافت شدہ آلات سے شامل کریں۔",
+            "data": {
+              "old": "تبدیل شدہ انورٹر"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "یہ انورٹر ہٹا دیا گیا ہے۔",
+          "already_added": "نیا انورٹر پہلے ہی شامل کیا جا چکا ہے۔",
+          "old_online": "پرانا انورٹر دوبارہ آن لائن ہے، اس لیے کچھ نہیں بدلا گیا۔"
+        }
+      }
+    }
+  }
+}

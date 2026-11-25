@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "連接 EnergyLIB",
+        "description": "填寫 EnergyLIB 採集棒的 Modbus TCP 位址。新增的裝置預設允許控制，可在整合選項中關閉。",
+        "data": {
+          "host": "IP 位址或主機名稱",
+          "port": "Modbus TCP 連接埠",
+          "unit_id": "Modbus 裝置位址"
+        }
+      },
+      "discovery_confirm": {
+        "title": "確認 EnergyLIB 裝置",
+        "description": "**採集棒 SN：** {logger_sn}\n\n**採集棒型號：** {logger_model}\n\n**採集棒韌體：** {logger_firmware}\n\n以上為採集棒廣播資訊，逆變器 SN 將在連接時單獨核對。請確認下方連接參數，控制功能預設開啟，可在整合選項中關閉。",
+        "data": {
+          "host": "IP 位址或主機名稱",
+          "port": "Modbus TCP 連接埠",
+          "unit_id": "Modbus 裝置位址"
+        }
+      },
+      "aecc_confirm": {
+        "title": "新增 AECC 設備",
+        "description": "**序號：** {serial}\n\n**位址：** {host}:{port}\n\n在區域網路中發現 AECC 設備。EnergyLIB 只讀取它的功率和電池電量，不會向設備寫入任何內容。功率方向尚未在 AECC 實機上核對。"
+      }
+    },
+    "error": {
+      "cannot_connect": "無法讀取裝置，請檢查位址、連接埠和裝置位址。",
+      "unsupported_device": "裝置不符合所選適配方案。",
+      "identity_mismatch": "裝置身分與探索資訊不一致。"
+    },
+    "abort": {
+      "already_configured": "裝置已設定。",
+      "already_in_progress": "裝置正在設定中。",
+      "identity_mismatch": "裝置身分與探索資訊不一致。",
+      "unsupported_discovery": "不支援的通訊、驗證或探索資訊。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB 設定",
+        "menu_options": {
+          "control": "控制權限",
+          "tou": "分時充放電"
+        }
+      },
+      "control": {
+        "title": "控制權限",
+        "description": "新增的裝置預設開啟。開啟後顯示裝置支援的控制項（EMS 模式、SOC、市電充電、出口限制）；開關本身不會修改裝置參數。",
+        "data": {
+          "allow_control": "允許控制"
+        }
+      },
+      "tou": {
+        "title": "分時充放電草稿",
+        "description": "修改暫存在草稿中，點儲存後才下發。",
+        "menu_options": {
+          "add": "新增時段",
+          "edit": "編輯時段",
+          "delete": "刪除時段",
+          "settings": "星期與時段外模式",
+          "save": "預覽並儲存"
+        }
+      },
+      "settings": {
+        "title": "計畫設定",
+        "data": {
+          "weekdays": "生效星期",
+          "outside_mode": "時段外模式"
+        }
+      },
+      "save": {
+        "title": "儲存計畫",
+        "description": "目前草稿：\n{preview}\n多幀儲存不具原子性。失敗可能留下部分計畫。",
+        "data": {
+          "activate": "儲存後切換為分時充放電"
+        }
+      },
+      "add": {
+        "title": "新增時段",
+        "data": {
+          "type": "類型",
+          "start": "開始",
+          "end": "結束",
+          "power": "功率（kW）"
+        }
+      },
+      "edit_period": {
+        "title": "編輯時段",
+        "data": {
+          "type": "類型",
+          "start": "開始",
+          "end": "結束",
+          "power": "功率（kW）"
+        }
+      },
+      "edit": {
+        "title": "選擇時段",
+        "data": {
+          "period": "時段"
+        }
+      },
+      "delete": {
+        "title": "選擇時段",
+        "data": {
+          "period": "時段"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "此裝置沒有提供控制暫存器。",
+      "cannot_connect": "無法讀取裝置，請檢查位址、連接埠和裝置位址。",
+      "invalid_schedule": "時段、重疊關係、星期或功率無效。",
+      "command_failed": "儲存失敗或部分完成。請檢查裝置實際狀態後再操作。"
+    },
+    "abort": {
+      "control_unverified": "此裝置沒有提供控制暫存器。",
+      "cannot_connect": "無法讀取裝置，請檢查位址、連接埠和裝置位址。",
+      "command_failed": "儲存失敗或部分完成。請重新開啟選項，讀取裝置實際計畫後再操作。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "電池電量"
+      },
+      "battery_total_soc": {
+        "name": "電池總電量"
+      },
+      "grid_import_energy": {
+        "name": "累計購電量"
+      },
+      "grid_export_energy": {
+        "name": "累計上網電量"
+      },
+      "solar_energy": {
+        "name": "累計太陽能發電量"
+      },
+      "battery_charge_energy": {
+        "name": "累計電池充電量"
+      },
+      "battery_discharge_energy": {
+        "name": "累計電池放電量"
+      },
+      "load_energy": {
+        "name": "累計負載用電量"
+      },
+      "solar_power": {
+        "name": "太陽能總功率"
+      },
+      "battery_power": {
+        "name": "電池功率"
+      },
+      "load_power": {
+        "name": "家庭負載功率"
+      },
+      "grid_power": {
+        "name": "市電功率"
+      },
+      "running_state": {
+        "name": "運行狀態",
+        "state": {
+          "standby": "待機",
+          "ready": "就緒",
+          "off_grid": "離網",
+          "on_grid": "併網",
+          "other": "其他"
+        }
+      },
+      "active_alarms": {
+        "name": "目前警告"
+      },
+      "work_mode": {
+        "name": "EMS 模式",
+        "state": {
+          "self_consumption": "自發自用模式",
+          "time_of_use": "分時充放電模式",
+          "dynamic_tariff": "分時電價",
+          "backup": "備電模式",
+          "remote": "手動控制",
+          "pv_charge_priority": "太陽能優先充電",
+          "feed_in_priority": "賣電優先模式",
+          "voltage_regulation": "調壓",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "市電 A 相電壓"
+      },
+      "grid_voltage_b": {
+        "name": "市電 B 相電壓"
+      },
+      "grid_voltage_c": {
+        "name": "市電 C 相電壓"
+      },
+      "grid_frequency": {
+        "name": "市電頻率"
+      },
+      "battery_voltage": {
+        "name": "電池電壓"
+      },
+      "battery_current": {
+        "name": "電池電流"
+      },
+      "battery_soh": {
+        "name": "電池健康度"
+      },
+      "battery_capacity": {
+        "name": "電池裝機容量"
+      },
+      "battery_remaining_energy": {
+        "name": "電池剩餘能量"
+      },
+      "battery_cell_voltage_max": {
+        "name": "電池單體最高電壓"
+      },
+      "battery_cell_voltage_min": {
+        "name": "電池單體最低電壓"
+      },
+      "battery_cell_temperature_max": {
+        "name": "電池單體最高溫度"
+      },
+      "battery_cell_temperature_min": {
+        "name": "電池單體最低溫度"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS 充電電流限值"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS 放電電流限值"
+      },
+      "battery_2_soc": {
+        "name": "電池 2 電量"
+      },
+      "battery_2_power": {
+        "name": "電池 2 功率"
+      },
+      "battery_2_voltage": {
+        "name": "電池 2 電壓"
+      },
+      "battery_2_current": {
+        "name": "電池 2 電流"
+      },
+      "pv1_power": {
+        "name": "PV 1 功率"
+      },
+      "pv2_power": {
+        "name": "PV 2 功率"
+      },
+      "pv3_power": {
+        "name": "PV 3 功率"
+      },
+      "pv4_power": {
+        "name": "PV 4 功率"
+      },
+      "backup_load_power": {
+        "name": "重要負載功率"
+      },
+      "generator_power": {
+        "name": "發電機功率"
+      },
+      "ac_couple_power": {
+        "name": "AC 耦合功率"
+      },
+      "inverter_temperature": {
+        "name": "逆變器溫度"
+      },
+      "tou_schedule": {
+        "name": "分時充放電",
+        "state": {
+          "charge": "充電時段",
+          "discharge": "放電時段",
+          "outside_period": "不在時段內",
+          "expired": "有效期已過",
+          "inactive": "未啟用",
+          "remote": "手動控制"
+        }
+      },
+      "fault_count": {
+        "name": "作用中故障數"
+      },
+      "warning_count": {
+        "name": "作用中警告數"
+      },
+      "alarm_status": {
+        "name": "裝置警告",
+        "state": {
+          "normal": "正常",
+          "abnormal": "有異常",
+          "unrecognized": "未識別異常",
+          "incomplete": "資料不完整",
+          "offline": "通訊不可用"
+        }
+      },
+      "remote_status": {
+        "name": "充放電狀態",
+        "state": {
+          "idle": "閒置",
+          "charging": "充電中",
+          "discharging": "放電中",
+          "holding": "零功率保持",
+          "stopped": "已停止",
+          "completed": "已到期",
+          "unconfirmed": "執行未確認"
+        }
+      },
+      "remote_end_time": {
+        "name": "遠端充放電預計結束時間"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "存在故障"
+      },
+      "any_warning": {
+        "name": "存在警告"
+      },
+      "meter_online": {
+        "name": "電表在線"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS 模式（舊）",
+        "state": {
+          "self_consumption": "自發自用模式",
+          "time_of_use": "分時充放電模式",
+          "dynamic_tariff": "分時電價",
+          "backup": "備電模式",
+          "remote": "手動控制",
+          "pv_charge_priority": "太陽能優先充電",
+          "feed_in_priority": "賣電優先模式",
+          "voltage_regulation": "調壓",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      },
+      "home_mode": {
+        "name": "EMS 模式",
+        "state": {
+          "self_consumption": "自發自用",
+          "time_of_use": "分時充放電",
+          "dynamic_tariff": "分時電價",
+          "backup": "電池備電",
+          "remote": "手動控制",
+          "pv_charge_priority": "太陽能優先",
+          "feed_in_priority": "賣電優先",
+          "voltage_regulation": "調壓",
+          "peak_shaving": "削峰填谷",
+          "other": "其他"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "備電 SOC"
+      },
+      "min_soc": {
+        "name": "放電截止 SOC"
+      },
+      "export_limit": {
+        "name": "出口功率限制"
+      },
+      "max_soc": {
+        "name": "最高 SOC"
+      },
+      "max_charge_current": {
+        "name": "最大充電電流"
+      },
+      "max_discharge_current": {
+        "name": "最大放電電流"
+      },
+      "remote_power": {
+        "name": "舊版遠端功率（立即執行 5 分鐘）"
+      },
+      "remote_target_power": {
+        "name": "電池功率"
+      },
+      "remote_duration": {
+        "name": "充放電時長"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "允許市電充電"
+      },
+      "export_limit_enable": {
+        "name": "啟用出口限制"
+      },
+      "inverter_power": {
+        "name": "逆變器開關機"
+      },
+      "remote_control": {
+        "name": "舊版遠端控制（立即執行 5 分鐘）"
+      },
+      "allow_remote_control": {
+        "name": "允許遠端充放電"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "開始充電"
+      },
+      "start_discharge": {
+        "name": "開始放電"
+      },
+      "stop_remote": {
+        "name": "立即停止"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "設定充放電功率",
+      "description": "需要先開啟整合的「允許控制」，再開啟「允許遠端充放電」。開啟權限本身不會執行任務。",
+      "fields": {
+        "device_id": {
+          "name": "裝置"
+        },
+        "power_kw": {
+          "name": "功率（kW），負數為充電"
+        },
+        "duration": {
+          "name": "持續秒數（必填）"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "取代分時充放電計畫",
+      "description": "需要在整合選項中開啟「允許控制」，且裝置提供控制暫存器。",
+      "fields": {
+        "device_id": {
+          "name": "裝置"
+        },
+        "periods": {
+          "name": "時段清單"
+        },
+        "weekdays": {
+          "name": "生效星期"
+        },
+        "outside_mode": {
+          "name": "時段外模式"
+        },
+        "activate": {
+          "name": "驗證後啟用分時模式"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "清空分時充放電計畫",
+      "description": "需要在整合選項中開啟「允許控制」，且裝置提供控制暫存器。",
+      "fields": {
+        "device_id": {
+          "name": "裝置"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "停止遠端充放電",
+      "description": "立即結束遠端控制並回讀。",
+      "fields": {
+        "device_id": {
+          "name": "裝置",
+          "description": "EnergyLIB 裝置。"
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "設定充放電參數",
+      "description": "僅儲存功率和分鐘數，不啟動任務、不寫入裝置。",
+      "fields": {
+        "device_id": {
+          "name": "裝置"
+        },
+        "power_kw": {
+          "name": "功率"
+        },
+        "duration_minutes": {
+          "name": "時長（分鐘）"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "設定遠端充放電權限",
+      "description": "開啟只解鎖操作，關閉時先確認結束已有遠端任務。",
+      "fields": {
+        "device_id": {
+          "name": "裝置"
+        },
+        "enabled": {
+          "name": "允許遠端充放電"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "設定 EMS 模式",
+      "description": "按固定代碼切換 EMS 模式，不受系統語言影響。需要在整合選項中開啟「允許控制」。",
+      "fields": {
+        "device_id": {
+          "name": "裝置",
+          "description": "EnergyLIB 裝置。"
+        },
+        "mode": {
+          "name": "EMS 模式",
+          "description": "自發自用、分時充放電、備電、太陽能優先充電、賣電優先或削峰填谷（機型支援時）。"
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "充電",
+        "discharge": "放電"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "週一",
+        "tue": "週二",
+        "wed": "週三",
+        "thu": "週四",
+        "fri": "週五",
+        "sat": "週六",
+        "sun": "週日"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "自發自用模式",
+        "backup": "備電模式",
+        "pv_charge_priority": "太陽能優先充電",
+        "feed_in_priority": "賣電優先模式"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "自發自用模式",
+        "time_of_use": "分時充放電模式",
+        "backup": "備電模式",
+        "pv_charge_priority": "太陽能優先充電",
+        "feed_in_priority": "賣電優先模式",
+        "peak_shaving": "削峰填谷"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "確認自動接入的 EnergyLIB 逆變器",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "這是你家的逆變器嗎？",
+            "description": "已自動接入 EnergyLIB 逆變器（序號 {serial}，位址 {host}）。確認是你家的逆變器後，才會開放控制：EMS 模式、開關機和電池設定。點「提交」開啟控制。"
+          }
+        },
+        "abort": {
+          "entry_removed": "這台逆變器已被刪除。"
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "是不是換了 EnergyLIB 逆變器？",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "把 {old} 換成 {new}？",
+            "description": "{old} 離線了，同時發現了一台新的 EnergyLIB 逆變器 {new}。如果是換了逆變器，點「提交」：新逆變器接上舊的歷史、能源面板、房間、自動化和控制設定，舊的會被刪除。如果 {new} 是新增的一台，請忽略這則，到「已發現」裡新增它。",
+            "data": {
+              "old": "被換掉的逆變器"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "這台逆變器已被刪除。",
+          "already_added": "新逆變器已經新增過了。",
+          "old_online": "舊逆變器又在線了，沒有取代。"
+        }
+      }
+    }
+  }
+}

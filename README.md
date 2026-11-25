@@ -1,0 +1,211 @@
+# EnergyLIB for Home Assistant
+
+Local Home Assistant integration for **EnergyLIB hybrid inverters** that speak the
+**EnergyLIB Modbus protocol** through a communication dongle exposing
+**Modbus TCP**. It reads power, energy and battery data for the Energy dashboard and
+offers controls (work mode, SOC limits, export limit, remote charge/discharge and a
+time-of-use schedule), allowed by default for newly added devices.
+
+| Live energy flow | Last 24 hours |
+| --- | --- |
+| ![Live energy flow and today's grid energy](docs/images/readme/flow-en.webp) | ![Power over the last 24 hours](docs/images/readme/power-en.webp) |
+
+*From the EnergyLIB page, on a physical inverter without a battery connected.*
+
+[中文说明](README.zh-Hans.md)
+
+[User guide](docs/USER_GUIDE.md): installation and everyday steps with screenshots.
+Pages and entity names follow Home Assistant's language (English and Simplified Chinese included).
+
+> **Development preview.** Verified on one physical inverter (EnergyLIB, three-phase
+> 12 kW, through an EnergyLIB logger) and with software simulators. On that device, readings,
+> alarms and the parameter controls (SOC limits, grid charging, export limit, EMS mode, TOU)
+> were written and read back, and remote charge/discharge was tested on the device.
+> Controls are on for newly added devices and can be turned off in the options. See [Testing](docs/TESTING.md).
+
+## Features
+
+- Automatic discovery via mDNS (`_energylib._tcp.local.`) or manual setup; when it is the only
+  EnergyLIB inverter on the network, it is added by itself, read-only, and Repairs asks you to
+  confirm before controls are allowed
+- Identity check by reading the inverter serial number; no duplicate devices on address changes
+- 13 main measurements plus one alert status enabled by default (PV, battery, load and grid power; six cumulative
+  energy counters; total SOC; running state; alert status; work mode)
+- More diagnostic sensors available but disabled by default (grid voltage/frequency,
+  battery voltage/current/SOH, PV strings, temperatures, faults)
+- Controls (on by default for new devices, can be turned off): EMS mode, backup SOC, minimum SOC, grid charging,
+  export limit, inverter power on/off, remote charge/discharge with a finite lease
+- Apple Home and Siri through Home Assistant's HomeKit Bridge: inverter power and an EMS selector
+  with the modes as words, no entity IDs to list
+- Time-of-use editor (up to 6 charge + 6 discharge periods) and services for automations
+- Unavailable data is shown as *unavailable*, never as 0; diagnostics are redacted
+
+Single inverter only; parallel systems are not supported.
+
+## Requirements
+
+- Home Assistant **2026.8.2** or newer
+- An inverter dongle reachable over the LAN that serves Modbus TCP (port and unit ID as configured on the device)
+- Multicast (mDNS) between HA and the device for automatic discovery; otherwise add it manually
+
+## Installation
+
+**HACS (custom repository)** — until the integration is listed in the default store:
+
+1. HACS → ⋮ → *Custom repositories* → add this repository URL, type **Integration**.
+2. Search for **EnergyLIB**, download it, and restart Home Assistant.
+
+Some HACS versions show an “icon not available” placeholder in the repository list
+even though EnergyLIB includes its brand icon. The list uses the older public brands
+CDN; the bundled icon is available to Home Assistant after installation. See the
+[HACS issue](https://github.com/hacs/integration/issues/5402).
+
+**Manual:** copy `custom_components/energylib` into your `config/custom_components/`
+directory and restart Home Assistant.
+
+## Configuration
+
+- **Added automatically:** when the inverter is the only EnergyLIB device on the network and
+  none was added or removed before, it appears about a minute after installation, showing
+  readings only. To allow control, open *Settings → Repairs → Is this your inverter?* and
+  select **Submit**. Discovery alone never enables control. Once you remove an inverter, or when
+  several loggers announce themselves, discovery asks as below instead.
+- **Discovered device:** *Settings → Devices & services* shows **EnergyLIB** under
+  *Discovered*. Select **Add**, check the address and confirm.
+  Discovery requires the new logger TXT contract (`sn`, `model`, `fw`, `transport`,
+  `api_ver`, `auth`); optional `unit_id` pre-fills the address. Logger and inverter
+  serials are separate; existing device/entity identities stay unchanged.
+  Legacy `id`-only advertisements need a firmware update or manual setup.
+- **Manual:** *Add integration → EnergyLIB*, then enter host, Modbus TCP port and
+  unit ID (default 1). The manual form pre-fills port **502**; change it if the device
+  uses another port. Discovery pre-fills the advertised port instead.
+
+  ![Connect EnergyLIB: host, Modbus TCP port and unit ID](docs/images/readme/setup-en.webp)
+
+### Energy dashboard
+
+Use the cumulative counters: *grid import energy*, *grid export energy*, *solar energy*,
+*battery charge energy* and *battery discharge energy*. Check their meaning against the
+inverter display before relying on them.
+
+### EnergyLIB dashboard
+
+The **EnergyLIB** dashboard appears in the sidebar by itself once an inverter is added
+(unless you already added one from the strategy). To add it yourself:
+*Settings → Dashboards → Add dashboard → EnergyLIB* creates a ready-made page from your
+devices: energy flow, battery, today's and lifetime energy, a 7-day chart, status,
+time-of-use schedule and activity. Control tiles appear only after you enable
+**Allow control**. The page follows renamed entities and shows one tab per device.
+The live energy-flow diagram is built in (no extra frontend card); a missing grid or
+battery is marked with a red cross.
+To use it in YAML: `strategy: {type: custom:energylib}`.
+
+### Sign convention
+
+| Sensor | Positive | Negative |
+|---|---|---|
+| Grid power | importing (buying) | exporting (selling) |
+| Battery power | discharging | charging |
+
+The inverter reports the opposite signs (battery + = charging, grid + = feed-in); the
+integration converts them.
+
+## Controls
+
+1. *Settings → Devices & services → EnergyLIB → Configure → Control access* → **Allow control**.
+   Since 0.8.43 it is on for newly added devices; entries added earlier keep their setting.
+2. Once controls are allowed and the device answers the required registers, new
+   basic EMS/SOC/grid-charging/export controls are enabled by default. Existing
+   user-disabled entities keep that preference. Battery dispatch still needs its
+   separate remote permission; remote helpers remain disabled by default.
+
+| Entity | Purpose |
+|---|---|
+| EMS mode (select) | self-consumption, time of use, backup, PV charge priority, feed-in priority, peak shaving (30 kW and above); options use HA's language for Apple Home and Siri |
+| EMS mode (legacy) (select) | only on devices upgraded from earlier versions: the key-based selector, kept with its entity ID for existing automations |
+| Backup SOC / Minimum SOC (number) | battery reserve and discharge cut-off (minimum must not exceed backup) |
+| Grid charging (switch) | allow charging the battery from the grid |
+| Export limit (number) | maximum feed-in power, up to the inverter rating |
+| Inverter power (switch) | on = power on, off = power off; state read from the inverter's running bit. When off, PV and the battery stop |
+| Target power + Duration (draft numbers), Start charging/discharging and Stop buttons | Enter a positive kW magnitude and whole minutes (1–1440), then explicitly start/stop |
+| Battery operation card | Choose direction, power and minutes, then Start; status/countdown/Stop in one card |
+
+Draft edits do not write the inverter or change a running task. Drafts persist; tasks never resume after HA restart. See the [remote operation guide](docs/REMOTE_DISPATCH.md).
+
+Remote charge/discharge has its own **Allow remote charge/discharge** switch, default off. Enabling only unlocks the combined overview card; Start executes the task. The native permission switch, parameter inputs and action buttons are disabled by default. Older sliders and switches were removed from the UI; the public services stay compatible.
+
+New devices have one EMS selector. Existing devices retain the legacy selector and its entity ID so automations continue working; after migrating those automations, disable the legacy entity in HA. For new automations, use `energylib.set_ems_mode` with `device_id` and a stable mode key such as `self_consumption` or `backup`.
+
+Remote control writes a heartbeat; if Home Assistant stops, the inverter falls back to
+self-consumption after the timeout.
+
+### Apple Home and Siri
+
+Inverter power and EMS are main controls, so a HomeKit Bridge that includes the `switch` and
+`select` domains exposes them for any inverter without listing entity IDs. Other controls are
+configuration entities, which HomeKit leaves out unless listed one by one. Put the inverter in
+its own room in Apple Home so "turn off everything" does not switch it off.
+
+### Time-of-use schedule
+
+*Configure → Time-of-use schedule*: add/edit/delete periods (type, start, end, power),
+set *Weekdays and outside mode*, then **Preview and save** (optionally switching the work
+mode to time of use). Limits: 6 charge + 6 discharge periods, one weekday set for the
+whole table, no overlaps, no periods crossing midnight, no `24:00`.
+Saving or clearing a plan preserves the device's effective-date bounds; the status
+sensor respects that window. Effective dates are read-only in the current editor.
+
+### Services
+
+```yaml
+action: energylib.set_tou_schedule
+data:
+  device_id: <EnergyLIB device>
+  periods:
+    - {type: charge, start: "01:00", end: "06:00", power: 3}
+    - {type: discharge, start: "18:00", end: "22:00", power: 2.5}
+  weekdays: [mon, tue, wed, thu, fri]
+  outside_mode: self_consumption
+  activate: true
+```
+
+- `energylib.set_battery_power` — `power_kw` (negative = charge) and `duration` in seconds
+- `energylib.stop_battery_power` — stop remote dispatch immediately
+- `energylib.set_ems_mode` — set an EMS mode using a device ID and stable mode key
+- `energylib.clear_tou_schedule` — remove all periods
+
+Each `set_tou_schedule` call replaces the whole table.
+
+## Troubleshooting
+
+- *Settings → Devices & services → EnergyLIB → ⋮ → Download diagnostics* gives the
+  detected capabilities and the last command status without serial numbers or addresses.
+- *Fault and warning status* shows named faults, warnings, indications and recent occurrences
+  ([alarm guide and automation example](docs/ALARMS.md)). *Active alarms* keeps its count; `complete: false` means some
+  alarm sources could not be read — it does not mean "no alarms".
+- A discovered card for a device that no longer exists disappears after the mDNS cache
+  expires; select **Ignore** meanwhile.
+
+## Development
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m ruff check . && python -m ruff format --check .
+python -m unittest discover -v
+```
+
+A protocol simulator for local testing: see [docs/OPERATIONS.md](docs/OPERATIONS.md) and
+[docs/SIMULATOR.md](docs/SIMULATOR.md).
+Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Changes: [CHANGELOG.md](CHANGELOG.md).
+
+## Disclaimer
+
+Use at your own risk. Writing inverter settings can affect your battery, grid export and
+backup supply; follow local regulations and the manufacturer's guidance. Trademarks
+and brand images belong to their respective owners.
+
+## License
+
+[Apache License 2.0](LICENSE) — Copyright 2026 zhiliangxiaoying. See [NOTICE](NOTICE).
+The vendor protocol document is not included; the license does not cover brand images
+or trademarks.

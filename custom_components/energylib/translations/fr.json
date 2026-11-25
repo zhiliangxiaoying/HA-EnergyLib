@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Connecter EnergyLIB",
+        "description": "Saisissez l’adresse Modbus TCP de l’enregistreur de données EnergyLIB. La commande est activée pour les nouveaux appareils et peut être désactivée dans les options de l’intégration.",
+        "data": {
+          "host": "Adresse IP ou nom d’hôte",
+          "port": "Port Modbus TCP",
+          "unit_id": "ID d’unité Modbus"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Confirmer l’appareil EnergyLIB",
+        "description": "**SN de l’enregistreur :** {logger_sn}\n\n**Modèle de l’enregistreur :** {logger_model}\n\n**Firmware de l’enregistreur :** {logger_firmware}\n\nCes informations sont annoncées par l’enregistreur. Le SN de l’onduleur est vérifié séparément à la connexion. Confirmez les paramètres ci-dessous. La commande est activée par défaut et peut être désactivée dans les options de l’intégration.",
+        "data": {
+          "host": "Adresse IP ou nom d’hôte",
+          "port": "Port Modbus TCP",
+          "unit_id": "ID d’unité Modbus"
+        }
+      },
+      "aecc_confirm": {
+        "title": "Ajouter un appareil AECC",
+        "description": "**Numéro de série :** {serial}\n\n**Adresse :** {host}:{port}\n\nUn appareil AECC sur le réseau local. EnergyLIB lit la puissance et le niveau de batterie ; rien n’est écrit dans l’appareil. Les sens de puissance ne sont pas encore vérifiés sur un appareil AECC."
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de lire l’appareil. Vérifiez l’adresse, le port et l’ID d’unité.",
+      "unsupported_device": "L’appareil ne correspond pas à ce profil.",
+      "identity_mismatch": "L’identité de l’appareil ne correspond pas à la découverte."
+    },
+    "abort": {
+      "already_configured": "Appareil déjà configuré.",
+      "already_in_progress": "La configuration est déjà en cours.",
+      "identity_mismatch": "L’identité de l’appareil ne correspond pas à la découverte.",
+      "unsupported_discovery": "Transport, authentification ou découverte non pris en charge."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Réglages EnergyLIB",
+        "menu_options": {
+          "control": "Accès à la commande",
+          "tou": "Programme de tarif horaire"
+        }
+      },
+      "control": {
+        "title": "Accès à la commande",
+        "description": "Activé pour les nouveaux appareils. Les commandes prises en charge par l’onduleur (mode EMS, SOC, charge depuis le réseau, limite d’injection) sont affichées ; activer ou désactiver ne change aucun réglage de l’appareil.",
+        "data": {
+          "allow_control": "Autoriser la commande"
+        }
+      },
+      "tou": {
+        "title": "Brouillon du tarif horaire",
+        "description": "Les modifications restent dans le brouillon jusqu’à l’enregistrement.",
+        "menu_options": {
+          "add": "Ajouter une période",
+          "edit": "Modifier une période",
+          "delete": "Supprimer une période",
+          "settings": "Jours et mode hors période",
+          "save": "Aperçu et enregistrement"
+        }
+      },
+      "settings": {
+        "title": "Réglages du programme",
+        "data": {
+          "weekdays": "Jours de la semaine",
+          "outside_mode": "Mode hors période"
+        }
+      },
+      "save": {
+        "title": "Enregistrer le programme",
+        "description": "Brouillon :\n{preview}\nUn enregistrement en plusieurs trames n’est pas atomique. Un échec peut laisser un programme partiel.",
+        "data": {
+          "activate": "Passer au tarif horaire après l’enregistrement"
+        }
+      },
+      "add": {
+        "title": "Ajouter une période",
+        "data": {
+          "type": "Type",
+          "start": "Début",
+          "end": "Fin",
+          "power": "Puissance (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Modifier une période",
+        "data": {
+          "type": "Type",
+          "start": "Début",
+          "end": "Fin",
+          "power": "Puissance (kW)"
+        }
+      },
+      "edit": {
+        "title": "Choisir une période",
+        "data": {
+          "period": "Période"
+        }
+      },
+      "delete": {
+        "title": "Choisir une période",
+        "data": {
+          "period": "Période"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "Cet appareil n’expose pas les registres de commande.",
+      "cannot_connect": "Impossible de lire l’appareil. Vérifiez l’adresse, le port et l’ID d’unité.",
+      "invalid_schedule": "Périodes, chevauchement, jours ou puissance invalides.",
+      "command_failed": "Échec ou application partielle de l’enregistrement. Vérifiez l’état réel de l’appareil avant de réessayer."
+    },
+    "abort": {
+      "control_unverified": "Cet appareil n’expose pas les registres de commande.",
+      "cannot_connect": "Impossible de lire l’appareil. Vérifiez l’adresse, le port et l’ID d’unité.",
+      "command_failed": "Échec ou application partielle de l’enregistrement. Rouvrez les options pour relire le programme réel avant de réessayer."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Niveau de charge de la batterie"
+      },
+      "battery_total_soc": {
+        "name": "État de charge de la batterie"
+      },
+      "grid_import_energy": {
+        "name": "Énergie soutirée au réseau"
+      },
+      "grid_export_energy": {
+        "name": "Énergie injectée au réseau"
+      },
+      "solar_energy": {
+        "name": "Énergie solaire"
+      },
+      "battery_charge_energy": {
+        "name": "Énergie de charge de la batterie"
+      },
+      "battery_discharge_energy": {
+        "name": "Énergie de décharge de la batterie"
+      },
+      "load_energy": {
+        "name": "Énergie consommée"
+      },
+      "solar_power": {
+        "name": "Puissance solaire"
+      },
+      "battery_power": {
+        "name": "Puissance de la batterie"
+      },
+      "load_power": {
+        "name": "Puissance consommée"
+      },
+      "grid_power": {
+        "name": "Puissance réseau"
+      },
+      "running_state": {
+        "name": "État de fonctionnement",
+        "state": {
+          "standby": "Veille",
+          "ready": "Prêt",
+          "off_grid": "Hors réseau",
+          "on_grid": "Raccordé au réseau",
+          "other": "Autre"
+        }
+      },
+      "active_alarms": {
+        "name": "Alarmes actives"
+      },
+      "work_mode": {
+        "name": "Mode EMS",
+        "state": {
+          "self_consumption": "Autoconsommation",
+          "time_of_use": "Tarif horaire",
+          "dynamic_tariff": "Tarif dynamique",
+          "backup": "Secours",
+          "remote": "Commande à distance",
+          "pv_charge_priority": "Charge solaire prioritaire",
+          "feed_in_priority": "Injection prioritaire",
+          "voltage_regulation": "Régulation de tension",
+          "peak_shaving": "Écrêtage des pointes",
+          "other": "Autre"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Tension réseau A"
+      },
+      "grid_voltage_b": {
+        "name": "Tension réseau B"
+      },
+      "grid_voltage_c": {
+        "name": "Tension réseau C"
+      },
+      "grid_frequency": {
+        "name": "Fréquence réseau"
+      },
+      "battery_voltage": {
+        "name": "Tension de la batterie"
+      },
+      "battery_current": {
+        "name": "Courant de la batterie"
+      },
+      "battery_soh": {
+        "name": "Santé de la batterie"
+      },
+      "battery_capacity": {
+        "name": "Capacité installée de la batterie"
+      },
+      "battery_remaining_energy": {
+        "name": "Énergie restante de la batterie"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Tension max. de cellule"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Tension min. de cellule"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Température max. de cellule"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Température min. de cellule"
+      },
+      "bms_charge_current_limit": {
+        "name": "Limite de courant de charge BMS"
+      },
+      "bms_discharge_current_limit": {
+        "name": "Limite de courant de décharge BMS"
+      },
+      "battery_2_soc": {
+        "name": "État de charge de la batterie 2"
+      },
+      "battery_2_power": {
+        "name": "Puissance de la batterie 2"
+      },
+      "battery_2_voltage": {
+        "name": "Tension de la batterie 2"
+      },
+      "battery_2_current": {
+        "name": "Courant de la batterie 2"
+      },
+      "pv1_power": {
+        "name": "Puissance PV1"
+      },
+      "pv2_power": {
+        "name": "Puissance PV2"
+      },
+      "pv3_power": {
+        "name": "Puissance PV3"
+      },
+      "pv4_power": {
+        "name": "Puissance PV4"
+      },
+      "backup_load_power": {
+        "name": "Puissance des charges secourues"
+      },
+      "generator_power": {
+        "name": "Puissance du générateur"
+      },
+      "ac_couple_power": {
+        "name": "Puissance en couplage AC"
+      },
+      "inverter_temperature": {
+        "name": "Température de l’onduleur"
+      },
+      "tou_schedule": {
+        "name": "Programme de tarif horaire",
+        "state": {
+          "charge": "Période de charge",
+          "discharge": "Période de décharge",
+          "outside_period": "Hors périodes",
+          "expired": "Validité expirée",
+          "inactive": "Inactif",
+          "remote": "Commande à distance"
+        }
+      },
+      "fault_count": {
+        "name": "Défauts actifs"
+      },
+      "warning_count": {
+        "name": "Avertissements actifs"
+      },
+      "alarm_status": {
+        "name": "Alertes de l’appareil",
+        "state": {
+          "normal": "Normal",
+          "abnormal": "Anormal",
+          "unrecognized": "Alarme non reconnue",
+          "incomplete": "Données incomplètes",
+          "offline": "Communication indisponible"
+        }
+      },
+      "remote_status": {
+        "name": "Fonctionnement de la batterie",
+        "state": {
+          "idle": "Inactif",
+          "charging": "En charge",
+          "discharging": "En décharge",
+          "holding": "Maintien à puissance nulle",
+          "stopped": "Arrêté",
+          "completed": "Terminé",
+          "unconfirmed": "Exécution non confirmée"
+        }
+      },
+      "remote_end_time": {
+        "name": "Fin estimée de la charge/décharge à distance"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Défaut présent"
+      },
+      "any_warning": {
+        "name": "Avertissement présent"
+      },
+      "meter_online": {
+        "name": "Compteur en ligne"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Mode EMS (ancien)",
+        "state": {
+          "self_consumption": "Autoconsommation",
+          "time_of_use": "Tarif horaire",
+          "dynamic_tariff": "Tarif dynamique",
+          "backup": "Secours",
+          "remote": "Commande à distance",
+          "pv_charge_priority": "Charge solaire prioritaire",
+          "feed_in_priority": "Injection prioritaire",
+          "voltage_regulation": "Régulation de tension",
+          "peak_shaving": "Écrêtage des pointes",
+          "other": "Autre"
+        }
+      },
+      "home_mode": {
+        "name": "Mode EMS",
+        "state": {
+          "self_consumption": "Autoconsommation",
+          "time_of_use": "Programmé",
+          "dynamic_tariff": "Tarif dynamique",
+          "backup": "Secours batterie",
+          "remote": "Manuel",
+          "pv_charge_priority": "Solaire d’abord",
+          "feed_in_priority": "Injection d’abord",
+          "voltage_regulation": "Régulation de tension",
+          "peak_shaving": "Écrêtage des pointes",
+          "other": "Autre"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "SOC de secours"
+      },
+      "min_soc": {
+        "name": "SOC minimal"
+      },
+      "export_limit": {
+        "name": "Limite d’injection"
+      },
+      "max_soc": {
+        "name": "SOC maximal"
+      },
+      "max_charge_current": {
+        "name": "Courant de charge maximal"
+      },
+      "max_discharge_current": {
+        "name": "Courant de décharge maximal"
+      },
+      "remote_power": {
+        "name": "Ancienne puissance à distance (immédiat, 5 minutes)"
+      },
+      "remote_target_power": {
+        "name": "Puissance de la batterie"
+      },
+      "remote_duration": {
+        "name": "Durée"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Charge depuis le réseau"
+      },
+      "export_limit_enable": {
+        "name": "Limite d’injection activée"
+      },
+      "inverter_power": {
+        "name": "Marche de l’onduleur"
+      },
+      "remote_control": {
+        "name": "Ancienne commande à distance (immédiat, 5 minutes)"
+      },
+      "allow_remote_control": {
+        "name": "Autoriser la charge/décharge à distance"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Démarrer la charge"
+      },
+      "start_discharge": {
+        "name": "Démarrer la décharge"
+      },
+      "stop_remote": {
+        "name": "Arrêter immédiatement"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Régler la puissance de la batterie",
+      "description": "Nécessite l’accès à la commande de l’intégration et « Autoriser la charge/décharge à distance ». Activer l’accès ne lance jamais de tâche à lui seul.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil"
+        },
+        "power_kw": {
+          "name": "Puissance (kW), négative pour charger"
+        },
+        "duration": {
+          "name": "Durée (secondes), obligatoire"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Remplacer le programme de tarif horaire",
+      "description": "Nécessite « autoriser la commande » dans les options de l’intégration et un appareil qui expose les registres de commande.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil"
+        },
+        "periods": {
+          "name": "Périodes"
+        },
+        "weekdays": {
+          "name": "Jours de la semaine"
+        },
+        "outside_mode": {
+          "name": "Mode hors période"
+        },
+        "activate": {
+          "name": "Activer après vérification"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Effacer le programme de tarif horaire",
+      "description": "Nécessite « autoriser la commande » dans les options de l’intégration et un appareil qui expose les registres de commande.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Arrêter le pilotage de la batterie à distance",
+      "description": "Termine immédiatement la commande à distance et vérifie la relecture.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil EnergyLIB."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Régler les paramètres de charge/décharge",
+      "description": "Enregistre localement la puissance et les minutes entières, sans lancer de tâche ni écrire dans l’appareil.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil"
+        },
+        "power_kw": {
+          "name": "Puissance"
+        },
+        "duration_minutes": {
+          "name": "Durée (minutes)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Régler l’accès à la charge/décharge à distance",
+      "description": "Activer déverrouille seulement le panneau ; désactiver confirme d’abord la fin d’une tâche à distance en cours.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil"
+        },
+        "enabled": {
+          "name": "Autoriser la charge/décharge à distance"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "Régler le mode EMS",
+      "description": "Change le mode EMS par sa clé fixe, indépendante de la langue. Nécessite Autoriser la commande.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil EnergyLIB."
+        },
+        "mode": {
+          "name": "Mode EMS",
+          "description": "Autoconsommation, tarif horaire, secours, charge solaire prioritaire, injection prioritaire ou écrêtage des pointes (selon le modèle)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Charge",
+        "discharge": "Décharge"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Lundi",
+        "tue": "Mardi",
+        "wed": "Mercredi",
+        "thu": "Jeudi",
+        "fri": "Vendredi",
+        "sat": "Samedi",
+        "sun": "Dimanche"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Autoconsommation",
+        "backup": "Secours",
+        "pv_charge_priority": "Charge solaire prioritaire",
+        "feed_in_priority": "Injection prioritaire"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Autoconsommation",
+        "time_of_use": "Tarif horaire",
+        "backup": "Secours",
+        "pv_charge_priority": "Charge solaire prioritaire",
+        "feed_in_priority": "Injection prioritaire",
+        "peak_shaving": "Écrêtage des pointes"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Confirmer l’onduleur EnergyLIB ajouté automatiquement",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Est-ce votre onduleur ?",
+            "description": "L’onduleur EnergyLIB {serial} à l’adresse {host} a été ajouté automatiquement. Confirmez que c’est le vôtre pour autoriser la commande : mode EMS, marche/arrêt et réglages de la batterie. Choisissez Valider pour autoriser la commande."
+          }
+        },
+        "abort": {
+          "entry_removed": "Cet onduleur a été supprimé."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Un onduleur EnergyLIB a-t-il été remplacé ?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Remplacer {old} par {new} ?",
+            "description": "{old} est hors ligne et un nouvel onduleur EnergyLIB, {new}, a été trouvé. Si vous avez remplacé l’onduleur, choisissez Valider : le nouveau reprend l’historique, le tableau de bord énergie, la pièce, les automatisations et le réglage de commande de l’ancien, qui est supprimé. Si {new} est un onduleur supplémentaire, ignorez ceci et ajoutez-le depuis les appareils découverts.",
+            "data": {
+              "old": "Onduleur remplacé"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Cet onduleur a été supprimé.",
+          "already_added": "Le nouvel onduleur a déjà été ajouté.",
+          "old_online": "L’ancien onduleur est de nouveau en ligne, rien n’a été remplacé."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "EnergyLIB に接続",
+        "description": "EnergyLIB データロガーの Modbus TCP アドレスを入力してください。新しい機器では制御がオンになっており、統合のオプションでオフにできます。",
+        "data": {
+          "host": "IP アドレスまたはホスト名",
+          "port": "Modbus TCP ポート",
+          "unit_id": "Modbus ユニット ID"
+        }
+      },
+      "discovery_confirm": {
+        "title": "EnergyLIB 機器の確認",
+        "description": "**ロガー SN:** {logger_sn}\n\n**ロガー型式:** {logger_model}\n\n**ロガーファームウェア:** {logger_firmware}\n\nこれらの情報はロガーが通知したものです。インバーターの SN は接続時に別途確認します。下の接続設定を確認してください。制御は既定でオンになっており、統合のオプションでオフにできます。",
+        "data": {
+          "host": "IP アドレスまたはホスト名",
+          "port": "Modbus TCP ポート",
+          "unit_id": "Modbus ユニット ID"
+        }
+      },
+      "aecc_confirm": {
+        "title": "AECC デバイスを追加",
+        "description": "**シリアル番号：** {serial}\n\n**アドレス：** {host}:{port}\n\nローカルネットワーク上の AECC デバイスです。EnergyLIB は電力とバッテリー残量を読み取るだけで、デバイスには何も書き込みません。電力の向きは AECC 実機でまだ確認していません。"
+      }
+    },
+    "error": {
+      "cannot_connect": "機器を読み取れません。アドレス、ポート、ユニット ID を確認してください。",
+      "unsupported_device": "機器がこのプロファイルと一致しません。",
+      "identity_mismatch": "機器の識別情報が検出結果と一致しません。"
+    },
+    "abort": {
+      "already_configured": "機器はすでに設定されています。",
+      "already_in_progress": "設定はすでに進行中です。",
+      "identity_mismatch": "機器の識別情報が検出結果と一致しません。",
+      "unsupported_discovery": "対応していない通信方式、認証、または検出仕様です。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnergyLIB 設定",
+        "menu_options": {
+          "control": "制御の許可",
+          "tou": "時間帯スケジュール"
+        }
+      },
+      "control": {
+        "title": "制御の許可",
+        "description": "新しく追加した機器ではオンです。インバーターが対応する制御（EMS モード、SOC、系統からの充電、売電上限）が表示されます。オン・オフを切り替えるだけでは機器の設定は変わりません。",
+        "data": {
+          "allow_control": "制御を許可"
+        }
+      },
+      "tou": {
+        "title": "時間帯スケジュールの下書き",
+        "description": "変更は保存するまで下書きに残ります。",
+        "menu_options": {
+          "add": "時間帯を追加",
+          "edit": "時間帯を編集",
+          "delete": "時間帯を削除",
+          "settings": "曜日と時間帯外のモード",
+          "save": "プレビューして保存"
+        }
+      },
+      "settings": {
+        "title": "スケジュール設定",
+        "data": {
+          "weekdays": "曜日",
+          "outside_mode": "時間帯外のモード"
+        }
+      },
+      "save": {
+        "title": "スケジュールを保存",
+        "description": "下書き:\n{preview}\n複数フレームでの保存は一括では完了しません。失敗すると計画が途中まで書き込まれた状態になることがあります。",
+        "data": {
+          "activate": "保存後に時間帯スケジュールへ切り替える"
+        }
+      },
+      "add": {
+        "title": "時間帯を追加",
+        "data": {
+          "type": "種類",
+          "start": "開始",
+          "end": "終了",
+          "power": "電力 (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "時間帯を編集",
+        "data": {
+          "type": "種類",
+          "start": "開始",
+          "end": "終了",
+          "power": "電力 (kW)"
+        }
+      },
+      "edit": {
+        "title": "時間帯を選択",
+        "data": {
+          "period": "時間帯"
+        }
+      },
+      "delete": {
+        "title": "時間帯を選択",
+        "data": {
+          "period": "時間帯"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "この機器は制御レジスタを公開していません。",
+      "cannot_connect": "機器を読み取れません。アドレス、ポート、ユニット ID を確認してください。",
+      "invalid_schedule": "時間帯、重複、曜日、または電力が正しくありません。",
+      "command_failed": "保存に失敗したか、一部だけ適用された可能性があります。再試行の前に機器の実際の状態を確認してください。"
+    },
+    "abort": {
+      "control_unverified": "この機器は制御レジスタを公開していません。",
+      "cannot_connect": "機器を読み取れません。アドレス、ポート、ユニット ID を確認してください。",
+      "command_failed": "保存に失敗したか、一部だけ適用された可能性があります。再試行の前にオプションを開き直し、機器の実際の計画を読み込んでください。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "バッテリー残量"
+      },
+      "battery_total_soc": {
+        "name": "バッテリー充電状態"
+      },
+      "grid_import_energy": {
+        "name": "買電量"
+      },
+      "grid_export_energy": {
+        "name": "売電量"
+      },
+      "solar_energy": {
+        "name": "太陽光発電量"
+      },
+      "battery_charge_energy": {
+        "name": "バッテリー充電量"
+      },
+      "battery_discharge_energy": {
+        "name": "バッテリー放電量"
+      },
+      "load_energy": {
+        "name": "消費電力量"
+      },
+      "solar_power": {
+        "name": "太陽光発電電力"
+      },
+      "battery_power": {
+        "name": "バッテリー電力"
+      },
+      "load_power": {
+        "name": "負荷電力"
+      },
+      "grid_power": {
+        "name": "系統電力"
+      },
+      "running_state": {
+        "name": "運転状態",
+        "state": {
+          "standby": "待機",
+          "ready": "準備完了",
+          "off_grid": "自立運転",
+          "on_grid": "系統連系",
+          "other": "その他"
+        }
+      },
+      "active_alarms": {
+        "name": "発生中のアラーム"
+      },
+      "work_mode": {
+        "name": "EMS モード",
+        "state": {
+          "self_consumption": "自家消費",
+          "time_of_use": "時間帯別",
+          "dynamic_tariff": "ダイナミック料金",
+          "backup": "バックアップ",
+          "remote": "リモート制御",
+          "pv_charge_priority": "太陽光充電優先",
+          "feed_in_priority": "売電優先",
+          "voltage_regulation": "電圧調整",
+          "peak_shaving": "ピークカット",
+          "other": "その他"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "系統電圧 A"
+      },
+      "grid_voltage_b": {
+        "name": "系統電圧 B"
+      },
+      "grid_voltage_c": {
+        "name": "系統電圧 C"
+      },
+      "grid_frequency": {
+        "name": "系統周波数"
+      },
+      "battery_voltage": {
+        "name": "バッテリー電圧"
+      },
+      "battery_current": {
+        "name": "バッテリー電流"
+      },
+      "battery_soh": {
+        "name": "バッテリー健全度"
+      },
+      "battery_capacity": {
+        "name": "バッテリー設置容量"
+      },
+      "battery_remaining_energy": {
+        "name": "バッテリー残エネルギー"
+      },
+      "battery_cell_voltage_max": {
+        "name": "バッテリーセル最高電圧"
+      },
+      "battery_cell_voltage_min": {
+        "name": "バッテリーセル最低電圧"
+      },
+      "battery_cell_temperature_max": {
+        "name": "バッテリーセル最高温度"
+      },
+      "battery_cell_temperature_min": {
+        "name": "バッテリーセル最低温度"
+      },
+      "bms_charge_current_limit": {
+        "name": "BMS 充電電流上限"
+      },
+      "bms_discharge_current_limit": {
+        "name": "BMS 放電電流上限"
+      },
+      "battery_2_soc": {
+        "name": "バッテリー 2 充電状態"
+      },
+      "battery_2_power": {
+        "name": "バッテリー 2 電力"
+      },
+      "battery_2_voltage": {
+        "name": "バッテリー 2 電圧"
+      },
+      "battery_2_current": {
+        "name": "バッテリー 2 電流"
+      },
+      "pv1_power": {
+        "name": "PV1 電力"
+      },
+      "pv2_power": {
+        "name": "PV2 電力"
+      },
+      "pv3_power": {
+        "name": "PV3 電力"
+      },
+      "pv4_power": {
+        "name": "PV4 電力"
+      },
+      "backup_load_power": {
+        "name": "バックアップ負荷電力"
+      },
+      "generator_power": {
+        "name": "発電機電力"
+      },
+      "ac_couple_power": {
+        "name": "AC カップリング電力"
+      },
+      "inverter_temperature": {
+        "name": "インバーター温度"
+      },
+      "tou_schedule": {
+        "name": "時間帯スケジュール",
+        "state": {
+          "charge": "充電時間帯",
+          "discharge": "放電時間帯",
+          "outside_period": "時間帯外",
+          "expired": "有効期限切れ",
+          "inactive": "無効",
+          "remote": "リモート制御"
+        }
+      },
+      "fault_count": {
+        "name": "発生中の故障"
+      },
+      "warning_count": {
+        "name": "発生中の警告"
+      },
+      "alarm_status": {
+        "name": "機器アラート",
+        "state": {
+          "normal": "正常",
+          "abnormal": "異常",
+          "unrecognized": "未識別のアラーム",
+          "incomplete": "データ不完全",
+          "offline": "通信不可"
+        }
+      },
+      "remote_status": {
+        "name": "バッテリー運転",
+        "state": {
+          "idle": "アイドル",
+          "charging": "充電中",
+          "discharging": "放電中",
+          "holding": "ゼロ電力で保持",
+          "stopped": "停止",
+          "completed": "完了",
+          "unconfirmed": "実行未確認"
+        }
+      },
+      "remote_end_time": {
+        "name": "リモート充放電の終了予定時刻"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "故障あり"
+      },
+      "any_warning": {
+        "name": "警告あり"
+      },
+      "meter_online": {
+        "name": "メーターオンライン"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "EMS モード（旧）",
+        "state": {
+          "self_consumption": "自家消費",
+          "time_of_use": "時間帯別",
+          "dynamic_tariff": "ダイナミック料金",
+          "backup": "バックアップ",
+          "remote": "リモート制御",
+          "pv_charge_priority": "太陽光充電優先",
+          "feed_in_priority": "売電優先",
+          "voltage_regulation": "電圧調整",
+          "peak_shaving": "ピークカット",
+          "other": "その他"
+        }
+      },
+      "home_mode": {
+        "name": "EMS モード",
+        "state": {
+          "self_consumption": "自家消費",
+          "time_of_use": "スケジュール",
+          "dynamic_tariff": "ダイナミック料金",
+          "backup": "バッテリーバックアップ",
+          "remote": "手動",
+          "pv_charge_priority": "太陽光優先",
+          "feed_in_priority": "売電優先",
+          "voltage_regulation": "電圧調整",
+          "peak_shaving": "ピークカット",
+          "other": "その他"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "バックアップ SOC"
+      },
+      "min_soc": {
+        "name": "最小 SOC"
+      },
+      "export_limit": {
+        "name": "売電上限"
+      },
+      "max_soc": {
+        "name": "最大 SOC"
+      },
+      "max_charge_current": {
+        "name": "最大充電電流"
+      },
+      "max_discharge_current": {
+        "name": "最大放電電流"
+      },
+      "remote_power": {
+        "name": "旧リモート電力（即時、5 分）"
+      },
+      "remote_target_power": {
+        "name": "バッテリー電力"
+      },
+      "remote_duration": {
+        "name": "継続時間"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "系統からの充電"
+      },
+      "export_limit_enable": {
+        "name": "売電上限を有効化"
+      },
+      "inverter_power": {
+        "name": "インバーター電源"
+      },
+      "remote_control": {
+        "name": "旧リモート制御（即時、5 分）"
+      },
+      "allow_remote_control": {
+        "name": "リモート充放電を許可"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "充電開始"
+      },
+      "start_discharge": {
+        "name": "放電開始"
+      },
+      "stop_remote": {
+        "name": "すぐに停止"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "バッテリー電力を設定",
+      "description": "統合の制御許可と「リモート充放電を許可」が必要です。許可をオンにするだけではタスクは開始されません。",
+      "fields": {
+        "device_id": {
+          "name": "機器"
+        },
+        "power_kw": {
+          "name": "電力 (kW)、負の値は充電"
+        },
+        "duration": {
+          "name": "継続時間（秒）、必須"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "時間帯スケジュールを置き換える",
+      "description": "統合のオプションで「制御を許可」がオンで、制御レジスタを公開している機器が必要です。",
+      "fields": {
+        "device_id": {
+          "name": "機器"
+        },
+        "periods": {
+          "name": "時間帯"
+        },
+        "weekdays": {
+          "name": "曜日"
+        },
+        "outside_mode": {
+          "name": "時間帯外のモード"
+        },
+        "activate": {
+          "name": "確認後に有効化"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "時間帯スケジュールを消去",
+      "description": "統合のオプションで「制御を許可」がオンで、制御レジスタを公開している機器が必要です。",
+      "fields": {
+        "device_id": {
+          "name": "機器"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "リモートのバッテリー制御を停止",
+      "description": "リモート制御をすぐに終了し、読み戻して確認します。",
+      "fields": {
+        "device_id": {
+          "name": "機器",
+          "description": "EnergyLIB 機器。"
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "充放電パラメータを設定",
+      "description": "タスクの開始や機器への書き込みは行わず、電力と分単位の時間をローカルに保存します。",
+      "fields": {
+        "device_id": {
+          "name": "機器"
+        },
+        "power_kw": {
+          "name": "電力"
+        },
+        "duration_minutes": {
+          "name": "継続時間（分）"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "リモート充放電の許可を設定",
+      "description": "オンにしても操作パネルが使えるようになるだけです。オフにするときは、先に実行中のリモートタスクの終了を確認します。",
+      "fields": {
+        "device_id": {
+          "name": "機器"
+        },
+        "enabled": {
+          "name": "リモート充放電を許可"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "EMS モードを設定",
+      "description": "言語に依存しない固定キーで EMS モードを切り替えます。「制御を許可」が必要です。",
+      "fields": {
+        "device_id": {
+          "name": "機器",
+          "description": "EnergyLIB 機器。"
+        },
+        "mode": {
+          "name": "EMS モード",
+          "description": "自家消費、時間帯別、バックアップ、太陽光充電優先、売電優先、ピークカット（対応機種のみ）。"
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "充電",
+        "discharge": "放電"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "月曜日",
+        "tue": "火曜日",
+        "wed": "水曜日",
+        "thu": "木曜日",
+        "fri": "金曜日",
+        "sat": "土曜日",
+        "sun": "日曜日"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "自家消費",
+        "backup": "バックアップ",
+        "pv_charge_priority": "太陽光充電優先",
+        "feed_in_priority": "売電優先"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "自家消費",
+        "time_of_use": "時間帯別",
+        "backup": "バックアップ",
+        "pv_charge_priority": "太陽光充電優先",
+        "feed_in_priority": "売電優先",
+        "peak_shaving": "ピークカット"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "自動で追加された EnergyLIB インバーターを確認",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "これはご自宅のインバーターですか？",
+            "description": "{host} の EnergyLIB インバーター {serial} が自動で追加されました。ご自宅のインバーターであることを確認すると、EMS モード、電源のオン・オフ、バッテリー設定の制御が許可されます。制御を許可するには「送信」を選択してください。"
+          }
+        },
+        "abort": {
+          "entry_removed": "このインバーターは削除されました。"
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "EnergyLIB インバーターを交換しましたか？",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{old} を {new} に置き換えますか？",
+            "description": "{old} がオフラインで、新しい EnergyLIB インバーター {new} が見つかりました。交換した場合は「送信」を選んでください。新しいインバーターが古いものの履歴、エネルギーダッシュボード、エリア、オートメーション、制御設定を引き継ぎ、古いものは削除されます。{new} を追加しただけの場合は、これを無視し、検出されたデバイスから追加してください。",
+            "data": {
+              "old": "交換されたインバーター"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "このインバーターは削除されました。",
+          "already_added": "新しいインバーターはすでに追加されています。",
+          "old_online": "古いインバーターがオンラインに戻ったため、置き換えていません。"
+        }
+      }
+    }
+  }
+}

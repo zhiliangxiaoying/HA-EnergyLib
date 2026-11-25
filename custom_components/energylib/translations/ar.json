@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "توصيل EnergyLIB",
+        "description": "أدخل عنوان Modbus TCP لمسجّل بيانات EnergyLIB. التحكم مفعّل للأجهزة الجديدة ويمكن إيقافه من خيارات التكامل.",
+        "data": {
+          "host": "عنوان IP أو اسم المضيف",
+          "port": "منفذ Modbus TCP",
+          "unit_id": "معرّف وحدة Modbus"
+        }
+      },
+      "discovery_confirm": {
+        "title": "تأكيد جهاز EnergyLIB",
+        "description": "**الرقم التسلسلي للمسجّل:** {logger_sn}\n\n**طراز المسجّل:** {logger_model}\n\n**برنامج المسجّل الثابت:** {logger_firmware}\n\nهذه البيانات يعلنها المسجّل. يُتحقق من الرقم التسلسلي للعاكس بشكل منفصل عند الاتصال. أكّد إعدادات الاتصال أدناه. التحكم مفعّل افتراضيًا ويمكن إيقافه من خيارات التكامل.",
+        "data": {
+          "host": "عنوان IP أو اسم المضيف",
+          "port": "منفذ Modbus TCP",
+          "unit_id": "معرّف وحدة Modbus"
+        }
+      },
+      "aecc_confirm": {
+        "title": "إضافة جهاز AECC",
+        "description": "**الرقم التسلسلي:** {serial}\n\n**العنوان:** {host}:{port}\n\nجهاز AECC على الشبكة المحلية. يقرأ EnergyLIB القدرة ومستوى البطارية فقط ولا يكتب شيئًا في الجهاز. لم يتم التحقق بعد من اتجاهات القدرة على جهاز AECC."
+      }
+    },
+    "error": {
+      "cannot_connect": "تعذّرت قراءة الجهاز. تحقّق من العنوان والمنفذ ومعرّف الوحدة.",
+      "unsupported_device": "الجهاز لا يطابق هذا الملف.",
+      "identity_mismatch": "هوية الجهاز لا تطابق بيانات الاكتشاف."
+    },
+    "abort": {
+      "already_configured": "الجهاز مُعدّ مسبقًا.",
+      "already_in_progress": "الإعداد قيد التنفيذ بالفعل.",
+      "identity_mismatch": "هوية الجهاز لا تطابق بيانات الاكتشاف.",
+      "unsupported_discovery": "نقل أو مصادقة أو اكتشاف غير مدعوم."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "إعدادات EnergyLIB",
+        "menu_options": {
+          "control": "الوصول إلى التحكم",
+          "tou": "جدول التعرفة حسب الوقت"
+        }
+      },
+      "control": {
+        "title": "الوصول إلى التحكم",
+        "description": "مفعّل للأجهزة الجديدة. تُعرض عناصر التحكم التي يدعمها العاكس (وضع EMS، SOC، الشحن من الشبكة، حد التصدير)؛ وتفعيله أو إيقافه لا يغيّر أي إعداد في الجهاز.",
+        "data": {
+          "allow_control": "السماح بالتحكم"
+        }
+      },
+      "tou": {
+        "title": "مسودة التعرفة حسب الوقت",
+        "description": "تبقى التعديلات في المسودة حتى الحفظ.",
+        "menu_options": {
+          "add": "إضافة فترة",
+          "edit": "تعديل فترة",
+          "delete": "حذف فترة",
+          "settings": "الأيام والوضع خارج الفترات",
+          "save": "معاينة وحفظ"
+        }
+      },
+      "settings": {
+        "title": "إعدادات الجدول",
+        "data": {
+          "weekdays": "أيام الأسبوع",
+          "outside_mode": "الوضع خارج الفترات"
+        }
+      },
+      "save": {
+        "title": "حفظ الجدول",
+        "description": "المسودة:\n{preview}\nالحفظ على عدة إطارات ليس ذريًا. قد يترك الفشل جدولًا جزئيًا.",
+        "data": {
+          "activate": "التحويل إلى التعرفة حسب الوقت بعد الحفظ"
+        }
+      },
+      "add": {
+        "title": "إضافة فترة",
+        "data": {
+          "type": "النوع",
+          "start": "البداية",
+          "end": "النهاية",
+          "power": "القدرة (كيلوواط)"
+        }
+      },
+      "edit_period": {
+        "title": "تعديل فترة",
+        "data": {
+          "type": "النوع",
+          "start": "البداية",
+          "end": "النهاية",
+          "power": "القدرة (كيلوواط)"
+        }
+      },
+      "edit": {
+        "title": "اختر فترة",
+        "data": {
+          "period": "الفترة"
+        }
+      },
+      "delete": {
+        "title": "اختر فترة",
+        "data": {
+          "period": "الفترة"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "هذا الجهاز لا يوفّر سجلات التحكم.",
+      "cannot_connect": "تعذّرت قراءة الجهاز. تحقّق من العنوان والمنفذ ومعرّف الوحدة.",
+      "invalid_schedule": "فترات أو تداخل أو أيام أو قدرة غير صالحة.",
+      "command_failed": "فشل الحفظ أو طُبّق جزئيًا. افحص الحالة الفعلية للجهاز قبل إعادة المحاولة."
+    },
+    "abort": {
+      "control_unverified": "هذا الجهاز لا يوفّر سجلات التحكم.",
+      "cannot_connect": "تعذّرت قراءة الجهاز. تحقّق من العنوان والمنفذ ومعرّف الوحدة.",
+      "command_failed": "فشل الحفظ أو طُبّق جزئيًا. أعِد فتح الخيارات لقراءة الجدول الفعلي للجهاز قبل إعادة المحاولة."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "مستوى شحن البطارية"
+      },
+      "battery_total_soc": {
+        "name": "حالة شحن البطارية"
+      },
+      "grid_import_energy": {
+        "name": "الطاقة المسحوبة من الشبكة"
+      },
+      "grid_export_energy": {
+        "name": "الطاقة المصدّرة للشبكة"
+      },
+      "solar_energy": {
+        "name": "الطاقة الشمسية"
+      },
+      "battery_charge_energy": {
+        "name": "طاقة شحن البطارية"
+      },
+      "battery_discharge_energy": {
+        "name": "طاقة تفريغ البطارية"
+      },
+      "load_energy": {
+        "name": "طاقة الاستهلاك"
+      },
+      "solar_power": {
+        "name": "القدرة الشمسية"
+      },
+      "battery_power": {
+        "name": "قدرة البطارية"
+      },
+      "load_power": {
+        "name": "قدرة الأحمال"
+      },
+      "grid_power": {
+        "name": "قدرة الشبكة"
+      },
+      "running_state": {
+        "name": "حالة التشغيل",
+        "state": {
+          "standby": "استعداد",
+          "ready": "جاهز",
+          "off_grid": "منفصل عن الشبكة",
+          "on_grid": "متصل بالشبكة",
+          "other": "أخرى"
+        }
+      },
+      "active_alarms": {
+        "name": "الإنذارات النشطة"
+      },
+      "work_mode": {
+        "name": "وضع EMS",
+        "state": {
+          "self_consumption": "الاستهلاك الذاتي",
+          "time_of_use": "التعرفة حسب الوقت",
+          "dynamic_tariff": "تعرفة ديناميكية",
+          "backup": "الطوارئ",
+          "remote": "التحكم عن بُعد",
+          "pv_charge_priority": "الشحن الشمسي أولًا",
+          "feed_in_priority": "التصدير أولًا",
+          "voltage_regulation": "تنظيم الجهد",
+          "peak_shaving": "خفض الذروة",
+          "other": "أخرى"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "جهد الشبكة A"
+      },
+      "grid_voltage_b": {
+        "name": "جهد الشبكة B"
+      },
+      "grid_voltage_c": {
+        "name": "جهد الشبكة C"
+      },
+      "grid_frequency": {
+        "name": "تردد الشبكة"
+      },
+      "battery_voltage": {
+        "name": "جهد البطارية"
+      },
+      "battery_current": {
+        "name": "تيار البطارية"
+      },
+      "battery_soh": {
+        "name": "صحة البطارية"
+      },
+      "battery_capacity": {
+        "name": "سعة البطارية المركّبة"
+      },
+      "battery_remaining_energy": {
+        "name": "الطاقة المتبقية في البطارية"
+      },
+      "battery_cell_voltage_max": {
+        "name": "أعلى جهد خلية"
+      },
+      "battery_cell_voltage_min": {
+        "name": "أدنى جهد خلية"
+      },
+      "battery_cell_temperature_max": {
+        "name": "أعلى حرارة خلية"
+      },
+      "battery_cell_temperature_min": {
+        "name": "أدنى حرارة خلية"
+      },
+      "bms_charge_current_limit": {
+        "name": "حد تيار الشحن في BMS"
+      },
+      "bms_discharge_current_limit": {
+        "name": "حد تيار التفريغ في BMS"
+      },
+      "battery_2_soc": {
+        "name": "شحن البطارية 2"
+      },
+      "battery_2_power": {
+        "name": "قدرة البطارية 2"
+      },
+      "battery_2_voltage": {
+        "name": "جهد البطارية 2"
+      },
+      "battery_2_current": {
+        "name": "تيار البطارية 2"
+      },
+      "pv1_power": {
+        "name": "قدرة PV1"
+      },
+      "pv2_power": {
+        "name": "قدرة PV2"
+      },
+      "pv3_power": {
+        "name": "قدرة PV3"
+      },
+      "pv4_power": {
+        "name": "قدرة PV4"
+      },
+      "backup_load_power": {
+        "name": "قدرة أحمال الطوارئ"
+      },
+      "generator_power": {
+        "name": "قدرة المولّد"
+      },
+      "ac_couple_power": {
+        "name": "قدرة الاقتران AC"
+      },
+      "inverter_temperature": {
+        "name": "حرارة العاكس"
+      },
+      "tou_schedule": {
+        "name": "جدول التعرفة حسب الوقت",
+        "state": {
+          "charge": "فترة الشحن",
+          "discharge": "فترة التفريغ",
+          "outside_period": "خارج الفترات",
+          "expired": "انتهت الصلاحية",
+          "inactive": "غير نشط",
+          "remote": "التحكم عن بُعد"
+        }
+      },
+      "fault_count": {
+        "name": "الأعطال النشطة"
+      },
+      "warning_count": {
+        "name": "التحذيرات النشطة"
+      },
+      "alarm_status": {
+        "name": "تنبيهات الجهاز",
+        "state": {
+          "normal": "طبيعي",
+          "abnormal": "غير طبيعي",
+          "unrecognized": "إنذار غير معروف",
+          "incomplete": "بيانات غير مكتملة",
+          "offline": "الاتصال غير متاح"
+        }
+      },
+      "remote_status": {
+        "name": "تشغيل البطارية",
+        "state": {
+          "idle": "خامل",
+          "charging": "يشحن",
+          "discharging": "يفرّغ",
+          "holding": "يثبت على قدرة صفرية",
+          "stopped": "متوقف",
+          "completed": "اكتمل",
+          "unconfirmed": "التنفيذ غير مؤكد"
+        }
+      },
+      "remote_end_time": {
+        "name": "الانتهاء المتوقع للشحن/التفريغ عن بُعد"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "يوجد عطل"
+      },
+      "any_warning": {
+        "name": "يوجد تحذير"
+      },
+      "meter_online": {
+        "name": "العداد متصل"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "وضع EMS (قديم)",
+        "state": {
+          "self_consumption": "الاستهلاك الذاتي",
+          "time_of_use": "التعرفة حسب الوقت",
+          "dynamic_tariff": "تعرفة ديناميكية",
+          "backup": "الطوارئ",
+          "remote": "التحكم عن بُعد",
+          "pv_charge_priority": "الشحن الشمسي أولًا",
+          "feed_in_priority": "التصدير أولًا",
+          "voltage_regulation": "تنظيم الجهد",
+          "peak_shaving": "خفض الذروة",
+          "other": "أخرى"
+        }
+      },
+      "home_mode": {
+        "name": "وضع EMS",
+        "state": {
+          "self_consumption": "الاستهلاك الذاتي",
+          "time_of_use": "مجدول",
+          "dynamic_tariff": "تعرفة ديناميكية",
+          "backup": "طوارئ بالبطارية",
+          "remote": "يدوي",
+          "pv_charge_priority": "الشمس أولًا",
+          "feed_in_priority": "التصدير أولًا",
+          "voltage_regulation": "تنظيم الجهد",
+          "peak_shaving": "خفض الذروة",
+          "other": "أخرى"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "SOC الطوارئ"
+      },
+      "min_soc": {
+        "name": "أدنى SOC"
+      },
+      "export_limit": {
+        "name": "حد التصدير"
+      },
+      "max_soc": {
+        "name": "أعلى SOC"
+      },
+      "max_charge_current": {
+        "name": "أقصى تيار شحن"
+      },
+      "max_discharge_current": {
+        "name": "أقصى تيار تفريغ"
+      },
+      "remote_power": {
+        "name": "قدرة عن بُعد قديمة (فوري، 5 دقائق)"
+      },
+      "remote_target_power": {
+        "name": "قدرة البطارية"
+      },
+      "remote_duration": {
+        "name": "المدة"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "الشحن من الشبكة"
+      },
+      "export_limit_enable": {
+        "name": "تفعيل حد التصدير"
+      },
+      "inverter_power": {
+        "name": "تشغيل العاكس"
+      },
+      "remote_control": {
+        "name": "تحكم عن بُعد قديم (فوري، 5 دقائق)"
+      },
+      "allow_remote_control": {
+        "name": "السماح بالشحن/التفريغ عن بُعد"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "بدء الشحن"
+      },
+      "start_discharge": {
+        "name": "بدء التفريغ"
+      },
+      "stop_remote": {
+        "name": "إيقاف فوري"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "ضبط قدرة البطارية",
+      "description": "يتطلب الوصول إلى التحكم في التكامل و«السماح بالشحن/التفريغ عن بُعد». تفعيل الوصول وحده لا يبدأ أي مهمة أبدًا.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز"
+        },
+        "power_kw": {
+          "name": "القدرة (كيلوواط)، السالب للشحن"
+        },
+        "duration": {
+          "name": "المدة (ثوانٍ)، مطلوبة"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "استبدال جدول التعرفة حسب الوقت",
+      "description": "يتطلب «السماح بالتحكم» في خيارات التكامل وجهازًا يوفّر سجلات التحكم.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز"
+        },
+        "periods": {
+          "name": "الفترات"
+        },
+        "weekdays": {
+          "name": "أيام الأسبوع"
+        },
+        "outside_mode": {
+          "name": "الوضع خارج الفترات"
+        },
+        "activate": {
+          "name": "التفعيل بعد التحقق"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "مسح جدول التعرفة حسب الوقت",
+      "description": "يتطلب «السماح بالتحكم» في خيارات التكامل وجهازًا يوفّر سجلات التحكم.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "إيقاف إدارة البطارية عن بُعد",
+      "description": "إنهاء التحكم عن بُعد فورًا والتحقق بالقراءة الراجعة.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز",
+          "description": "جهاز EnergyLIB."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "ضبط معاملات الشحن/التفريغ",
+      "description": "حفظ القدرة والدقائق الكاملة محليًا دون بدء مهمة أو الكتابة إلى الجهاز.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز"
+        },
+        "power_kw": {
+          "name": "القدرة"
+        },
+        "duration_minutes": {
+          "name": "المدة (دقائق)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "ضبط الوصول إلى الشحن/التفريغ عن بُعد",
+      "description": "التفعيل يفتح اللوحة فقط؛ والإيقاف يؤكد أولًا الخروج من أي مهمة عن بُعد جارية.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز"
+        },
+        "enabled": {
+          "name": "السماح بالشحن/التفريغ عن بُعد"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "ضبط وضع EMS",
+      "description": "تبديل وضع EMS بمفتاحه الثابت بغض النظر عن اللغة. يتطلب السماح بالتحكم.",
+      "fields": {
+        "device_id": {
+          "name": "الجهاز",
+          "description": "جهاز EnergyLIB."
+        },
+        "mode": {
+          "name": "وضع EMS",
+          "description": "الاستهلاك الذاتي أو التعرفة حسب الوقت أو الطوارئ أو الشحن الشمسي أولًا أو التصدير أولًا أو خفض الذروة (حسب الطراز)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "شحن",
+        "discharge": "تفريغ"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "الاثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة",
+        "sat": "السبت",
+        "sun": "الأحد"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "الاستهلاك الذاتي",
+        "backup": "الطوارئ",
+        "pv_charge_priority": "الشحن الشمسي أولًا",
+        "feed_in_priority": "التصدير أولًا"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "الاستهلاك الذاتي",
+        "time_of_use": "التعرفة حسب الوقت",
+        "backup": "الطوارئ",
+        "pv_charge_priority": "الشحن الشمسي أولًا",
+        "feed_in_priority": "التصدير أولًا",
+        "peak_shaving": "خفض الذروة"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "تأكيد عاكس EnergyLIB المضاف تلقائيًا",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "هل هذا عاكسك؟",
+            "description": "أُضيف عاكس EnergyLIB {serial} على العنوان {host} تلقائيًا. أكّد أنه عاكسك للسماح بالتحكم: وضع EMS والتشغيل/الإيقاف وإعدادات البطارية. اختر إرسال للسماح بالتحكم."
+          }
+        },
+        "abort": {
+          "entry_removed": "أُزيل هذا العاكس."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "هل استُبدل عاكس EnergyLIB؟",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "استبدال {old} بـ {new}؟",
+            "description": "{old} غير متصل وعُثر على عاكس EnergyLIB جديد هو {new}. إذا استبدلت العاكس فاختر إرسال: يرث الجديد سجل القديم ولوحة الطاقة والغرفة والأتمتة وإعداد التحكم، ويُزال القديم. إذا كان {new} عاكسًا إضافيًا فتجاهل هذا وأضِفه من الأجهزة المكتشفة.",
+            "data": {
+              "old": "العاكس المستبدَل"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "أُزيل هذا العاكس.",
+          "already_added": "أُضيف العاكس الجديد بالفعل.",
+          "old_online": "عاد العاكس القديم متصلًا، لذا لم يُستبدل شيء."
+        }
+      }
+    }
+  }
+}

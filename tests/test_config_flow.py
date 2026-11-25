@@ -1,0 +1,657 @@
+"""Flow contract tests with a minimal HA API double, not HA runtime tests."""
+
+import ast
+import importlib
+import sys
+import unittest
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
+
+import voluptuous as vol
+from energylib_under_test.protocol.device import DeviceIdentity
+from energylib_under_test.protocol.modbus import CannotConnect
+
+from tools.discovery_advertisement import txt_properties
+
+
+class AbortFlow(Exception):
+    def __init__(self, reason):
+        self.reason = reason
+
+
+class ConfigFlowDouble:
+    def __init_subclass__(cls, **kwargs):
+        pass
+
+    def __new__(cls):
+        instance = super().__new__(cls)
+        instance.context = {}
+        instance.flow_id = "this"
+        instance.entries = []
+        instance.flows = []
+        instance.other_flow_id = None
+        instance.other_logger = None
+        instance.updates = []
+
+        def update(entry, *, data):
+            entry.data = data
+            instance.updates.append(entry)
+
+        instance.hass = SimpleNamespace(config_entries=SimpleNamespace(async_update_entry=update))
+        return instance
+
+    async def async_set_unique_id(self, unique_id, *, raise_on_progress=True):
+        self.unique_id = unique_id
+        if raise_on_progress and self.other_flow_id == unique_id:
+            raise AbortFlow("already_in_progress")
+
+    def _async_current_entries(self, include_ignore=False):
+        return self.entries
+
+    def _async_in_progress(self, **kwargs):
+        if "match_context" not in kwargs:
+            return [{"flow_id": self.flow_id}, *self.flows]
+        if kwargs["match_context"].get("energylib_logger_sn") == self.other_logger:
+            return [{"flow_id": "other"}]
+        return []
+
+    def _abort_if_unique_id_configured(self, updates=None, reload_on_update=True):
+        for entry in self.entries:
+            if entry.unique_id == self.unique_id:
+                entry.data.update(updates or {})
+                raise AbortFlow("already_configured")
+
+    def add_suggested_values_to_schema(self, schema, suggested):
+        return schema
+
+    def async_show_form(self, **kwargs):
+        return {"type": "form", **kwargs}
+
+    def async_abort(self, **kwargs):
+        return {"type": "abort", **kwargs}
+
+    def async_create_entry(self, **kwargs):
+        return {"type": "create_entry", "unique_id": self.unique_id, **kwargs}
+
+
+class SectionDouble:
+    """Mirror HA's data_entry_flow.section: a validator wrapping a sub-schema."""
+
+    def __init__(self, schema, options=None):
+        self.schema, self.options = schema, options or {}
+
+    def __call__(self, value):
+        return self.schema(value)
+
+
+class NumberSelectorDouble:
+    """Match HA's float-returning number selector; actual UI is checked in HA."""
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, value):
+        return vol.All(
+            vol.Coerce(float), vol.Range(min=self.config["min"], max=self.config["max"])
+        )(value)
+
+
+def load_flow_module():
+    modules = {
+        name: ModuleType(name)
+        for name in [
+            "homeassistant",
+            "homeassistant.helpers",
+            "homeassistant.helpers.issue_registry",
+            "homeassistant.helpers.device_registry",
+            "homeassistant.helpers.entity_registry",
+            "homeassistant.helpers.storage",
+            "homeassistant.helpers.selector",
+            "homeassistant.helpers.service_info",
+            "homeassistant.helpers.service_info.zeroconf",
+            "homeassistant.config_entries",
+            "homeassistant.const",
+            "homeassistant.data_entry_flow",
+        ]
+    }
+    modules["homeassistant.data_entry_flow"].section = SectionDouble
+    modules["homeassistant.helpers.service_info.zeroconf"].ZeroconfServiceInfo = SimpleNamespace
+    modules["homeassistant.config_entries"].ConfigFlow = ConfigFlowDouble
+    modules["homeassistant.config_entries"].ConfigFlowResult = dict
+    modules["homeassistant.config_entries"].ConfigEntryState = SimpleNamespace(
+        LOADED="loaded", SETUP_RETRY="setup_retry"
+    )
+    modules["homeassistant.const"].CONF_HOST = "host"
+    modules["homeassistant.const"].CONF_PORT = "port"
+    modules["homeassistant.helpers.selector"].NumberSelector = NumberSelectorDouble
+    modules["homeassistant.helpers.selector"].NumberSelectorConfig = dict
+    modules["homeassistant.helpers.storage"].Store = object
+    modules["homeassistant.helpers.issue_registry"].IssueSeverity = SimpleNamespace(WARNING="w")
+    with patch.dict(sys.modules, modules):
+        return importlib.import_module("energylib_under_test.config_flow")
+
+
+class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_flow_module()
+
+    def setUp(self):
+        self.flow = self.module.EnergyLibConfigFlow()
+        self.identity = DeviceIdentity("TEST-001", 1, "100.1", "101.2")
+        self.probe = AsyncMock(return_value=self.identity)
+        self.patch = patch.object(self.module, "async_probe", self.probe)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        # Automatic adding has its own tests below; elsewhere discovery asks.
+        self.auto_allowed = AsyncMock(return_value=False)
+        for target, value in (
+            ("async_allowed", self.auto_allowed),
+            ("SETTLE_SECONDS", 0),
+        ):
+            patcher = patch.object(self.module.auto_add, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.offer = Mock(return_value=False)
+        patcher = patch.object(self.module.replace, "async_offer", self.offer)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def discovery(self, **properties):
+        return SimpleNamespace(
+            host="192.0.2.2", port=1502, properties={**txt_properties("LOGGER-001"), **properties}
+        )
+
+    async def test_the_only_inverter_is_added_read_only_without_asking(self):
+        self.auto_allowed.return_value = True
+        result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"]["serial"], "TEST-001")
+        # Discovery alone never allows control; Repairs asks the user first.
+        self.assertEqual(result["options"], {"allow_control": False, "auto_added": True})
+        # Asked about the verified serial, not "any inverter"; no replacement question.
+        self.auto_allowed.assert_awaited_with(self.flow.hass, "TEST-001")
+        self.offer.assert_not_called()
+
+    async def test_a_discovery_that_asks_also_offers_replacing_an_offline_inverter(self):
+        result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(result["step_id"], "discovery_confirm")
+        self.offer.assert_called_once()
+        self.assertEqual(self.offer.call_args.args[1]["serial"], "TEST-001")
+
+    async def test_an_unverified_discovery_never_offers_a_replacement(self):
+        self.probe.side_effect = self.module.EnergyLibError("offline")
+        await self.flow.async_step_zeroconf(self.discovery())
+        self.offer.assert_not_called()
+
+    async def test_replace_step_creates_the_entry_with_the_old_options(self):
+        data = {"serial": "TEST-002", "profile_id": "sinexcel_v2", "host": "h", "port": 1}
+        # The new inverter's discovery card is still open: it must not block this.
+        self.flow.other_flow_id = "energylib_TEST-002"
+        result = await self.flow.async_step_replace(
+            {"data": data, "options": {"allow_control": True}}
+        )
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["unique_id"], "energylib_TEST-002")
+        self.assertEqual(result["options"], {"allow_control": True})
+
+    def test_an_offline_aecc_device_is_never_offered_for_replacement(self):
+        state = self.module.replace.ConfigEntryState
+
+        def entry(entry_id, data):
+            return SimpleNamespace(
+                entry_id=entry_id, data=data, source="zeroconf", disabled_by=None,
+                state=state.SETUP_RETRY,
+            )
+
+        entries = [entry("inverter", {"serial": "TEST-001"}),
+                   entry("aecc", {"serial": "A-1", "source": "aecc_local"})]
+        hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: entries))
+        offline = self.module.replace.offline_entries(hass)
+        self.assertEqual([e.entry_id for e in offline], ["inverter"])
+
+    async def test_discovery_asks_when_automatic_adding_does_not_apply(self):
+        self.auto_allowed.return_value = True
+        cases = {
+            "another logger announced": lambda: self.flow.flows.append({"flow_id": "other"}),
+            "an inverter is configured": lambda: self.flow.entries.append(
+                SimpleNamespace(unique_id="energylib_OTHER", data={}, source="ignore")
+            ),
+            "the user removed one before": lambda: setattr(
+                self.auto_allowed, "return_value", False
+            ),
+        }
+        for name, arrange in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                self.auto_allowed.return_value = True
+                arrange()
+                result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+                self.assertEqual(result.get("step_id"), "discovery_confirm", result)
+
+    async def test_an_unreachable_inverter_is_never_added_automatically(self):
+        self.auto_allowed.return_value = True
+        self.probe.side_effect = self.module.EnergyLibError("offline")
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["step_id"], "discovery_confirm")
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+
+    async def test_discovery_requires_confirmation_and_uses_verified_identity(self):
+        form = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(form["type"], "form")
+        self.assertEqual(form["step_id"], "discovery_confirm")
+        result = await self.flow.async_step_discovery_confirm(
+            {
+                "host": "192.0.2.2",
+                "port": 1502,
+                "unit_id": 1,
+            }
+        )
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["unique_id"], "energylib_TEST-001")
+        self.assertEqual(result["data"]["profile_id"], "sinexcel_v2")
+        self.assertEqual(result["data"]["profile_version"], 1)
+        self.assertEqual(result["data"]["profile"], "v001b031_single")
+        self.assertEqual(result["data"]["logger"]["sn"], "LOGGER-001")
+        self.assertEqual(result["data"]["logger"]["source"], "zeroconf")
+        self.assertEqual(result["options"], {"allow_control": True})
+
+    async def test_discovery_card_and_confirmation_identify_the_logger(self):
+        form = await self.flow.async_step_zeroconf(self.discovery(model="WF_ETH", fw="400.3.3"))
+        self.assertEqual(
+            self.flow.context["title_placeholders"], {"name": "EnergyLIB · LOGGER-001"}
+        )
+        self.assertEqual(
+            form["description_placeholders"],
+            {
+                "logger_sn": "LOGGER-001",
+                "logger_model": r"WF\_ETH",
+                "logger_firmware": "400.3.3",
+            },
+        )
+        self.assertNotIn(self.identity.serial, str(form["description_placeholders"]))
+
+    async def test_logger_details_survive_display_and_failed_confirmation(self):
+        self.probe.side_effect = CannotConnect("offline")
+        initial = await self.flow.async_step_zeroconf(self.discovery())
+        for values in (
+            None,
+            {"host": "192.0.2.2", "port": 8888, "unit_id": 7},
+            {"host": " ", "port": 8888, "unit_id": 7},
+        ):
+            form = await self.flow.async_step_discovery_confirm(values)
+            self.assertEqual(form["type"], "form")
+            self.assertEqual(form["description_placeholders"], initial["description_placeholders"])
+        self.assertEqual(form["errors"], {"base": "cannot_connect"})
+        self.assertEqual(self.flow.updates, [])
+
+    async def test_discovery_metadata_is_displayed_as_text_not_markdown(self):
+        form = await self.flow.async_step_zeroconf(
+            self.discovery(sn="<LOGGER>", model="[model](url)", fw="*1.0*`build`")
+        )
+        self.assertEqual(
+            form["description_placeholders"],
+            {
+                "logger_sn": r"\<LOGGER\>",
+                "logger_model": r"\[model\](url)",
+                "logger_firmware": r"\*1.0\*\`build\`",
+            },
+        )
+
+    async def test_manual_form_does_not_claim_advertised_logger_metadata(self):
+        form = await self.flow.async_step_user()
+        self.assertEqual(form["description_placeholders"], {})
+        self.assertNotIn("title_placeholders", self.flow.context)
+
+    async def test_verified_dhcp_change_updates_entry_without_new_identity(self):
+        entry = SimpleNamespace(
+            unique_id="energylib_TEST-001",
+            data={
+                "host": "192.0.2.1",
+                "port": 2502,
+                "unit_id": 7,
+                "logger": txt_properties("LOGGER-001"),
+            },
+        )
+        self.flow.entries = [entry]
+        with self.assertRaises(AbortFlow) as caught:
+            await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(caught.exception.reason, "already_configured")
+        self.assertEqual(entry.unique_id, "energylib_TEST-001")
+        self.assertEqual(entry.data["host"], "192.0.2.2")
+        self.assertEqual(entry.data["port"], 1502)
+        self.assertEqual(entry.data["unit_id"], 7)
+        self.assertEqual(self.probe.call_args.args[0]["unit_id"], 7)
+
+    async def test_entry_with_removed_profile_does_not_break_discovery(self):
+        # A pre-0.5.0.dev6 "energylib_lab" entry: unknown profiles are skipped and
+        # the device is offered again as a normal Sinexcel discovery.
+        self.flow.entries = [
+            SimpleNamespace(
+                unique_id="energylib_lab_TEST-001",
+                data={
+                    "host": "127.0.0.1",
+                    "port": 15021,
+                    "unit_id": 1,
+                    "profile_id": "energylib_lab",
+                },
+            )
+        ]
+        form = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        self.assertEqual(form["step_id"], "discovery_confirm")
+        self.assertEqual(self.probe.call_args.args[0]["profile_id"], "sinexcel_v2")
+
+    async def test_form_has_no_profile_choice(self):
+        schema = (await self.flow.async_step_user())["data_schema"]
+        self.assertEqual({str(k) for k in schema.schema}, {"host", "port", "unit_id"})
+        result = await self.flow.async_step_user({"host": "192.0.2.1", "port": 1502, "unit_id": 1})
+        self.assertEqual(result["data"]["profile_id"], "sinexcel_v2")
+
+    async def test_same_logger_new_inverter_does_not_overwrite_old_entry(self):
+        entry = SimpleNamespace(
+            unique_id="CLAIMED-ID",
+            data={
+                "host": "192.0.2.1",
+                "port": 1502,
+                "unit_id": 1,
+                "logger": txt_properties("LOGGER-001"),
+            },
+        )
+        self.flow.entries = [entry]
+        result = await self.flow.async_step_zeroconf(self.discovery(id="CLAIMED-ID"))
+        self.assertEqual(result["type"], "form")
+        self.assertEqual(self.flow.unique_id, "energylib_TEST-001")
+        self.assertEqual(entry.data["host"], "192.0.2.1")
+
+    async def test_repeated_discovery_does_not_open_duplicate_flow(self):
+        self.flow.other_logger = "LOGGER-001"
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["reason"], "already_in_progress")
+        self.probe.assert_not_awaited()
+
+    async def test_unreachable_announcement_is_still_deduplicated(self):
+        self.probe.side_effect = CannotConnect("Test")
+        self.flow.other_logger = "LOGGER-001"
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["reason"], "already_in_progress")
+        self.probe.assert_not_awaited()
+
+    def test_flow_never_reads_deprecated_advanced_mode(self):
+        # HA 2026.x deprecated show_advanced_options; it always returns True.
+        source = Path(self.module.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        names = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+        names |= {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)}
+        self.assertNotIn("show_advanced_options", names)
+
+    async def test_unreachable_discovery_can_be_corrected_without_creating_entry(self):
+        self.probe.side_effect = CannotConnect("Test")
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+        self.probe.side_effect = None
+        result = await self.flow.async_step_discovery_confirm(
+            {
+                "host": "192.0.2.2",
+                "port": 1502,
+                "unit_id": 7,
+            }
+        )
+        self.assertEqual(result["type"], "create_entry")
+
+    async def test_unsupported_service_aborts_before_network_access(self):
+        result = await self.flow.async_step_zeroconf(self.discovery(transport="http"))
+        self.assertEqual(result["reason"], "unsupported_discovery")
+        self.probe.assert_not_awaited()
+
+    def aecc(self, name="sxd-mdns-if-AECC0001._http._tcp.local.", **props):
+        return SimpleNamespace(
+            type="_http._tcp.local.", name=name, host="192.0.2.9", port=8080,
+            properties={"s_sn": "AECC0001", "s_ip": "192.0.2.9", "s_type": "34", "s_port": "6000", **props},
+        )
+
+    async def test_aecc_inverter_is_offered_and_added_read_only_after_one_read(self):
+        form = await self.flow.async_step_zeroconf(self.aecc())
+        self.assertEqual(form["step_id"], "aecc_confirm")
+        self.assertEqual(form["description_placeholders"]["serial"], "AECC0001")
+        self.assertEqual(form["description_placeholders"]["port"], "6000")  # TXT port wins
+        self.assertEqual(self.flow.unique_id, "aecc_AECC0001")
+        self.probe.assert_not_called()  # never the Modbus probe
+        client = AsyncMock()
+        client.energy_parameters.return_value = {"SSumInfoList": {"TotalPVPower": 0}}
+        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+                   return_value=client) as make:
+            result = await self.flow.async_step_aecc_confirm({})
+        make.assert_called_once_with("192.0.2.9", 6000)
+        client.close.assert_awaited()
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["options"], {"allow_control": False})
+        self.assertEqual(result["data"]["source"], "aecc_local")
+        self.assertEqual(result["data"]["profile_id"], "aecc_local_v1")
+        self.assertEqual((result["data"]["serial"], result["data"]["device_type"]), ("AECC0001", 34))
+
+    async def test_aecc_confirm_reports_an_unreachable_or_foreign_device(self):
+        await self.flow.async_step_zeroconf(self.aecc())
+        client = AsyncMock()
+        client.energy_parameters.side_effect = self.module.EnergyLibError("offline")
+        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+                   return_value=client):
+            result = await self.flow.async_step_aecc_confirm({})
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+        client.energy_parameters.side_effect = None
+        client.energy_parameters.return_value = {"Result": "unsupported"}
+        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+                   return_value=client):
+            result = await self.flow.async_step_aecc_confirm({})
+        self.assertEqual(result["errors"], {"base": "unsupported_device"})
+
+    async def test_any_aecc_type_is_offered_and_foreign_http_services_are_not(self):
+        # No type table is published (the document's EMS is type 131): the read
+        # on confirmation decides, not the type.
+        with patch.object(self.flow, "async_step_aecc_confirm", AsyncMock(return_value={"type": "form"})):
+            result = await self.flow.async_step_zeroconf(
+                self.aecc(s_type="131", name="SXD-mDNS-IF-AECC0001._http._tcp.local."))
+        self.assertEqual(result, {"type": "form"})
+        self.assertEqual(self.flow._data["device_type"], 131)
+        result = await self.flow.async_step_zeroconf(self.aecc(name="printer._http._tcp.local."))
+        self.assertEqual(result["reason"], "unsupported_discovery")
+        for bad in ({"s_sn": ""}, {"s_port": "99999"}, {"s_type": "x"}):
+            with self.subTest(bad=bad):
+                result = await self.flow.async_step_zeroconf(self.aecc(**bad))
+                self.assertEqual(result["reason"], "unsupported_discovery")
+
+    async def test_known_aecc_device_follows_a_new_address(self):
+        entry = SimpleNamespace(unique_id="aecc_AECC0001", data={"host": "old", "port": 1})
+        self.flow.entries = [entry]
+        with self.assertRaises(AbortFlow):
+            await self.flow.async_step_zeroconf(self.aecc())
+        self.assertEqual(entry.data, {"host": "192.0.2.9", "port": 6000})
+
+    async def test_manual_input_defaults_to_502_and_forbids_broadcast(self):
+        result = await self.flow.async_step_user()
+        schema = result["data_schema"]
+        data = schema({"host": "192.0.2.1"})
+        self.assertEqual(data["port"], 502)
+        self.assertEqual(data["unit_id"], 1)
+        for data in [
+            {"host": "192.0.2.1", "port": 1502, "unit_id": 0},
+            {"host": "192.0.2.1", "port": 0},
+            {"host": "192.0.2.1", "port": 65536},
+        ]:
+            with self.assertRaises(vol.Invalid):
+                schema(data)
+        data = schema({"host": "192.0.2.1", "port": 1502})
+        self.assertEqual(data["port"], 1502)
+        self.assertEqual(data["unit_id"], 1)
+
+    async def test_discovery_form_defaults_to_advertised_port(self):
+        result = await self.flow.async_step_zeroconf(self.discovery(id="TEST-001"))
+        data = result["data_schema"]({"host": "192.0.2.2"})
+        self.assertEqual(data["port"], 1502)
+
+    async def test_failed_submission_keeps_custom_port(self):
+        self.probe.side_effect = CannotConnect("Test")
+        result = await self.flow.async_step_user({"host": "192.0.2.1", "port": 15021, "unit_id": 1})
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+        data = result["data_schema"]({"host": "192.0.2.1"})
+        self.assertEqual(data["port"], 15021)
+
+    async def test_unit_id_is_an_integer_even_with_float_returning_selector(self):
+        schema = (await self.flow.async_step_user())["data_schema"]
+        for unit in (1, 7.0, "255"):
+            data = schema({"host": "192.0.2.1", "unit_id": unit})
+            self.assertIs(type(data["unit_id"]), int)
+            self.assertEqual(data["unit_id"], int(unit))
+        for unit in (0, 256, 1.5, "7.1"):
+            with self.assertRaises(vol.Invalid):
+                schema({"host": "192.0.2.1", "unit_id": unit})
+
+    async def test_retry_preserves_selected_unit_id(self):
+        self.probe.side_effect = CannotConnect("Test")
+        result = await self.flow.async_step_user({"host": "192.0.2.1", "port": 502, "unit_id": 7})
+        data = result["data_schema"]({"host": "192.0.2.1"})
+        self.assertEqual(data["unit_id"], 7)
+
+    def existing(self, *, serial="TEST-001", unit=7, logger="LOGGER-001"):
+        data = {
+            "host": "192.0.2.1",
+            "port": 2502,
+            "unit_id": unit,
+            "serial": serial,
+            "profile_id": "sinexcel_v2",
+            "profile_version": 1,
+        }
+        if logger:
+            data["logger"] = {**txt_properties(logger, unit_id=None), "source": "zeroconf"}
+        entry = SimpleNamespace(unique_id=f"energylib_{serial}", data=data)
+        self.flow.entries = [entry]
+        return entry
+
+    async def test_advertised_unit_missing_or_present_and_user_override(self):
+        for unit in (None, 7, 255):
+            props = txt_properties("LOGGER-001", unit_id=unit)
+            info = SimpleNamespace(host="192.0.2.2", port=1502, properties=props)
+            result = await self.flow.async_step_zeroconf(info)
+            self.assertEqual(result["type"], "form")
+            self.assertEqual(self.probe.call_args.args[0]["unit_id"], unit or 1)
+        result = await self.flow.async_step_discovery_confirm(
+            {"host": "192.0.2.2", "port": 1502, "unit_id": 8}
+        )
+        self.assertEqual(result["data"]["unit_id"], 8)
+
+    async def test_new_logger_preserves_verified_existing_inverter(self):
+        entry = self.existing(logger="OLD-LOGGER")
+        with self.assertRaises(AbortFlow):
+            await self.flow.async_step_zeroconf(self.discovery(unit_id="9"))
+        self.assertEqual(self.probe.await_count, 2)
+        self.assertEqual(entry.data["unit_id"], 7)
+        self.assertEqual(entry.data["logger"]["sn"], "LOGGER-001")
+        self.assertEqual(entry.data["serial"], "TEST-001")
+
+    async def test_saved_unit_verification_failure_does_not_update(self):
+        entry = self.existing(logger=None)
+        before = dict(entry.data)
+        self.probe.side_effect = [self.identity, CannotConnect("saved unit offline")]
+        result = await self.flow.async_step_zeroconf(self.discovery(unit_id="9"))
+        self.assertEqual(result["errors"]["base"], "cannot_connect")
+        self.assertEqual(entry.data, before)
+
+    async def test_same_logger_unreachable_preserves_configuration(self):
+        entry = self.existing()
+        before = dict(entry.data)
+        self.probe.side_effect = CannotConnect("offline")
+        result = await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(result["errors"]["base"], "cannot_connect")
+        self.assertEqual(entry.data, before)
+        self.assertEqual(self.flow.updates, [])
+
+    async def test_unchanged_announcement_does_not_write(self):
+        entry = self.existing(unit=1)
+        entry.data.update(host="192.0.2.2", port=1502)
+        with self.assertRaises(AbortFlow):
+            await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(self.flow.updates, [])
+
+    async def test_metadata_refresh_preserves_other_entry_settings(self):
+        entry = self.existing(unit=1)
+        entry.data.update(host="192.0.2.2", port=1502, legacy_soc=True)
+        with self.assertRaises(AbortFlow):
+            await self.flow.async_step_zeroconf(self.discovery(fw="test-2.0"))
+        self.assertEqual(entry.data["logger"]["fw"], "test-2.0")
+        self.assertTrue(entry.data["legacy_soc"])
+        self.assertEqual(len(self.flow.updates), 1)
+
+    async def test_different_loggers_same_inverter_pending_flow_deduplicated(self):
+        self.flow.other_flow_id = "energylib_TEST-001"
+        with self.assertRaises(AbortFlow) as caught:
+            await self.flow.async_step_zeroconf(self.discovery(sn="OTHER-LOGGER"))
+        self.assertEqual(caught.exception.reason, "already_in_progress")
+
+    async def test_three_loggers_and_inverters_have_separate_identities(self):
+        for i in range(3):
+            flow = self.module.EnergyLibConfigFlow()
+            self.probe.return_value = DeviceIdentity(f"INVERTER-{i}", 1, "100.1", "101.2")
+            await flow.async_step_zeroconf(self.discovery(sn=f"LOGGER-{i}"))
+            result = await flow.async_step_discovery_confirm(
+                {"host": "192.0.2.2", "port": 1502, "unit_id": 1}
+            )
+            self.assertEqual(result["unique_id"], f"energylib_INVERTER-{i}")
+            self.assertEqual(result["data"]["logger"]["sn"], f"LOGGER-{i}")
+
+    async def test_manual_correction_does_not_bind_unrelated_logger(self):
+        await self.flow.async_step_zeroconf(self.discovery())
+        result = await self.flow.async_step_discovery_confirm(
+            {"host": "192.0.2.99", "port": 1502, "unit_id": 1}
+        )
+        self.assertNotIn("logger", result["data"])
+
+    async def test_legacy_announcement_aborts_before_probe(self):
+        info = SimpleNamespace(host="192.0.2.2", port=1502, properties={"id": "TEST-001"})
+        result = await self.flow.async_step_zeroconf(info)
+        self.assertEqual(result["reason"], "unsupported_discovery")
+        self.probe.assert_not_awaited()
+
+    async def test_ignored_entry_needs_no_connection_fields(self):
+        entry = SimpleNamespace(unique_id="energylib_TEST-001", source="ignore", data={})
+        self.flow.entries = [entry]
+        with self.assertRaises(AbortFlow) as caught:
+            await self.flow.async_step_zeroconf(self.discovery())
+        self.assertEqual(caught.exception.reason, "already_configured")
+        self.assertEqual(entry.data, {})
+
+
+class RemovalMemoryTests(unittest.IsolatedAsyncioTestCase):
+    """auto_add remembers removed serials, not "something was removed"."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.auto_add = load_flow_module().auto_add
+
+    def setUp(self):
+        self.saved = {}
+        test = self
+
+        class FakeStore:
+            async def async_load(self):
+                return dict(test.saved) or None
+
+            async def async_save(self, data):
+                test.saved = data
+
+        patcher = patch.object(self.auto_add, "_store", lambda hass: FakeStore())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    async def test_only_the_removed_serial_is_blocked(self):
+        await self.auto_add.async_note_removal(None, "A")
+        await self.auto_add.async_note_removal(None, "B")
+        await self.auto_add.async_note_removal(None, "A")
+        self.assertEqual(self.saved, {"removed_serials": ["B", "A"]})
+        self.assertFalse(await self.auto_add.async_allowed(None, "A"))
+        self.assertTrue(await self.auto_add.async_allowed(None, "C"))
+
+    async def test_the_old_blanket_flag_still_blocks_everything(self):
+        self.saved = {"user_removed": True}
+        self.assertFalse(await self.auto_add.async_allowed(None, "C"))
+        await self.auto_add.async_note_removal(None, "C")
+        self.assertEqual(self.saved, {"user_removed": True})

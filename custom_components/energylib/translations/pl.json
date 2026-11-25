@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Połącz EnergyLIB",
+        "description": "Podaj adres Modbus TCP rejestratora danych EnergyLIB. Sterowanie jest włączone dla nowych urządzeń i można je wyłączyć w opcjach integracji.",
+        "data": {
+          "host": "Adres IP lub nazwa hosta",
+          "port": "Port Modbus TCP",
+          "unit_id": "Identyfikator jednostki Modbus"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Potwierdź urządzenie EnergyLIB",
+        "description": "**Nr seryjny rejestratora:** {logger_sn}\n\n**Model rejestratora:** {logger_model}\n\n**Oprogramowanie rejestratora:** {logger_firmware}\n\nTe dane zgłasza rejestrator. Numer seryjny falownika jest sprawdzany osobno podczas łączenia. Potwierdź poniższe ustawienia połączenia. Sterowanie jest domyślnie włączone i można je wyłączyć w opcjach integracji.",
+        "data": {
+          "host": "Adres IP lub nazwa hosta",
+          "port": "Port Modbus TCP",
+          "unit_id": "Identyfikator jednostki Modbus"
+        }
+      },
+      "aecc_confirm": {
+        "title": "Dodaj urządzenie AECC",
+        "description": "**Numer seryjny:** {serial}\n\n**Adres:** {host}:{port}\n\nUrządzenie AECC w sieci lokalnej. EnergyLIB odczytuje moc i poziom baterii; nic nie jest zapisywane w urządzeniu. Kierunki mocy nie zostały jeszcze sprawdzone na urządzeniu AECC."
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można odczytać urządzenia. Sprawdź adres, port i identyfikator jednostki.",
+      "unsupported_device": "Urządzenie nie pasuje do tego profilu.",
+      "identity_mismatch": "Tożsamość urządzenia nie zgadza się z wykryciem."
+    },
+    "abort": {
+      "already_configured": "Urządzenie jest już skonfigurowane.",
+      "already_in_progress": "Konfiguracja jest już w toku.",
+      "identity_mismatch": "Tożsamość urządzenia nie zgadza się z wykryciem.",
+      "unsupported_discovery": "Nieobsługiwany transport, uwierzytelnianie lub kontrakt wykrywania."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ustawienia EnergyLIB",
+        "menu_options": {
+          "control": "Dostęp do sterowania",
+          "tou": "Harmonogram czasowy"
+        }
+      },
+      "control": {
+        "title": "Dostęp do sterowania",
+        "description": "Włączone dla nowo dodanych urządzeń. Widoczne są elementy sterowania obsługiwane przez falownik (tryb EMS, SOC, ładowanie z sieci, limit eksportu); samo włączenie lub wyłączenie nie zmienia żadnego ustawienia urządzenia.",
+        "data": {
+          "allow_control": "Zezwól na sterowanie"
+        }
+      },
+      "tou": {
+        "title": "Szkic harmonogramu",
+        "description": "Zmiany pozostają w szkicu do momentu zapisania.",
+        "menu_options": {
+          "add": "Dodaj okres",
+          "edit": "Edytuj okres",
+          "delete": "Usuń okres",
+          "settings": "Dni tygodnia i tryb poza okresami",
+          "save": "Podgląd i zapis"
+        }
+      },
+      "settings": {
+        "title": "Ustawienia harmonogramu",
+        "data": {
+          "weekdays": "Dni tygodnia",
+          "outside_mode": "Tryb poza okresami"
+        }
+      },
+      "save": {
+        "title": "Zapisz harmonogram",
+        "description": "Szkic:\n{preview}\nZapis w wielu krokach nie jest atomowy. Błąd może pozostawić częściowy plan.",
+        "data": {
+          "activate": "Po zapisaniu przełącz na harmonogram czasowy"
+        }
+      },
+      "add": {
+        "title": "Dodaj okres",
+        "data": {
+          "type": "Typ",
+          "start": "Początek",
+          "end": "Koniec",
+          "power": "Moc (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Edytuj okres",
+        "data": {
+          "type": "Typ",
+          "start": "Początek",
+          "end": "Koniec",
+          "power": "Moc (kW)"
+        }
+      },
+      "edit": {
+        "title": "Wybierz okres",
+        "data": {
+          "period": "Okres"
+        }
+      },
+      "delete": {
+        "title": "Wybierz okres",
+        "data": {
+          "period": "Okres"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "To urządzenie nie udostępnia rejestrów sterowania.",
+      "cannot_connect": "Nie można odczytać urządzenia. Sprawdź adres, port i identyfikator jednostki.",
+      "invalid_schedule": "Nieprawidłowe okresy, nakładanie się, dni tygodnia lub moc.",
+      "command_failed": "Zapis nie powiódł się lub mógł zostać zastosowany częściowo. Przed ponowną próbą sprawdź rzeczywisty stan urządzenia."
+    },
+    "abort": {
+      "control_unverified": "To urządzenie nie udostępnia rejestrów sterowania.",
+      "cannot_connect": "Nie można odczytać urządzenia. Sprawdź adres, port i identyfikator jednostki.",
+      "command_failed": "Zapis nie powiódł się lub mógł zostać zastosowany częściowo. Przed ponowną próbą otwórz opcje ponownie, aby odczytać rzeczywisty plan urządzenia."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Poziom naładowania baterii"
+      },
+      "battery_total_soc": {
+        "name": "Stan naładowania baterii"
+      },
+      "grid_import_energy": {
+        "name": "Energia pobrana z sieci"
+      },
+      "grid_export_energy": {
+        "name": "Energia oddana do sieci"
+      },
+      "solar_energy": {
+        "name": "Energia słoneczna"
+      },
+      "battery_charge_energy": {
+        "name": "Energia ładowania baterii"
+      },
+      "battery_discharge_energy": {
+        "name": "Energia rozładowania baterii"
+      },
+      "load_energy": {
+        "name": "Energia zużyta"
+      },
+      "solar_power": {
+        "name": "Moc słoneczna"
+      },
+      "battery_power": {
+        "name": "Moc baterii"
+      },
+      "load_power": {
+        "name": "Moc obciążenia"
+      },
+      "grid_power": {
+        "name": "Moc sieci"
+      },
+      "running_state": {
+        "name": "Stan pracy",
+        "state": {
+          "standby": "Czuwanie",
+          "ready": "Gotowy",
+          "off_grid": "Praca wyspowa",
+          "on_grid": "Praca z siecią",
+          "other": "Inne"
+        }
+      },
+      "active_alarms": {
+        "name": "Aktywne alarmy"
+      },
+      "work_mode": {
+        "name": "Tryb EMS",
+        "state": {
+          "self_consumption": "Autokonsumpcja",
+          "time_of_use": "Harmonogram czasowy",
+          "dynamic_tariff": "Taryfa dynamiczna",
+          "backup": "Zasilanie awaryjne",
+          "remote": "Sterowanie zdalne",
+          "pv_charge_priority": "Priorytet ładowania z PV",
+          "feed_in_priority": "Priorytet oddawania do sieci",
+          "voltage_regulation": "Regulacja napięcia",
+          "peak_shaving": "Ścinanie szczytów",
+          "other": "Inne"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Napięcie sieci A"
+      },
+      "grid_voltage_b": {
+        "name": "Napięcie sieci B"
+      },
+      "grid_voltage_c": {
+        "name": "Napięcie sieci C"
+      },
+      "grid_frequency": {
+        "name": "Częstotliwość sieci"
+      },
+      "battery_voltage": {
+        "name": "Napięcie baterii"
+      },
+      "battery_current": {
+        "name": "Prąd baterii"
+      },
+      "battery_soh": {
+        "name": "Kondycja baterii"
+      },
+      "battery_capacity": {
+        "name": "Zainstalowana pojemność baterii"
+      },
+      "battery_remaining_energy": {
+        "name": "Pozostała energia baterii"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Maks. napięcie ogniwa baterii"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Min. napięcie ogniwa baterii"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Maks. temperatura ogniwa baterii"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Min. temperatura ogniwa baterii"
+      },
+      "bms_charge_current_limit": {
+        "name": "Limit prądu ładowania BMS"
+      },
+      "bms_discharge_current_limit": {
+        "name": "Limit prądu rozładowania BMS"
+      },
+      "battery_2_soc": {
+        "name": "Stan naładowania baterii 2"
+      },
+      "battery_2_power": {
+        "name": "Moc baterii 2"
+      },
+      "battery_2_voltage": {
+        "name": "Napięcie baterii 2"
+      },
+      "battery_2_current": {
+        "name": "Prąd baterii 2"
+      },
+      "pv1_power": {
+        "name": "Moc PV1"
+      },
+      "pv2_power": {
+        "name": "Moc PV2"
+      },
+      "pv3_power": {
+        "name": "Moc PV3"
+      },
+      "pv4_power": {
+        "name": "Moc PV4"
+      },
+      "backup_load_power": {
+        "name": "Moc obciążenia awaryjnego"
+      },
+      "generator_power": {
+        "name": "Moc generatora"
+      },
+      "ac_couple_power": {
+        "name": "Moc sprzężenia AC"
+      },
+      "inverter_temperature": {
+        "name": "Temperatura falownika"
+      },
+      "tou_schedule": {
+        "name": "Harmonogram czasowy",
+        "state": {
+          "charge": "Okres ładowania",
+          "discharge": "Okres rozładowania",
+          "outside_period": "Poza okresami",
+          "expired": "Ważność wygasła",
+          "inactive": "Nieaktywny",
+          "remote": "Sterowanie zdalne"
+        }
+      },
+      "fault_count": {
+        "name": "Aktywne usterki"
+      },
+      "warning_count": {
+        "name": "Aktywne ostrzeżenia"
+      },
+      "alarm_status": {
+        "name": "Alerty urządzenia",
+        "state": {
+          "normal": "Normalny",
+          "abnormal": "Nieprawidłowy",
+          "unrecognized": "Nierozpoznany alarm",
+          "incomplete": "Niepełne dane",
+          "offline": "Brak komunikacji"
+        }
+      },
+      "remote_status": {
+        "name": "Praca baterii",
+        "state": {
+          "idle": "Bezczynność",
+          "charging": "Ładowanie",
+          "discharging": "Rozładowanie",
+          "holding": "Utrzymywanie zerowej mocy",
+          "stopped": "Zatrzymano",
+          "completed": "Zakończono",
+          "unconfirmed": "Wykonanie niepotwierdzone"
+        }
+      },
+      "remote_end_time": {
+        "name": "Szacowany czas zakończenia zdalnego ładowania/rozładowania"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Występuje usterka"
+      },
+      "any_warning": {
+        "name": "Występuje ostrzeżenie"
+      },
+      "meter_online": {
+        "name": "Licznik online"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Tryb EMS (stary)",
+        "state": {
+          "self_consumption": "Autokonsumpcja",
+          "time_of_use": "Harmonogram czasowy",
+          "dynamic_tariff": "Taryfa dynamiczna",
+          "backup": "Zasilanie awaryjne",
+          "remote": "Sterowanie zdalne",
+          "pv_charge_priority": "Priorytet ładowania z PV",
+          "feed_in_priority": "Priorytet oddawania do sieci",
+          "voltage_regulation": "Regulacja napięcia",
+          "peak_shaving": "Ścinanie szczytów",
+          "other": "Inne"
+        }
+      },
+      "home_mode": {
+        "name": "Tryb EMS",
+        "state": {
+          "self_consumption": "Autokonsumpcja",
+          "time_of_use": "Harmonogram",
+          "dynamic_tariff": "Taryfa dynamiczna",
+          "backup": "Zasilanie awaryjne z baterii",
+          "remote": "Ręczny",
+          "pv_charge_priority": "Najpierw słońce",
+          "feed_in_priority": "Najpierw eksport",
+          "voltage_regulation": "Regulacja napięcia",
+          "peak_shaving": "Ścinanie szczytów",
+          "other": "Inne"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "SOC rezerwy awaryjnej"
+      },
+      "min_soc": {
+        "name": "Minimalny SOC"
+      },
+      "export_limit": {
+        "name": "Limit eksportu"
+      },
+      "max_soc": {
+        "name": "Maksymalny SOC"
+      },
+      "max_charge_current": {
+        "name": "Maksymalny prąd ładowania"
+      },
+      "max_discharge_current": {
+        "name": "Maksymalny prąd rozładowania"
+      },
+      "remote_power": {
+        "name": "Stara moc zdalna (natychmiast, 5 minut)"
+      },
+      "remote_target_power": {
+        "name": "Moc baterii"
+      },
+      "remote_duration": {
+        "name": "Czas trwania"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Ładowanie z sieci"
+      },
+      "export_limit_enable": {
+        "name": "Limit eksportu włączony"
+      },
+      "inverter_power": {
+        "name": "Zasilanie falownika"
+      },
+      "remote_control": {
+        "name": "Stare sterowanie zdalne (natychmiast, 5 minut)"
+      },
+      "allow_remote_control": {
+        "name": "Zezwól na zdalne ładowanie/rozładowanie"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Rozpocznij ładowanie"
+      },
+      "start_discharge": {
+        "name": "Rozpocznij rozładowanie"
+      },
+      "stop_remote": {
+        "name": "Zatrzymaj natychmiast"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Ustaw moc baterii",
+      "description": "Wymaga dostępu do sterowania w integracji oraz opcji „Zezwól na zdalne ładowanie/rozładowanie”. Samo włączenie dostępu nigdy nie uruchamia zadania.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie"
+        },
+        "power_kw": {
+          "name": "Moc (kW), wartość ujemna to ładowanie"
+        },
+        "duration": {
+          "name": "Czas trwania (sekundy), wymagany"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Zastąp harmonogram czasowy",
+      "description": "Wymaga opcji „zezwól na sterowanie” w opcjach integracji oraz urządzenia, które udostępnia rejestry sterowania.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie"
+        },
+        "periods": {
+          "name": "Okresy"
+        },
+        "weekdays": {
+          "name": "Dni tygodnia"
+        },
+        "outside_mode": {
+          "name": "Tryb poza okresami"
+        },
+        "activate": {
+          "name": "Aktywuj po weryfikacji"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Wyczyść harmonogram czasowy",
+      "description": "Wymaga opcji „zezwól na sterowanie” w opcjach integracji oraz urządzenia, które udostępnia rejestry sterowania.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Zatrzymaj zdalne sterowanie baterią",
+      "description": "Natychmiast zakończ sterowanie zdalne i zweryfikuj odczytem zwrotnym.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie",
+          "description": "Urządzenie EnergyLIB."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Ustaw parametry ładowania/rozładowania",
+      "description": "Zapisz moc i pełne minuty lokalnie, bez uruchamiania zadania i bez zapisu do urządzenia.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie"
+        },
+        "power_kw": {
+          "name": "Moc"
+        },
+        "duration_minutes": {
+          "name": "Czas trwania (minuty)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Ustaw dostęp do zdalnego ładowania/rozładowania",
+      "description": "Włączenie tylko odblokowuje panel obsługi; wyłączenie najpierw potwierdza zakończenie aktywnego zadania zdalnego.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie"
+        },
+        "enabled": {
+          "name": "Zezwól na zdalne ładowanie/rozładowanie"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "Ustaw tryb EMS",
+      "description": "Przełącz tryb EMS według stałego klucza, niezależnie od języka. Wymaga opcji „Zezwól na sterowanie”.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenie",
+          "description": "Urządzenie EnergyLIB."
+        },
+        "mode": {
+          "name": "Tryb EMS",
+          "description": "Autokonsumpcja, harmonogram czasowy, zasilanie awaryjne, priorytet ładowania z PV, priorytet oddawania do sieci lub ścinanie szczytów (jeśli dostępne)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Ładowanie",
+        "discharge": "Rozładowanie"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Poniedziałek",
+        "tue": "Wtorek",
+        "wed": "Środa",
+        "thu": "Czwartek",
+        "fri": "Piątek",
+        "sat": "Sobota",
+        "sun": "Niedziela"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Autokonsumpcja",
+        "backup": "Zasilanie awaryjne",
+        "pv_charge_priority": "Priorytet ładowania z PV",
+        "feed_in_priority": "Priorytet oddawania do sieci"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Autokonsumpcja",
+        "time_of_use": "Harmonogram czasowy",
+        "backup": "Zasilanie awaryjne",
+        "pv_charge_priority": "Priorytet ładowania z PV",
+        "feed_in_priority": "Priorytet oddawania do sieci",
+        "peak_shaving": "Ścinanie szczytów"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Potwierdź automatycznie dodany falownik EnergyLIB",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Czy to Twój falownik?",
+            "description": "Falownik EnergyLIB {serial} pod adresem {host} został dodany automatycznie. Potwierdź, że to Twój falownik, aby zezwolić na sterowanie: tryb EMS, włączanie i wyłączanie oraz ustawienia baterii. Wybierz Zatwierdź, aby zezwolić na sterowanie."
+          }
+        },
+        "abort": {
+          "entry_removed": "Ten falownik został usunięty."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "Czy falownik EnergyLIB został wymieniony?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Zastąpić {old} falownikiem {new}?",
+            "description": "{old} jest offline i znaleziono nowy falownik EnergyLIB: {new}. Jeśli wymieniono falownik, wybierz Zatwierdź: nowy przejmie historię, panel energii, pomieszczenie, automatyzacje i ustawienie sterowania starego, a stary zostanie usunięty. Jeśli {new} to dodatkowy falownik, zignoruj to i dodaj go z wykrytych urządzeń.",
+            "data": {
+              "old": "Wymieniony falownik"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Ten falownik został usunięty.",
+          "already_added": "Nowy falownik został już dodany.",
+          "old_online": "Stary falownik znów jest online, niczego nie wymieniono."
+        }
+      }
+    }
+  }
+}

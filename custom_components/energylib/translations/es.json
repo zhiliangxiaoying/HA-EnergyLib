@@ -1,0 +1,586 @@
+{
+  "title": "EnergyLIB",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Conectar EnergyLIB",
+        "description": "Introduzca la dirección Modbus TCP del registrador de datos EnergyLIB. El control está activado para los dispositivos nuevos y se puede desactivar en las opciones de la integración.",
+        "data": {
+          "host": "Dirección IP o nombre de host",
+          "port": "Puerto Modbus TCP",
+          "unit_id": "ID de unidad Modbus"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Confirmar dispositivo EnergyLIB",
+        "description": "**SN del registrador:** {logger_sn}\n\n**Modelo del registrador:** {logger_model}\n\n**Firmware del registrador:** {logger_firmware}\n\nEstos datos los anuncia el registrador. El SN del inversor se comprueba aparte al conectar. Confirme los ajustes de conexión de abajo. El control está activado por defecto y se puede desactivar en las opciones de la integración.",
+        "data": {
+          "host": "Dirección IP o nombre de host",
+          "port": "Puerto Modbus TCP",
+          "unit_id": "ID de unidad Modbus"
+        }
+      },
+      "aecc_confirm": {
+        "title": "Añadir dispositivo AECC",
+        "description": "**Número de serie:** {serial}\n\n**Dirección:** {host}:{port}\n\nUn dispositivo AECC en la red local. EnergyLIB lee la potencia y el nivel de batería; no escribe nada en el dispositivo. Los sentidos de la potencia aún no se han comprobado en un dispositivo AECC."
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede leer el dispositivo. Compruebe la dirección, el puerto y el ID de unidad.",
+      "unsupported_device": "El dispositivo no coincide con este perfil.",
+      "identity_mismatch": "La identidad del dispositivo no coincide con el descubrimiento."
+    },
+    "abort": {
+      "already_configured": "Dispositivo ya configurado.",
+      "already_in_progress": "La configuración ya está en curso.",
+      "identity_mismatch": "La identidad del dispositivo no coincide con el descubrimiento.",
+      "unsupported_discovery": "Transporte, autenticación o descubrimiento no admitidos."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ajustes de EnergyLIB",
+        "menu_options": {
+          "control": "Acceso al control",
+          "tou": "Programa por franjas horarias"
+        }
+      },
+      "control": {
+        "title": "Acceso al control",
+        "description": "Activado para dispositivos nuevos. Se muestran los controles que admite el inversor (modo EMS, SOC, carga desde la red, límite de vertido); activarlo o desactivarlo no cambia ningún ajuste del dispositivo.",
+        "data": {
+          "allow_control": "Permitir el control"
+        }
+      },
+      "tou": {
+        "title": "Borrador de franjas horarias",
+        "description": "Los cambios quedan en el borrador hasta Guardar.",
+        "menu_options": {
+          "add": "Añadir franja",
+          "edit": "Editar franja",
+          "delete": "Eliminar franja",
+          "settings": "Días y modo fuera de franja",
+          "save": "Vista previa y guardado"
+        }
+      },
+      "settings": {
+        "title": "Ajustes del programa",
+        "data": {
+          "weekdays": "Días de la semana",
+          "outside_mode": "Modo fuera de franja"
+        }
+      },
+      "save": {
+        "title": "Guardar programa",
+        "description": "Borrador:\n{preview}\nUn guardado en varias tramas no es atómico. Un fallo puede dejar un plan parcial.",
+        "data": {
+          "activate": "Pasar a franjas horarias tras guardar"
+        }
+      },
+      "add": {
+        "title": "Añadir franja",
+        "data": {
+          "type": "Tipo",
+          "start": "Inicio",
+          "end": "Fin",
+          "power": "Potencia (kW)"
+        }
+      },
+      "edit_period": {
+        "title": "Editar franja",
+        "data": {
+          "type": "Tipo",
+          "start": "Inicio",
+          "end": "Fin",
+          "power": "Potencia (kW)"
+        }
+      },
+      "edit": {
+        "title": "Elegir franja",
+        "data": {
+          "period": "Franja"
+        }
+      },
+      "delete": {
+        "title": "Elegir franja",
+        "data": {
+          "period": "Franja"
+        }
+      }
+    },
+    "error": {
+      "control_unverified": "Este dispositivo no expone los registros de control.",
+      "cannot_connect": "No se puede leer el dispositivo. Compruebe la dirección, el puerto y el ID de unidad.",
+      "invalid_schedule": "Franjas, solapes, días o potencia no válidos.",
+      "command_failed": "El guardado falló o se aplicó en parte. Revise el estado real del dispositivo antes de reintentar."
+    },
+    "abort": {
+      "control_unverified": "Este dispositivo no expone los registros de control.",
+      "cannot_connect": "No se puede leer el dispositivo. Compruebe la dirección, el puerto y el ID de unidad.",
+      "command_failed": "El guardado falló o se aplicó en parte. Vuelva a abrir las opciones para leer el plan real del dispositivo antes de reintentar."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Nivel de carga de la batería"
+      },
+      "battery_total_soc": {
+        "name": "Estado de carga de la batería"
+      },
+      "grid_import_energy": {
+        "name": "Energía consumida de la red"
+      },
+      "grid_export_energy": {
+        "name": "Energía vertida a la red"
+      },
+      "solar_energy": {
+        "name": "Energía solar"
+      },
+      "battery_charge_energy": {
+        "name": "Energía de carga de la batería"
+      },
+      "battery_discharge_energy": {
+        "name": "Energía de descarga de la batería"
+      },
+      "load_energy": {
+        "name": "Energía consumida"
+      },
+      "solar_power": {
+        "name": "Potencia solar"
+      },
+      "battery_power": {
+        "name": "Potencia de la batería"
+      },
+      "load_power": {
+        "name": "Potencia de consumo"
+      },
+      "grid_power": {
+        "name": "Potencia de red"
+      },
+      "running_state": {
+        "name": "Estado de funcionamiento",
+        "state": {
+          "standby": "En espera",
+          "ready": "Listo",
+          "off_grid": "Aislado de red",
+          "on_grid": "Conectado a red",
+          "other": "Otro"
+        }
+      },
+      "active_alarms": {
+        "name": "Alarmas activas"
+      },
+      "work_mode": {
+        "name": "Modo EMS",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "time_of_use": "Franjas horarias",
+          "dynamic_tariff": "Tarifa dinámica",
+          "backup": "Respaldo",
+          "remote": "Control remoto",
+          "pv_charge_priority": "Carga solar prioritaria",
+          "feed_in_priority": "Vertido prioritario",
+          "voltage_regulation": "Regulación de tensión",
+          "peak_shaving": "Recorte de picos",
+          "other": "Otro"
+        }
+      },
+      "grid_voltage_a": {
+        "name": "Tensión de red A"
+      },
+      "grid_voltage_b": {
+        "name": "Tensión de red B"
+      },
+      "grid_voltage_c": {
+        "name": "Tensión de red C"
+      },
+      "grid_frequency": {
+        "name": "Frecuencia de red"
+      },
+      "battery_voltage": {
+        "name": "Tensión de la batería"
+      },
+      "battery_current": {
+        "name": "Corriente de la batería"
+      },
+      "battery_soh": {
+        "name": "Salud de la batería"
+      },
+      "battery_capacity": {
+        "name": "Capacidad instalada de la batería"
+      },
+      "battery_remaining_energy": {
+        "name": "Energía restante de la batería"
+      },
+      "battery_cell_voltage_max": {
+        "name": "Tensión máx. de celda"
+      },
+      "battery_cell_voltage_min": {
+        "name": "Tensión mín. de celda"
+      },
+      "battery_cell_temperature_max": {
+        "name": "Temperatura máx. de celda"
+      },
+      "battery_cell_temperature_min": {
+        "name": "Temperatura mín. de celda"
+      },
+      "bms_charge_current_limit": {
+        "name": "Límite de corriente de carga del BMS"
+      },
+      "bms_discharge_current_limit": {
+        "name": "Límite de corriente de descarga del BMS"
+      },
+      "battery_2_soc": {
+        "name": "Estado de carga de la batería 2"
+      },
+      "battery_2_power": {
+        "name": "Potencia de la batería 2"
+      },
+      "battery_2_voltage": {
+        "name": "Tensión de la batería 2"
+      },
+      "battery_2_current": {
+        "name": "Corriente de la batería 2"
+      },
+      "pv1_power": {
+        "name": "Potencia PV1"
+      },
+      "pv2_power": {
+        "name": "Potencia PV2"
+      },
+      "pv3_power": {
+        "name": "Potencia PV3"
+      },
+      "pv4_power": {
+        "name": "Potencia PV4"
+      },
+      "backup_load_power": {
+        "name": "Potencia de cargas de respaldo"
+      },
+      "generator_power": {
+        "name": "Potencia del generador"
+      },
+      "ac_couple_power": {
+        "name": "Potencia de acoplamiento AC"
+      },
+      "inverter_temperature": {
+        "name": "Temperatura del inversor"
+      },
+      "tou_schedule": {
+        "name": "Programa por franjas horarias",
+        "state": {
+          "charge": "Franja de carga",
+          "discharge": "Franja de descarga",
+          "outside_period": "Fuera de franjas",
+          "expired": "Validez caducada",
+          "inactive": "Inactivo",
+          "remote": "Control remoto"
+        }
+      },
+      "fault_count": {
+        "name": "Averías activas"
+      },
+      "warning_count": {
+        "name": "Avisos activos"
+      },
+      "alarm_status": {
+        "name": "Alertas del dispositivo",
+        "state": {
+          "normal": "Normal",
+          "abnormal": "Anómalo",
+          "unrecognized": "Alarma no reconocida",
+          "incomplete": "Datos incompletos",
+          "offline": "Comunicación no disponible"
+        }
+      },
+      "remote_status": {
+        "name": "Funcionamiento de la batería",
+        "state": {
+          "idle": "Inactivo",
+          "charging": "Cargando",
+          "discharging": "Descargando",
+          "holding": "Manteniendo potencia cero",
+          "stopped": "Detenido",
+          "completed": "Completado",
+          "unconfirmed": "Ejecución sin confirmar"
+        }
+      },
+      "remote_end_time": {
+        "name": "Fin estimado de la carga/descarga remota"
+      }
+    },
+    "binary_sensor": {
+      "any_fault": {
+        "name": "Avería presente"
+      },
+      "any_warning": {
+        "name": "Aviso presente"
+      },
+      "meter_online": {
+        "name": "Contador en línea"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Modo EMS (antiguo)",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "time_of_use": "Franjas horarias",
+          "dynamic_tariff": "Tarifa dinámica",
+          "backup": "Respaldo",
+          "remote": "Control remoto",
+          "pv_charge_priority": "Carga solar prioritaria",
+          "feed_in_priority": "Vertido prioritario",
+          "voltage_regulation": "Regulación de tensión",
+          "peak_shaving": "Recorte de picos",
+          "other": "Otro"
+        }
+      },
+      "home_mode": {
+        "name": "Modo EMS",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "time_of_use": "Programado",
+          "dynamic_tariff": "Tarifa dinámica",
+          "backup": "Respaldo con batería",
+          "remote": "Manual",
+          "pv_charge_priority": "Primero solar",
+          "feed_in_priority": "Primero vertido",
+          "voltage_regulation": "Regulación de tensión",
+          "peak_shaving": "Recorte de picos",
+          "other": "Otro"
+        }
+      }
+    },
+    "number": {
+      "backup_soc": {
+        "name": "SOC de respaldo"
+      },
+      "min_soc": {
+        "name": "SOC mínimo"
+      },
+      "export_limit": {
+        "name": "Límite de vertido"
+      },
+      "max_soc": {
+        "name": "SOC máximo"
+      },
+      "max_charge_current": {
+        "name": "Corriente máxima de carga"
+      },
+      "max_discharge_current": {
+        "name": "Corriente máxima de descarga"
+      },
+      "remote_power": {
+        "name": "Potencia remota antigua (inmediata, 5 minutos)"
+      },
+      "remote_target_power": {
+        "name": "Potencia de la batería"
+      },
+      "remote_duration": {
+        "name": "Duración"
+      }
+    },
+    "switch": {
+      "grid_charge": {
+        "name": "Carga desde la red"
+      },
+      "export_limit_enable": {
+        "name": "Límite de vertido activado"
+      },
+      "inverter_power": {
+        "name": "Encendido del inversor"
+      },
+      "remote_control": {
+        "name": "Control remoto antiguo (inmediato, 5 minutos)"
+      },
+      "allow_remote_control": {
+        "name": "Permitir carga/descarga remota"
+      }
+    },
+    "button": {
+      "start_charge": {
+        "name": "Iniciar carga"
+      },
+      "start_discharge": {
+        "name": "Iniciar descarga"
+      },
+      "stop_remote": {
+        "name": "Detener ya"
+      }
+    }
+  },
+  "services": {
+    "set_battery_power": {
+      "name": "Fijar potencia de la batería",
+      "description": "Requiere el acceso al control de la integración y «Permitir carga/descarga remota». Activar el acceso por sí solo nunca inicia una tarea.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo"
+        },
+        "power_kw": {
+          "name": "Potencia (kW), negativa para cargar"
+        },
+        "duration": {
+          "name": "Duración (segundos), obligatoria"
+        }
+      }
+    },
+    "set_tou_schedule": {
+      "name": "Sustituir programa por franjas",
+      "description": "Requiere «permitir el control» en las opciones de la integración y un dispositivo que exponga los registros de control.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo"
+        },
+        "periods": {
+          "name": "Franjas"
+        },
+        "weekdays": {
+          "name": "Días de la semana"
+        },
+        "outside_mode": {
+          "name": "Modo fuera de franja"
+        },
+        "activate": {
+          "name": "Activar tras la verificación"
+        }
+      }
+    },
+    "clear_tou_schedule": {
+      "name": "Borrar programa por franjas",
+      "description": "Requiere «permitir el control» en las opciones de la integración y un dispositivo que exponga los registros de control.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo"
+        }
+      }
+    },
+    "stop_battery_power": {
+      "name": "Detener la gestión remota de la batería",
+      "description": "Termina de inmediato el control remoto y verifica la relectura.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo EnergyLIB."
+        }
+      }
+    },
+    "set_remote_parameters": {
+      "name": "Fijar parámetros de carga/descarga",
+      "description": "Guarda localmente la potencia y los minutos enteros, sin iniciar tareas ni escribir en el dispositivo.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo"
+        },
+        "power_kw": {
+          "name": "Potencia"
+        },
+        "duration_minutes": {
+          "name": "Duración (minutos)"
+        }
+      }
+    },
+    "set_remote_access": {
+      "name": "Fijar acceso a carga/descarga remota",
+      "description": "Activar solo desbloquea el panel; desactivar confirma antes la salida de una tarea remota activa.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo"
+        },
+        "enabled": {
+          "name": "Permitir carga/descarga remota"
+        }
+      }
+    },
+    "set_ems_mode": {
+      "name": "Fijar modo EMS",
+      "description": "Cambia el modo EMS por su clave fija, independiente del idioma. Requiere Permitir el control.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo EnergyLIB."
+        },
+        "mode": {
+          "name": "Modo EMS",
+          "description": "Autoconsumo, franjas horarias, respaldo, carga solar prioritaria, vertido prioritario o recorte de picos (según el modelo)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "period_type": {
+      "options": {
+        "charge": "Carga",
+        "discharge": "Descarga"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Lunes",
+        "tue": "Martes",
+        "wed": "Miércoles",
+        "thu": "Jueves",
+        "fri": "Viernes",
+        "sat": "Sábado",
+        "sun": "Domingo"
+      }
+    },
+    "outside_mode": {
+      "options": {
+        "self_consumption": "Autoconsumo",
+        "backup": "Respaldo",
+        "pv_charge_priority": "Carga solar prioritaria",
+        "feed_in_priority": "Vertido prioritario"
+      }
+    },
+    "ems_mode": {
+      "options": {
+        "self_consumption": "Autoconsumo",
+        "time_of_use": "Franjas horarias",
+        "backup": "Respaldo",
+        "pv_charge_priority": "Carga solar prioritaria",
+        "feed_in_priority": "Vertido prioritario",
+        "peak_shaving": "Recorte de picos"
+      }
+    }
+  },
+  "issues": {
+    "confirm_control": {
+      "title": "Confirmar el inversor EnergyLIB añadido automáticamente",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "¿Es este su inversor?",
+            "description": "El inversor EnergyLIB {serial} en {host} se añadió automáticamente. Confirme que es el suyo para permitir el control: modo EMS, encendido/apagado y ajustes de la batería. Elija Enviar para permitir el control."
+          }
+        },
+        "abort": {
+          "entry_removed": "Este inversor se ha eliminado."
+        }
+      }
+    },
+    "replace_inverter": {
+      "title": "¿Se ha sustituido un inversor EnergyLIB?",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "¿Sustituir {old} por {new}?",
+            "description": "{old} está sin conexión y se encontró un nuevo inversor EnergyLIB, {new}. Si sustituyó el inversor, elija Enviar: el nuevo hereda el historial, el panel de energía, la habitación, las automatizaciones y el ajuste de control del antiguo, que se elimina. Si {new} es un inversor adicional, ignore esto y añádalo desde los dispositivos descubiertos.",
+            "data": {
+              "old": "Inversor sustituido"
+            }
+          }
+        },
+        "abort": {
+          "entry_removed": "Este inversor se ha eliminado.",
+          "already_added": "El nuevo inversor ya se añadió.",
+          "old_online": "El inversor antiguo vuelve a estar en línea, así que no se sustituyó nada."
+        }
+      }
+    }
+  }
+}

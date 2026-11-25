@@ -1,0 +1,29 @@
+{
+  "domain": "energylib",
+  "name": "EnergyLIB",
+  "after_dependencies": [
+    "lovelace"
+  ],
+  "codeowners": [
+    "@zhiliangxiaoying"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "zeroconf"
+  ],
+  "documentation": "https://github.com/zhiliangxiaoying/HA-EnergyLib",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/zhiliangxiaoying/HA-EnergyLib/issues",
+  "requirements": [],
+  "version": "0.8.43.dev1",
+  "zeroconf": [
+    "_energylib._tcp.local.",
+    {
+      "type": "_http._tcp.local.",
+      "name": "sxd-mdns-if*"
+    }
+  ]
+}
