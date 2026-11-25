@@ -100,7 +100,7 @@ assert.match(html, /data-mode="backup"\s+disabled/);
 const pending = new Card(); pending.setConfig({ device_id: "dev", pending: true }); pending.hass = hass;
 html = pending.shadowRoot.innerHTML;
 assert.match(html, /运行模式[\s\S]*?class="now">待定</);
-assert.match(html, /逆变器厂家还在增加模式切换/);
+assert.match(html, /这款逆变器的模式切换还在增加中/);
 assert.doesNotMatch(html, /data-mode=/);
 
 process.stdout.write(JSON.stringify({ result: "passed" }));

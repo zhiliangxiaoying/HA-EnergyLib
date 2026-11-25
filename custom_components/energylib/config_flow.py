@@ -14,9 +14,9 @@ from . import auto_add, replace
 from .const import (
     AECC_PROFILE_ID,
     CONF_ALLOW_CONTROL,
-    CONF_SOURCE,
     CONF_PROFILE,
     CONF_PROFILE_ID,
+    CONF_SOURCE,
     CONF_UNIT_ID,
     DEFAULT_PORT,
     DEFAULT_UNIT_ID,
@@ -245,7 +245,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
 
         AECC publishes no table of device types (its document shows an EMS of type
         131), so none is filtered here: a device is added after the user confirms
-        and a read returns a system summary; nothing is ever written to it.
+        and a read returns a system summary; control stays off until allowed in the options.
         """
         if not (info.name or "").lower().startswith(AECC_NAME_PREFIX):
             return self.async_abort(reason="unsupported_discovery")
@@ -276,7 +276,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_PROFILE_ID: AECC_PROFILE_ID,
             "profile_version": 1,
         }
-        self.context["title_placeholders"] = {"name": f"AECC · {serial}"}
+        self.context["title_placeholders"] = {"name": f"EnergyLIB · {serial}"}
         return await self.async_step_aecc_confirm()
 
     async def async_step_aecc_confirm(
@@ -299,7 +299,7 @@ class EnergyLibConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Added without control; a Shenggerui inverter behind the EMS can be
                 # controlled once the user switches "allow control" on in the options.
                 return self.async_create_entry(
-                    title="AECC", data=self._data, options={CONF_ALLOW_CONTROL: False}
+                    title="EnergyLIB", data=self._data, options={CONF_ALLOW_CONTROL: False}
                 )
         return self.async_show_form(
             step_id="aecc_confirm",

@@ -2,7 +2,9 @@
 
 import ast
 import json
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from energylib_under_test.energylib_core.model.points import (
@@ -14,6 +16,8 @@ from energylib_under_test.energylib_core.model.points import (
     WORK_MODES,
 )
 from energylib_under_test.energylib_core.profiles.sinexcel_v2 import SinexcelProfile
+
+from tools.build_package import build
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = ROOT / "custom_components" / "energylib"
@@ -30,6 +34,31 @@ def keys(value, prefix=""):
 
 
 class MetadataTests(unittest.TestCase):
+    def test_users_only_see_the_energylib_brand(self):
+        # Every device is sold as EnergyLIB; keys such as aecc_confirm are internal.
+        def texts(value):
+            for child in value.values() if isinstance(value, dict) else [value]:
+                yield from texts(child) if isinstance(child, dict) else [str(child)]
+
+        files = [COMPONENT / "strings.json"]
+        files += (COMPONENT / "translations").glob("*.json")
+        files += (COMPONENT / "frontend" / "translations").glob("*.json")
+        self.assertGreaterEqual(len(files), 31)
+        for path in files:
+            shown = "\n".join(texts(json.loads(path.read_text(encoding="utf-8"))))
+            self.assertNotRegex(
+                shown, r"(?i)aecc|sinexcel|shenggerui|v001b031|ess link|盛弘|晟格瑞", path
+            )
+
+    def test_local_package_includes_the_house_pictures(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "energylib.zip"
+            build(target)
+            with zipfile.ZipFile(target) as archive:
+                names = set(archive.namelist())
+        for image in ("house-dark.webp", "house-light.webp"):
+            self.assertIn(f"energylib/frontend/house/{image}", names)
+
     def test_translations_cover_entities_actions_and_options(self):
         original = json.loads((COMPONENT / "strings.json").read_text(encoding="utf-8"))
         for path in (COMPONENT / "translations").glob("*.json"):
@@ -76,7 +105,7 @@ class MetadataTests(unittest.TestCase):
         # installs from before, where the integration disabled it, get it back on setup.
         self.assertTrue(MEASUREMENTS["tou_schedule"].enabled)
         init = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
-        self.assertIn('"tou_schedule"', init[init.index("ready = {"):init.index("retired = {")])
+        self.assertIn('"tou_schedule"', init[init.index("ready = {") : init.index("retired = {")])
 
     def test_schedule_sensor_declares_every_status(self):
         self.assertEqual(

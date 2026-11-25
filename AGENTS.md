@@ -2,7 +2,7 @@
 
 ## Scope
 
-Build a Home Assistant integration for EnergyLIB devices. The project has an experimental read-only implementation. Current user-confirmed scope is a single inverter, standard Modbus TCP and `_energylib._tcp.local.` discovery; since 2026-11-19 also AECC devices over their local JSON interface, read-only, with a Shenggerui inverter behind the EMS read entirely from its registers through the RTU pass-through, and controlled through it once the user allows control (internal/protocols/from-docs/AECC_LOCAL.md; slave address and the summary directions are provisional until checked on a device; its EMS mode is pending a manufacturer register). No parallel commands or controls in the initial version. Do not invent telemetry endpoints, register addresses, default ports, credentials, supported models or firmware capabilities. Read README.md and docs before making changes.
+Build a Home Assistant integration for EnergyLIB devices. The project has an experimental read-only implementation. Current user-confirmed scope is a single inverter, standard Modbus TCP and `_energylib._tcp.local.` discovery; since 2026-11-19 also devices with the local JSON interface (code: aecc_local), read-only, with an inverter behind the EMS read entirely from its registers through the RTU pass-through, and controlled through it once the user allows control (internal/protocols/from-docs/AECC_LOCAL.md; slave address and the summary directions are provisional until checked on a device; its EMS mode is pending a register). No parallel commands or controls in the initial version. Do not invent telemetry endpoints, register addresses, default ports, credentials, supported models or firmware capabilities. Read README.md and docs before making changes.
 
 ## Discovery
 

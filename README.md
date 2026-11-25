@@ -207,5 +207,5 @@ and brand images belong to their respective owners.
 ## License
 
 [Apache License 2.0](LICENSE) — Copyright 2026 zhiliangxiaoying. See [NOTICE](NOTICE).
-The vendor protocol document is not included; the license does not cover brand images
+The protocol document is not included; the license does not cover brand images
 or trademarks.

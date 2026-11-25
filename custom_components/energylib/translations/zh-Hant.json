@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "新增 AECC 設備",
-        "description": "**序號：** {serial}\n\n**位址：** {host}:{port}\n\n在區域網路中發現 AECC 設備。EnergyLIB 只讀取它的功率和電池電量，不會向設備寫入任何內容。功率方向尚未在 AECC 實機上核對。"
+        "title": "新增 EnergyLIB 設備",
+        "description": "**序號：** {serial}\n\n**位址：** {host}:{port}\n\n在區域網路中發現 EnergyLIB 設備。新增後只讀取功率和電池電量；設備支援控制時，可以之後在選項中開啟。這類設備的功率方向尚未在實機上核對。"
       }
     },
     "error": {

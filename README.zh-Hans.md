@@ -156,4 +156,4 @@ python -m unittest discover -v
 ## 许可证
 
 [Apache License 2.0](LICENSE)，版权所有 © 2026 zhiliangxiaoying，另见 [NOTICE](NOTICE)。
-厂家协议原件不包含在本项目中；许可证不涵盖品牌图片和商标。
+协议原件不包含在本项目中；许可证不涵盖品牌图片和商标。

@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "AECC-apparaat toevoegen",
-        "description": "**Serienummer:** {serial}\n\n**Adres:** {host}:{port}\n\nEen AECC-apparaat in het lokale netwerk. EnergyLIB leest vermogen en batterijlading; er wordt niets naar het apparaat geschreven. De vermogensrichtingen zijn nog niet op een AECC-apparaat gecontroleerd."
+        "title": "EnergyLIB-apparaat toevoegen",
+        "description": "**Serienummer:** {serial}\n\n**Adres:** {host}:{port}\n\nEen EnergyLIB-apparaat in het lokale netwerk. Het wordt toegevoegd om vermogen en batterijlading te lezen; als het apparaat bediening ondersteunt, kunt u die later in de opties toestaan. De vermogensrichtingen zijn bij dit type apparaat nog niet gecontroleerd."
       }
     },
     "error": {

@@ -69,13 +69,35 @@ def s16(value):
 # Writable settings (protocol V2.7.1 defaults, plus one charge period 01:00-05:00).
 SETTINGS = {
     0xA02E: 2,  # charge source: mixed
-    0xA09C: 5, 0xA09D: 100, 0xA09E: 10, 0xA09F: 100,  # stop, full, inverter->grid, grid->inverter SOC
-    0xA0A0: 0, 0xA0A1: 0x0100, 0xA0A2: 0x0500, 0xA0A3: 0, 0xA0A4: 0, 0xA0A5: 0, 0xA0A6: 0,
-    0xA0A7: 0, 0xA0A8: 0, 0xA0A9: 0, 0xA0AA: 0, 0xA0AB: 0, 0xA0AC: 0, 0xA0AD: 0,
+    0xA09C: 5,
+    0xA09D: 100,
+    0xA09E: 10,
+    0xA09F: 100,  # stop, full, inverter->grid, grid->inverter SOC
+    0xA0A0: 0,
+    0xA0A1: 0x0100,
+    0xA0A2: 0x0500,
+    0xA0A3: 0,
+    0xA0A4: 0,
+    0xA0A5: 0,
+    0xA0A6: 0,
+    0xA0A7: 0,
+    0xA0A8: 0,
+    0xA0A9: 0,
+    0xA0AA: 0,
+    0xA0AB: 0,
+    0xA0AC: 0,
+    0xA0AD: 0,
 }
 STATE = {"on": True, "alarms": [0] * 8}
-RANGES = {0xA02E: (0, 3), 0xA09C: (0, 100), 0xA09D: (0, 100), 0xA09E: (0, 100), 0xA09F: (10, 100),
-          0xA0A0: (0, 1), 0xA0A7: (0, 1)}
+RANGES = {
+    0xA02E: (0, 3),
+    0xA09C: (0, 100),
+    0xA09D: (0, 100),
+    0xA09E: (0, 100),
+    0xA09F: (10, 100),
+    0xA0A0: (0, 1),
+    0xA0A7: (0, 1),
+}
 
 
 def _valid(address, value):
@@ -120,19 +142,33 @@ def registers(t=None):
         0x7530: 532,  # 53.2 V
         0x7531: s16(round(-s["TotalChargePower"] / 53.2 * 10)),  # charging: negative
         0x7532: 64,
-        0x753B: 3800, 0x753C: round(pv / 2 / 380 * 10), 0x753D: pv // 2,
-        0x753E: 3750, 0x753F: round(pv / 2 / 375 * 10), 0x7540: pv - pv // 2,
-        0x754C: s16(load // 3), 0x7553: s16(load // 3), 0x755A: s16(load - 2 * (load // 3)),
+        0x753B: 3800,
+        0x753C: round(pv / 2 / 380 * 10),
+        0x753D: pv // 2,
+        0x753E: 3750,
+        0x753F: round(pv / 2 / 375 * 10),
+        0x7540: pv - pv // 2,
+        0x754C: s16(load // 3),
+        0x7553: s16(load // 3),
+        0x755A: s16(load - 2 * (load // 3)),
         0x755E: s16(load),  # all loads on AC OUT
-        0x756A: 2301, 0x756C: 5000,
+        0x756A: 2301,
+        0x756C: 5000,
         0x7584: s16(s["MeterTotalActivePower"]),  # one CT on phase A; selling: negative
-        0x7594: 3 if STATE["on"] else 1, 0x7595: 2 if STATE["on"] else 0,  # inverter / standby
+        0x7594: 3 if STATE["on"] else 1,
+        0x7595: 2 if STATE["on"] else 0,  # inverter / standby
         0xC738: 54,
         **{0x75A5 + i: word for i, word in enumerate(STATE["alarms"])},
         **SETTINGS,
     }
-    for address, kwh in ((0xCB52, 812.4 + 1.6 * hours), (0xCB54, 640.2), (0xCB56, 2310.7 + 3.1 * hours),
-                         (0xCB58, 1520.3 + 0.7 * hours), (0xCB70, 95.4 + 0.3 * hours), (0xCB72, 230.8)):
+    for address, kwh in (
+        (0xCB52, 812.4 + 1.6 * hours),
+        (0xCB54, 640.2),
+        (0xCB56, 2310.7 + 3.1 * hours),
+        (0xCB58, 1520.3 + 0.7 * hours),
+        (0xCB70, 95.4 + 0.3 * hours),
+        (0xCB72, 230.8),
+    ):
         regs[address], regs[address + 1] = u32(kwh * 10)
     return regs
 
@@ -166,14 +202,17 @@ def pass_through(command):
         body = frame[:6] if error is None else bytes((SLAVE, 0x86, error))
     elif function == 0x10 and len(frame) == 9 + frame[6]:
         count = int.from_bytes(frame[4:6], "big")
-        values = [int.from_bytes(frame[7 + 2 * i:9 + 2 * i], "big") for i in range(count)]
+        values = [int.from_bytes(frame[7 + 2 * i : 9 + 2 * i], "big") for i in range(count)]
         error = write(address, values)
         body = frame[:6] if error is None else bytes((SLAVE, 0x90, error))
     else:
         return failed
     answer = body + crc16(body)
-    return {"FunctionCode": function, "ControlState": "succeed",
-            "TransmittedData": " ".join(f"{b:02X}" for b in answer)}
+    return {
+        "FunctionCode": function,
+        "ControlState": "succeed",
+        "TransmittedData": " ".join(f"{b:02X}" for b in answer),
+    }
 
 
 CONTROLS = {
@@ -203,11 +242,15 @@ async def serve_client(reader, writer, answer=scenario):
                 body = {"Response": "EnergyParameter", **answer()}
             elif request.get("Get") == "EnergycontrolparametersList":
                 fields = request.get("RegControlField") or list(CONTROLS)
-                body = {"Response": "EnergycontrolparametersList",
-                        "ControlInfoField": {k: CONTROLS[k] for k in fields if k in CONTROLS}}
+                body = {
+                    "Response": "EnergycontrolparametersList",
+                    "ControlInfoField": {k: CONTROLS[k] for k in fields if k in CONTROLS},
+                }
             elif request.get("Set") == "DataTransmission":
-                body = {"Response": "DataTransmission",
-                        "CommandResponse": pass_through(request.get("SetCommand") or {})}
+                body = {
+                    "Response": "DataTransmission",
+                    "CommandResponse": pass_through(request.get("SetCommand") or {}),
+                }
             else:
                 body = {"Result": "unsupported"}
             body["SerialNumber"] = request.get("SerialNumber")

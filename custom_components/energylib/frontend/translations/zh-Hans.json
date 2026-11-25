@@ -17,7 +17,7 @@
     "todayImport": "电网购电",
     "todayExport": "上网电量",
     "powerTrend": "24 小时功率趋势",
-    "modePending": "逆变器厂家还在增加模式切换，暂时不能在这里切换模式。","pending": "待定",
+    "modePending": "这款逆变器的模式切换还在增加中，暂时不能在这里切换模式。","pending": "待定",
     "trendsHeading": "趋势",
     "status": "运行状态",
     "alarms": "故障与告警",

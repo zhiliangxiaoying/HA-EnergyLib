@@ -174,7 +174,7 @@ In **Settings → Dashboards → Energy**, pick these EnergyLIB totals:
 | Old look after an update | Hard-reload the browser (Ctrl+Shift+R) |
 | No Controls card | Check **Allow control** (section 7) |
 | Want voltages, individual PV strings, etc. | Device page → **disabled entities**, enable what you need |
-| Numbers differ from the vendor app | They refresh at different times (HA about every 10 s); compare again later |
+| Numbers differ from the mobile app | They refresh at different times (HA about every 10 s); compare again later |
 | Names still in the old language | They follow the system language and update by themselves; for an offline device they change once it reconnects |
 
 To report a problem: device page → ⋮ → **Download diagnostics**, and send it with a short description.

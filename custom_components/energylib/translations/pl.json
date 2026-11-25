@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "Dodaj urządzenie AECC",
-        "description": "**Numer seryjny:** {serial}\n\n**Adres:** {host}:{port}\n\nUrządzenie AECC w sieci lokalnej. EnergyLIB odczytuje moc i poziom baterii; nic nie jest zapisywane w urządzeniu. Kierunki mocy nie zostały jeszcze sprawdzone na urządzeniu AECC."
+        "title": "Dodaj urządzenie EnergyLIB",
+        "description": "**Numer seryjny:** {serial}\n\n**Adres:** {host}:{port}\n\nUrządzenie EnergyLIB w sieci lokalnej. Zostanie dodane do odczytu mocy i poziomu baterii; jeśli urządzenie obsługuje sterowanie, można na nie zezwolić później w opcjach. Kierunki mocy nie zostały jeszcze sprawdzone na tym typie urządzenia."
       }
     },
     "error": {

@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "Thêm thiết bị AECC",
-        "description": "**Số sê-ri:** {serial}\n\n**Địa chỉ:** {host}:{port}\n\nMột thiết bị AECC trong mạng nội bộ. EnergyLIB chỉ đọc công suất và mức pin, không ghi gì vào thiết bị. Chiều công suất chưa được kiểm tra trên thiết bị AECC thật."
+        "title": "Thêm thiết bị EnergyLIB",
+        "description": "**Số sê-ri:** {serial}\n\n**Địa chỉ:** {host}:{port}\n\nMột thiết bị EnergyLIB trong mạng nội bộ. Thiết bị được thêm để đọc công suất và mức pin; nếu thiết bị hỗ trợ điều khiển, bạn có thể cho phép sau trong phần tùy chọn. Chiều công suất chưa được kiểm tra trên loại thiết bị này."
       }
     },
     "error": {

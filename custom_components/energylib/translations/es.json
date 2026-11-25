@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "Añadir dispositivo AECC",
-        "description": "**Número de serie:** {serial}\n\n**Dirección:** {host}:{port}\n\nUn dispositivo AECC en la red local. EnergyLIB lee la potencia y el nivel de batería; no escribe nada en el dispositivo. Los sentidos de la potencia aún no se han comprobado en un dispositivo AECC."
+        "title": "Añadir dispositivo EnergyLIB",
+        "description": "**Número de serie:** {serial}\n\n**Dirección:** {host}:{port}\n\nUn dispositivo EnergyLIB en la red local. Se añade para leer la potencia y el nivel de batería; si el dispositivo admite control, puede permitirlo más tarde en las opciones. Los sentidos de la potencia aún no se han comprobado en este tipo de dispositivo."
       }
     },
     "error": {

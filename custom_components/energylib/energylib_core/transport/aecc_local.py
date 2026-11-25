@@ -53,7 +53,7 @@ def rtu_registers(frame, slave, count):
     if frame[1] != 3 or frame[2] != 2 * count or len(frame) != 5 + 2 * count:
         raise AeccLocalError("Unexpected RTU answer")
     data = frame[3:-2]
-    return [int.from_bytes(data[i:i + 2], "big") for i in range(0, len(data), 2)]
+    return [int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2)]
 
 
 def rtu_write_frame(slave, address, values):
@@ -63,7 +63,10 @@ def rtu_write_frame(slave, address, values):
     else:
         count = len(values)
         data = b"".join(int(v).to_bytes(2, "big") for v in values)
-        body = bytes((slave, 0x10, address >> 8, address & 0xFF, count >> 8, count & 0xFF, 2 * count)) + data
+        body = (
+            bytes((slave, 0x10, address >> 8, address & 0xFF, count >> 8, count & 0xFF, 2 * count))
+            + data
+        )
     return body + crc16(body)
 
 
@@ -182,10 +185,12 @@ class AeccLocalClient:
         return values
 
     async def _pass_through(self, frame):
-        answer = await self.exchange({
-            "Set": "DataTransmission",
-            "SetCommand": {"FunctionCode": frame[1], "TransmittedData": hex_bytes(frame)},
-        })
+        answer = await self.exchange(
+            {
+                "Set": "DataTransmission",
+                "SetCommand": {"FunctionCode": frame[1], "TransmittedData": hex_bytes(frame)},
+            }
+        )
         result = answer.get("CommandResponse")
         if not isinstance(result, dict) or result.get("ControlState") != "succeed":
             raise AeccLocalError("Pass-through failed")

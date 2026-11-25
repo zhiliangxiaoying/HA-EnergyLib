@@ -62,7 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         else:
             device = DeviceRuntime(
-                ModbusTcpClient(entry.data[CONF_HOST], entry.data[CONF_PORT], entry.data["unit_id"]),
+                ModbusTcpClient(
+                    entry.data[CONF_HOST], entry.data[CONF_PORT], entry.data["unit_id"]
+                ),
                 entry.data["profile_id"],
                 task_factory=lambda coro: entry.async_create_background_task(
                     hass, coro, "energylib remote lease"

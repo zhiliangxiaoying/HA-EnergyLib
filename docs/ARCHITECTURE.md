@@ -1,6 +1,6 @@
 # 架构计划
 
-> 实施状态：`energylib_core`、profile 接口、读取计划和各 HA 平台都已实现。目前只有一个 EnergyLIB profile，真机和模拟器共用；控制按协议寄存器实现、需用户手动开启，尚未经过实机验证。旧 protocol 导入作为兼容包装保留。
+> 实施状态：`energylib_core`、profile 接口、读取计划和各 HA 平台都已实现。目前只有一个 EnergyLIB profile，真机和模拟器共用；控制按协议寄存器实现，新设备默认开启，已在一台三相 12 kW 实机上测试。旧 protocol 导入作为兼容包装保留。
 
 状态：单台逆变器、标准 Modbus TCP 的开发预览版，已在 HA 2026.8.2 上用软件模拟器完成发现、添加、读取和控制验证（见 [TESTING.md](TESTING.md)）；物理硬件验证待完成。
 

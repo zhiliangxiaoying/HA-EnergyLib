@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "AECC-Gerät hinzufügen",
-        "description": "**Seriennummer:** {serial}\n\n**Adresse:** {host}:{port}\n\nEin AECC-Gerät im lokalen Netz. EnergyLIB liest Leistung und Batterieladung; es wird nichts in das Gerät geschrieben. Die Leistungsrichtungen sind an einem AECC-Gerät noch nicht geprüft."
+        "title": "EnergyLIB-Gerät hinzufügen",
+        "description": "**Seriennummer:** {serial}\n\n**Adresse:** {host}:{port}\n\nEin EnergyLIB-Gerät im lokalen Netz. Es wird zum Lesen von Leistung und Batterieladung hinzugefügt; unterstützt das Gerät die Steuerung, lässt sie sich später in den Optionen erlauben. Die Leistungsrichtungen sind bei diesem Gerätetyp noch nicht geprüft."
       }
     },
     "error": {

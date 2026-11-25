@@ -62,7 +62,14 @@ GRID_OUTPUT_SIGN = -1
 # The summary directions above are assumptions; the register directions are the
 # manufacturer's (see the module docstring).
 POWER_DIRECTION_VERIFIED = False
-KEYS = ("solar_power", "battery_power", "grid_power", "load_power", "battery_total_soc", "backup_load_power")
+KEYS = (
+    "solar_power",
+    "battery_power",
+    "grid_power",
+    "load_power",
+    "battery_total_soc",
+    "backup_load_power",
+)
 
 # Shenggerui inverter behind the EMS (device type 131 in AECC's tables).
 TS_DEVICE_TYPE = 131
@@ -122,7 +129,10 @@ CONTROL_FIELDS = (
 CONTROL_INTERVAL = 300
 # Shenggerui controls.
 TS_CONTROL_KEYS = frozenset({"inverter_power", "backup_soc", "min_soc", "grid_charge"})
-TS_SETTINGS_BLOCK = (0xA09C, 18)  # 0xA09C stop SOC .. 0xA09E inverter-to-grid SOC .. TOU 0xA0A0-0xA0AD
+TS_SETTINGS_BLOCK = (
+    0xA09C,
+    18,
+)  # 0xA09C stop SOC .. 0xA09E inverter-to-grid SOC .. TOU 0xA0A0-0xA0AD
 TS_CHARGE_PRIORITY = 0xA02E  # 0 PV first, 1 grid first (to be removed), 2 mixed, 3 PV only
 TS_ON_OFF = 0x9C40  # write only: 1 on, 0 off
 TS_TOU = 0xA0A0
@@ -238,7 +248,9 @@ def decode_ts(blocks):
     if startup is None:
         running = None
     elif startup == 3:  # inverter state: hybrid on grid while the grid is there
-        running = "on_grid" if grid_volts is not None and grid_volts > GRID_PRESENT_V else "off_grid"
+        running = (
+            "on_grid" if grid_volts is not None and grid_volts > GRID_PRESENT_V else "off_grid"
+        )
     else:
         running = {1: "standby", 2: "on_grid"}.get(startup, "other")  # 0: initialising
     return {
@@ -290,7 +302,9 @@ def decode_tou(words):
             start, end = words[offset + 1 + 2 * i], words[offset + 2 + 2 * i]
             if start != end:
                 periods.append(TouPeriod(kind, _tou_time(start), _tou_time(end), 0.0))
-    return TouSchedule(tuple(sorted(periods, key=lambda p: (p.start, p.type))), WEEKDAYS, None), enables
+    return TouSchedule(
+        tuple(sorted(periods, key=lambda p: (p.start, p.type))), WEEKDAYS, None
+    ), enables
 
 
 def encode_tou(schedule):
@@ -314,8 +328,8 @@ class AeccProfile:
     id = "aecc_local_v1"
     version = 1
     namespace = "aecc"
-    manufacturer = "AECC"
-    device_name = "AECC"
+    manufacturer = "EnergyLIB"
+    device_name = "EnergyLIB"
     controls_supported = False
     controls_hw_verified = False
     power_direction_verified = POWER_DIRECTION_VERIFIED
@@ -421,7 +435,9 @@ class AeccLocalRuntime:
         self.profile.controls_supported = True
         self.profile.control_keys = TS_CONTROL_KEYS
         self.profile.tou_limits = TS_TOU_LIMITS
-        self.identity = replace(self.identity, protocol_version="aecc-pass-through-modbus", inverter_code=code)
+        self.identity = replace(
+            self.identity, protocol_version="aecc-pass-through-modbus", inverter_code=code
+        )
 
     async def _read_blocks(self, blocks):
         """{start: registers or None}, the number read, the last error (or None)."""
@@ -451,7 +467,9 @@ class AeccLocalRuntime:
                 raise
             self._startup = _register(blocks, 0x7594)
             alarm_words = blocks.get(0x75A5)
-            self.alarms.observe(ALARM_MAPPING, None if alarm_words is None else alarm_bits(alarm_words))
+            self.alarms.observe(
+                ALARM_MAPPING, None if alarm_words is None else alarm_bits(alarm_words)
+            )
             if force or now >= self._next_energy:
                 self._next_energy = now + TS_ENERGY_INTERVAL
                 try:
@@ -554,7 +572,7 @@ class AeccLocalRuntime:
 
     def _gate(self):
         if not (self.registers and self.allow_control):
-            raise ControlError("This AECC device is read-only in EnergyLIB")
+            raise ControlError("This device is read-only")
 
     async def _write(self, address, values):
         """Write, then the caller reads back; a lost answer is an unknown outcome."""
@@ -573,7 +591,11 @@ class AeccLocalRuntime:
             return
         async with self._lock:
             if key in ("min_soc", "backup_soc"):
-                if isinstance(value, bool) or not isinstance(value, (int, float)) or value != int(value):
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or value != int(value)
+                ):
                     raise ControlError("SOC must be a whole percentage")
                 value = int(value)
                 if not 0 <= value <= 100:
@@ -628,7 +650,9 @@ class AeccLocalRuntime:
         if data.get("outside_mode") is not None:
             raise ControlError("This inverter has no mode outside the periods")
         try:
-            schedule = TouSchedule.parse({k: v for k, v in data.items() if k == "periods"}, TS_TOU_LIMITS)
+            schedule = TouSchedule.parse(
+                {k: v for k, v in data.items() if k == "periods"}, TS_TOU_LIMITS
+            )
         except ValueError as err:
             raise ControlError(str(err)) from err
         words = encode_tou(schedule)

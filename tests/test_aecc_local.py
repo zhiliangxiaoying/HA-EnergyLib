@@ -7,18 +7,19 @@ from unittest.mock import patch
 
 from energylib_under_test.energylib_core import aecc_local
 from energylib_under_test.energylib_core.aecc_local import AeccLocalRuntime, decode, decode_ts
-from energylib_under_test.energylib_core.runtime import ControlError
+from energylib_under_test.energylib_core.model.tou import TouSchedule
+from energylib_under_test.energylib_core.runtime import ControlError, PartialWrite
 from energylib_under_test.energylib_core.transport.aecc_local import (
     AeccLocalClient,
     AeccLocalError,
     crc16,
     rtu_read_frame,
     rtu_registers,
+    rtu_write_ack,
+    rtu_write_frame,
 )
 from energylib_under_test.energylib_core.transport.modbus_tcp import EnergyLibError
-from energylib_under_test.energylib_core.model.tou import TouSchedule
-from energylib_under_test.energylib_core.runtime import PartialWrite
-from energylib_under_test.energylib_core.transport.aecc_local import rtu_write_ack, rtu_write_frame
+
 from tools import aecc_local_simulator as simulator
 from tools.aecc_local_simulator import registers, scenario, serve_client
 
@@ -31,8 +32,15 @@ class MappingTests(unittest.TestCase):
     def test_signs_follow_the_documented_assumption(self):
         # The convention is provisional; a device must confirm it.
         self.assertFalse(aecc_local.POWER_DIRECTION_VERIFIED)
-        v = decode(answer(TotalPVPower=3000, TotalBatteryOutputPower=-1500, MeterTotalActivePower=-800,
-                          AverageBatteryAverageSOC=64, TotalBackUpPower=120))
+        v = decode(
+            answer(
+                TotalPVPower=3000,
+                TotalBatteryOutputPower=-1500,
+                MeterTotalActivePower=-800,
+                AverageBatteryAverageSOC=64,
+                TotalBackUpPower=120,
+            )
+        )
         self.assertEqual(v["solar_power"], 3.0)
         self.assertEqual(v["battery_power"], -1.5)  # charging
         self.assertEqual(v["grid_power"], -0.8)  # selling
@@ -55,8 +63,14 @@ class MappingTests(unittest.TestCase):
 
     def test_separate_charge_power_is_subtracted(self):
         # The document lists battery output and battery charge as two fields.
-        v = decode(answer(TotalPVPower=3000, TotalBatteryOutputPower=0, TotalChargePower=1200,
-                          MeterTotalActivePower=-500))
+        v = decode(
+            answer(
+                TotalPVPower=3000,
+                TotalBatteryOutputPower=0,
+                TotalChargePower=1200,
+                MeterTotalActivePower=-500,
+            )
+        )
         self.assertEqual(v["battery_power"], -1.2)
         self.assertAlmostEqual(v["load_power"], 1.3)
         # A signed output is not reduced a second time.
@@ -65,8 +79,10 @@ class MappingTests(unittest.TestCase):
 
     def test_shenggerui_registers(self):
         regs = registers(0)
-        blocks = {start: [regs.get(start + i, 0) for i in range(count)]
-                  for start, count in aecc_local.TS_LIVE_BLOCKS + aecc_local.TS_ENERGY_BLOCKS}
+        blocks = {
+            start: [regs.get(start + i, 0) for i in range(count)]
+            for start, count in aecc_local.TS_LIVE_BLOCKS + aecc_local.TS_ENERGY_BLOCKS
+        }
         v = decode_ts(blocks)
         s = scenario(0)["SSumInfoList"]
         self.assertEqual(v["battery_voltage"], 53.2)
@@ -76,7 +92,9 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(v["solar_power"], s["TotalPVPower"] / 1000)
         self.assertEqual(v["grid_power"], s["MeterTotalActivePower"] / 1000)  # CT > 0 buying
         # The sources balance the measured load (AC OUT + CT normal load).
-        self.assertAlmostEqual(v["solar_power"] + v["battery_power"] + v["grid_power"], v["load_power"], delta=0.01)
+        self.assertAlmostEqual(
+            v["solar_power"] + v["battery_power"] + v["grid_power"], v["load_power"], delta=0.01
+        )
         self.assertEqual(v["load_power"], v["backup_load_power"])
         self.assertEqual(v["battery_total_soc"], 64)
         self.assertEqual(v["running_state"], "on_grid")  # inverter state with grid voltage
@@ -159,21 +177,29 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         client = AeccLocalClient("127.0.0.1", self.port)
         try:
             values = await client.read_registers(1, 30000, 3)
-            controls = await client.control_parameters(["ScheduledModeEnabled", "DeviceGridInputPowerLimit"])
+            controls = await client.control_parameters(
+                ["ScheduledModeEnabled", "DeviceGridInputPowerLimit"]
+            )
             with self.assertRaises(AeccLocalError):
                 await client.read_registers(7, 30000, 3)  # nobody at slave 7
         finally:
             await client.close()
         self.assertEqual(values[0], 532)
-        self.assertEqual(controls, {"ScheduledModeEnabled": "0", "DeviceGridInputPowerLimit": "800"})
+        self.assertEqual(
+            controls, {"ScheduledModeEnabled": "0", "DeviceGridInputPowerLimit": "800"}
+        )
 
     async def test_an_answer_to_an_earlier_request_is_skipped(self):
         async def late(reader, writer):
             line = await reader.readline()
             serial = json.loads(line)["SerialNumber"]
             # A late answer to an earlier request arrives first, in the same packet.
-            writer.write(json.dumps({"SerialNumber": serial - 1, "SSumInfoList": {"TotalPVPower": 1}}).encode()
-                         + json.dumps({"SerialNumber": serial, "SSumInfoList": {"TotalPVPower": 2}}).encode())
+            writer.write(
+                json.dumps(
+                    {"SerialNumber": serial - 1, "SSumInfoList": {"TotalPVPower": 1}}
+                ).encode()
+                + json.dumps({"SerialNumber": serial, "SSumInfoList": {"TotalPVPower": 2}}).encode()
+            )
             await writer.drain()
             await reader.readline()
 
@@ -193,7 +219,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         async def slow(reader, writer):
             await reader.readline()
             for i in range(0, len(body), 7):  # splits inside the multi-byte characters
-                writer.write(body[i:i + 7])
+                writer.write(body[i : i + 7])
                 await writer.drain()
                 await asyncio.sleep(0)
             await asyncio.sleep(0.2)
@@ -258,23 +284,35 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_read_only_runtime_with_standard_keys(self):
         await self.runtime.initialize("AECCSIM0001")
         keys = [p.key for p in self.runtime.points()]
-        self.assertEqual(keys, ["solar_power", "battery_power", "grid_power", "load_power",
-                                "battery_total_soc", "backup_load_power"])
+        self.assertEqual(
+            keys,
+            [
+                "solar_power",
+                "battery_power",
+                "grid_power",
+                "load_power",
+                "battery_total_soc",
+                "backup_load_power",
+            ],
+        )
         data = await self.runtime.refresh(set(keys))
         self.assertEqual(set(data), set(keys))
         self.assertGreater(data["solar_power"], 0)
         self.assertEqual(self.runtime.unique_id, "aecc_AECCSIM0001")
-        self.assertEqual(self.runtime.device_name, "AECC 0001")
+        self.assertEqual(self.runtime.device_name, "EnergyLIB 0001")
+        self.assertEqual(self.runtime.profile.manufacturer, "EnergyLIB")
         self.assertFalse(self.runtime.allow_control)
         self.assertFalse(self.runtime.profile.controls_supported)
         self.assertFalse(self.runtime.profile.power_direction_verified)
         self.assertEqual(self.runtime.profile.control_keys, frozenset())
         with self.runtime.prioritize_control():
             pass
-        for call in (self.runtime.set_control("work_mode", "backup"),
-                     self.runtime.set_schedule({"periods": []}),
-                     self.runtime.set_battery_power(1, 60),
-                     self.runtime.stop_remote()):
+        for call in (
+            self.runtime.set_control("work_mode", "backup"),
+            self.runtime.set_schedule({"periods": []}),
+            self.runtime.set_battery_power(1, 60),
+            self.runtime.stop_remote(),
+        ):
             with self.assertRaises(ControlError):
                 await call
         # The coordinator's state store works with the empty alarm and draft objects.
@@ -325,7 +363,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await writer.drain()
 
         server = await asyncio.start_server(summary_only, "127.0.0.1", 0)
-        runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", server.sockets[0].getsockname()[1]), "X", 131)
+        runtime = AeccLocalRuntime(
+            AeccLocalClient("127.0.0.1", server.sockets[0].getsockname()[1]), "X", 131
+        )
         try:
             await runtime.initialize("X")
             self.assertFalse(runtime.registers)
@@ -344,7 +384,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             await writer.drain()
 
         server = await asyncio.start_server(other, "127.0.0.1", 0)
-        runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", server.sockets[0].getsockname()[1]), "X")
+        runtime = AeccLocalRuntime(
+            AeccLocalClient("127.0.0.1", server.sockets[0].getsockname()[1]), "X"
+        )
         try:
             with self.assertRaises(EnergyLibError):
                 await runtime.initialize("X")
@@ -361,7 +403,11 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
     """Controls through the pass-through, against the simulator's register model."""
 
     async def asyncSetUp(self):
-        self.saved = (dict(simulator.SETTINGS), dict(simulator.STATE), list(simulator.STATE["alarms"]))
+        self.saved = (
+            dict(simulator.SETTINGS),
+            dict(simulator.STATE),
+            list(simulator.STATE["alarms"]),
+        )
         self.server = await asyncio.start_server(serve_client, "127.0.0.1", 0)
         port = self.server.sockets[0].getsockname()[1]
         self.runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", port), "AECCSIM0001", 131)
@@ -387,16 +433,27 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(multiple[:9].hex(" ").upper(), "01 10 A0 A0 00 02 04 00 01")
         echo = multiple[:6]
         from energylib_under_test.energylib_core.transport.aecc_local import crc16
+
         rtu_write_ack(echo + crc16(echo), multiple)
         refused = bytes.fromhex("01 86 03")
         with self.assertRaisesRegex(AeccLocalError, "exception 3"):
             rtu_write_ack(refused + crc16(refused), single)
 
     def test_plan_encoding(self):
-        plan = TouSchedule.parse({"periods": [
-            {"type": "charge", "start": "22:00", "end": "06:00", "power": 0},  # across midnight
-            {"type": "discharge", "start": "18:00", "end": "21:30", "power": 0},
-        ]}, aecc_local.TS_TOU_LIMITS)
+        plan = TouSchedule.parse(
+            {
+                "periods": [
+                    {
+                        "type": "charge",
+                        "start": "22:00",
+                        "end": "06:00",
+                        "power": 0,
+                    },  # across midnight
+                    {"type": "discharge", "start": "18:00", "end": "21:30", "power": 0},
+                ]
+            },
+            aecc_local.TS_TOU_LIMITS,
+        )
         words = aecc_local.encode_tou(plan)
         self.assertEqual(words[:3], [1, 0x1600, 0x0600])
         self.assertEqual(words[7:10], [1, 0x1200, 0x151E])
@@ -404,20 +461,29 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decoded.periods, plan.periods)
         self.assertEqual(enables, {"charge": True, "discharge": True})
         with self.assertRaises(ValueError):  # periods have no power on this model
-            TouSchedule.parse({"periods": [{"type": "charge", "start": "01:00", "end": "02:00", "power": 3}]},
-                              aecc_local.TS_TOU_LIMITS)
+            TouSchedule.parse(
+                {"periods": [{"type": "charge", "start": "01:00", "end": "02:00", "power": 3}]},
+                aecc_local.TS_TOU_LIMITS,
+            )
 
     async def test_controls_are_read(self):
         r = self.runtime
         self.assertTrue(r.profile.controls_supported)
         self.assertFalse(getattr(r.profile, "remote_supported", True))
-        self.assertEqual(r.controls, {"min_soc": 5, "backup_soc": 10, "grid_charge": True, "inverter_power": True})
+        self.assertEqual(
+            r.controls,
+            {"min_soc": 5, "backup_soc": 10, "grid_charge": True, "inverter_power": True},
+        )
         self.assertIn("tou_schedule", self.keys)
         attributes = r.attributes["tou_schedule"]
-        self.assertEqual(attributes["periods"], [{"type": "charge", "start": "01:00", "end": "05:00", "power": 0.0}])
+        self.assertEqual(
+            attributes["periods"],
+            [{"type": "charge", "start": "01:00", "end": "05:00", "power": 0.0}],
+        )
         self.assertFalse(attributes["power_supported"])
         self.assertEqual(attributes["max_per_type"], 3)
         from datetime import datetime
+
         self.assertEqual(r.schedule_status(datetime(2026, 11, 19, 2, 0)), "inactive")  # enable is 0
 
     async def test_soc_and_grid_charge_are_written_and_read_back(self):
@@ -425,7 +491,9 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         await r.set_control("backup_soc", 30)
         await r.set_control("min_soc", 15)
         self.assertEqual((simulator.SETTINGS[0xA09E], simulator.SETTINGS[0xA09C]), (30, 15))
-        self.assertEqual((r.controls["backup_soc"], r.controls["min_soc"], r.last_command), (30, 15, "confirmed"))
+        self.assertEqual(
+            (r.controls["backup_soc"], r.controls["min_soc"], r.last_command), (30, 15, "confirmed")
+        )
         with self.assertRaisesRegex(ControlError, "Minimum SOC"):
             await r.set_control("min_soc", 40)  # above the backup SOC: refused before writing
         with self.assertRaises(ControlError):
@@ -460,8 +528,11 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_power_not_confirmed(self):
         original = simulator.write
-        with patch.object(simulator, "write", lambda address, values: None), \
-                patch.object(aecc_local, "POWER_POLL_S", 0), patch.object(aecc_local, "POWER_CONFIRM_S", 0.05):
+        with (
+            patch.object(simulator, "write", lambda address, values: None),
+            patch.object(aecc_local, "POWER_POLL_S", 0),
+            patch.object(aecc_local, "POWER_CONFIRM_S", 0.05),
+        ):
             with self.assertRaisesRegex(PartialWrite, "not confirmed"):
                 await self.runtime.set_control("inverter_power", False)
         self.assertIs(simulator.write, original)
@@ -469,18 +540,27 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_plan_is_written_once_and_read_back(self):
         r = self.runtime
-        await r.set_schedule({"periods": [
-            {"type": "discharge", "start": "18:00", "end": "21:00", "power": 0},
-            {"type": "charge", "start": "02:00", "end": "05:00", "power": 0},
-        ], "weekdays": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]})
+        await r.set_schedule(
+            {
+                "periods": [
+                    {"type": "discharge", "start": "18:00", "end": "21:00", "power": 0},
+                    {"type": "charge", "start": "02:00", "end": "05:00", "power": 0},
+                ],
+                "weekdays": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+            }
+        )
         self.assertEqual(simulator.SETTINGS[0xA0A0], 1)
         self.assertEqual(simulator.SETTINGS[0xA0A7], 1)
         self.assertEqual((simulator.SETTINGS[0xA0A8], simulator.SETTINGS[0xA0A9]), (0x1200, 0x1500))
         from datetime import datetime
+
         self.assertEqual(r.schedule_status(datetime(2026, 11, 19, 19, 0)), "discharge")
         self.assertEqual(r.schedule_status(datetime(2026, 11, 19, 12, 0)), "outside_period")
-        for bad in ({"periods": [], "weekdays": ["mon"]}, {"periods": [], "outside_mode": "backup"},
-                    {"periods": [{"type": "charge", "start": "01:00", "end": "02:00", "power": 2}]}):
+        for bad in (
+            {"periods": [], "weekdays": ["mon"]},
+            {"periods": [], "outside_mode": "backup"},
+            {"periods": [{"type": "charge", "start": "01:00", "end": "02:00", "power": 2}]},
+        ):
             with self.subTest(bad=bad), self.assertRaises(ControlError):
                 await r.set_schedule(bad)
         await r.set_schedule({"periods": []})  # clearing switches both kinds off
@@ -488,7 +568,16 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r.schedule_status(datetime(2026, 11, 19, 19, 0)), "inactive")
 
     async def test_alarms_have_names_and_levels(self):
-        simulator.STATE["alarms"] = [0x0818, 0x0908, 0x0002, 0, 0, 0, 0, 0]  # the bench's F04/F05/F12/F20/F25/F28/F34
+        simulator.STATE["alarms"] = [
+            0x0818,
+            0x0908,
+            0x0002,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ]  # the bench's F04/F05/F12/F20/F25/F28/F34
         data = await self.runtime.refresh(self.keys)
         self.assertEqual(data["alarm_status"], "abnormal")
         alarms = self.runtime.attributes["alarm_status"]["alarms"]
@@ -496,13 +585,18 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(names["F05"], "电池未接")
         self.assertEqual(names["F28"], "EEPROM故障")
         self.assertEqual(len(alarms), 7)
-        self.assertEqual((data["fault_count"], data["warning_count"]), (5, 2))  # F05 and F34 are warnings
+        self.assertEqual(
+            (data["fault_count"], data["warning_count"]), (5, 2)
+        )  # F05 and F34 are warnings
         self.assertTrue(self.runtime.attributes["alarm_status"]["battery_disconnected"])
 
     async def test_read_only_without_permission(self):
         self.runtime.allow_control = False
         self.assertNotIn("tou_schedule", {p.key for p in self.runtime.points()})
-        for call in (self.runtime.set_control("min_soc", 10), self.runtime.set_schedule({"periods": []})):
+        for call in (
+            self.runtime.set_control("min_soc", 10),
+            self.runtime.set_schedule({"periods": []}),
+        ):
             with self.assertRaises(ControlError):
                 await call
         self.assertEqual(simulator.SETTINGS[0xA09C], 5)
@@ -536,6 +630,8 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
             polled.append(True)
 
         with patch.object(aecc_local, "POWER_POLL_S", 0.05):
-            await asyncio.gather(self.runtime.set_control("inverter_power", False), poll_during_confirm())
+            await asyncio.gather(
+                self.runtime.set_control("inverter_power", False), poll_during_confirm()
+            )
         self.assertEqual(polled, [True])
         self.assertFalse(self.runtime.controls["inverter_power"])

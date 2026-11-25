@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "Add AECC device",
-        "description": "**Serial:** {serial}\n\n**Address:** {host}:{port}\n\nAn AECC device on the local network. EnergyLIB reads its power and battery level; nothing is written to the device. Power directions are not yet verified on an AECC device."
+        "title": "Add EnergyLIB device",
+        "description": "**Serial:** {serial}\n\n**Address:** {host}:{port}\n\nAn EnergyLIB device on the local network. It is added for reading its power and battery level; if the device supports control, you can allow it later in the options. Power directions are not yet verified on this type of device."
       }
     },
     "error": {

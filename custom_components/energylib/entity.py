@@ -16,6 +16,7 @@ INVERTER_LABELS = {
     "ur": "انورٹر",
 }
 
+
 class EnergyLibEntity(CoordinatorEntity):
     _attr_has_entity_name = True
 

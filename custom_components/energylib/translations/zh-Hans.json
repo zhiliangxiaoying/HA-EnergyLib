@@ -22,8 +22,8 @@
         }
       },
       "aecc_confirm": {
-        "title": "添加 AECC 设备",
-        "description": "**序列号：** {serial}\n\n**地址：** {host}:{port}\n\n在局域网中发现 AECC 设备。EnergyLIB 只读取它的功率和电池电量，不会向设备写入任何内容。功率方向尚未在 AECC 实机上核对。"
+        "title": "添加 EnergyLIB 设备",
+        "description": "**序列号：** {serial}\n\n**地址：** {host}:{port}\n\n在局域网中发现 EnergyLIB 设备。添加后只读取功率和电池电量；设备支持控制时，可以之后在选项中开启。这类设备的功率方向尚未在实机上核对。"
       }
     },
     "error": {

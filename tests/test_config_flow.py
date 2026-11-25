@@ -201,12 +201,17 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
 
         def entry(entry_id, data):
             return SimpleNamespace(
-                entry_id=entry_id, data=data, source="zeroconf", disabled_by=None,
+                entry_id=entry_id,
+                data=data,
+                source="zeroconf",
+                disabled_by=None,
                 state=state.SETUP_RETRY,
             )
 
-        entries = [entry("inverter", {"serial": "TEST-001"}),
-                   entry("aecc", {"serial": "A-1", "source": "aecc_local"})]
+        entries = [
+            entry("inverter", {"serial": "TEST-001"}),
+            entry("aecc", {"serial": "A-1", "source": "aecc_local"}),
+        ]
         hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: entries))
         offline = self.module.replace.offline_entries(hass)
         self.assertEqual([e.entry_id for e in offline], ["inverter"])
@@ -406,8 +411,17 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
 
     def aecc(self, name="sxd-mdns-if-AECC0001._http._tcp.local.", **props):
         return SimpleNamespace(
-            type="_http._tcp.local.", name=name, host="192.0.2.9", port=8080,
-            properties={"s_sn": "AECC0001", "s_ip": "192.0.2.9", "s_type": "34", "s_port": "6000", **props},
+            type="_http._tcp.local.",
+            name=name,
+            host="192.0.2.9",
+            port=8080,
+            properties={
+                "s_sn": "AECC0001",
+                "s_ip": "192.0.2.9",
+                "s_type": "34",
+                "s_port": "6000",
+                **props,
+            },
         )
 
     async def test_aecc_inverter_is_offered_and_added_read_only_after_one_read(self):
@@ -419,38 +433,51 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.probe.assert_not_called()  # never the Modbus probe
         client = AsyncMock()
         client.energy_parameters.return_value = {"SSumInfoList": {"TotalPVPower": 0}}
-        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
-                   return_value=client) as make:
+        with patch(
+            "energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+            return_value=client,
+        ) as make:
             result = await self.flow.async_step_aecc_confirm({})
+        self.assertEqual(result["title"], "EnergyLIB")
+        self.assertEqual(self.flow.context["title_placeholders"], {"name": "EnergyLIB · AECC0001"})
         make.assert_called_once_with("192.0.2.9", 6000)
         client.close.assert_awaited()
         self.assertEqual(result["type"], "create_entry")
         self.assertEqual(result["options"], {"allow_control": False})
         self.assertEqual(result["data"]["source"], "aecc_local")
         self.assertEqual(result["data"]["profile_id"], "aecc_local_v1")
-        self.assertEqual((result["data"]["serial"], result["data"]["device_type"]), ("AECC0001", 34))
+        self.assertEqual(
+            (result["data"]["serial"], result["data"]["device_type"]), ("AECC0001", 34)
+        )
 
     async def test_aecc_confirm_reports_an_unreachable_or_foreign_device(self):
         await self.flow.async_step_zeroconf(self.aecc())
         client = AsyncMock()
         client.energy_parameters.side_effect = self.module.EnergyLibError("offline")
-        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
-                   return_value=client):
+        with patch(
+            "energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+            return_value=client,
+        ):
             result = await self.flow.async_step_aecc_confirm({})
         self.assertEqual(result["errors"], {"base": "cannot_connect"})
         client.energy_parameters.side_effect = None
         client.energy_parameters.return_value = {"Result": "unsupported"}
-        with patch("energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
-                   return_value=client):
+        with patch(
+            "energylib_under_test.energylib_core.transport.aecc_local.AeccLocalClient",
+            return_value=client,
+        ):
             result = await self.flow.async_step_aecc_confirm({})
         self.assertEqual(result["errors"], {"base": "unsupported_device"})
 
     async def test_any_aecc_type_is_offered_and_foreign_http_services_are_not(self):
         # No type table is published (the document's EMS is type 131): the read
         # on confirmation decides, not the type.
-        with patch.object(self.flow, "async_step_aecc_confirm", AsyncMock(return_value={"type": "form"})):
+        with patch.object(
+            self.flow, "async_step_aecc_confirm", AsyncMock(return_value={"type": "form"})
+        ):
             result = await self.flow.async_step_zeroconf(
-                self.aecc(s_type="131", name="SXD-mDNS-IF-AECC0001._http._tcp.local."))
+                self.aecc(s_type="131", name="SXD-mDNS-IF-AECC0001._http._tcp.local.")
+            )
         self.assertEqual(result, {"type": "form"})
         self.assertEqual(self.flow._data["device_type"], 131)
         result = await self.flow.async_step_zeroconf(self.aecc(name="printer._http._tcp.local."))

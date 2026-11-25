@@ -17,7 +17,7 @@
     "todayImport": "Grid import",
     "todayExport": "Grid export",
     "powerTrend": "Power, 24 h",
-    "modePending": "Mode switching for this inverter is still being added by its maker; modes cannot be changed here yet.","pending": "Pending",
+    "modePending": "Mode switching for this inverter is still being added; modes cannot be changed here yet.","pending": "Pending",
     "trendsHeading": "Trends",
     "status": "Status",
     "alarms": "Faults and warnings",

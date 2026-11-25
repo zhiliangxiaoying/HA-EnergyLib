@@ -80,7 +80,11 @@ class StrategyOutputTests(unittest.TestCase):
     def test_sankey_measurement_states_and_rendering(self):
         result = subprocess.run(
             [NODE, str(ROOT / "tests/js/run_sankey.mjs"), str(STRATEGY)],
-            capture_output=True, text=True, encoding="utf-8", timeout=30, check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
         )
         self.assertEqual(json.loads(result.stdout)["result"], "passed")
 
@@ -98,14 +102,22 @@ class StrategyOutputTests(unittest.TestCase):
     def test_schedule_card_saves_on_request(self):
         result = subprocess.run(
             [NODE, str(ROOT / "tests/js/run_tou.mjs"), str(STRATEGY)],
-            capture_output=True, text=True, encoding="utf-8", timeout=30, check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
         )
         self.assertEqual(json.loads(result.stdout)["result"], "passed")
 
     def test_mode_card_writes_on_tap(self):
         result = subprocess.run(
             [NODE, str(ROOT / "tests/js/run_mode.mjs"), str(STRATEGY)],
-            capture_output=True, text=True, encoding="utf-8", timeout=30, check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=True,
         )
         self.assertEqual(json.loads(result.stdout)["result"], "passed")
 
@@ -164,38 +176,97 @@ class StrategyOutputTests(unittest.TestCase):
         scenarios.append({"name": "gateway_member", "flow": False, "hass": member})
         no_battery = fake_hass(["dev1"], "zh-Hans")
         no_battery["states"] = {
-            "sensor.dev1_renamed_alarm_status": {"state": "warning", "attributes": {"battery_disconnected": True}}
+            "sensor.dev1_renamed_alarm_status": {
+                "state": "warning",
+                "attributes": {"battery_disconnected": True},
+            }
         }
         scenarios.append({"name": "no_battery", "flow": False, "hass": no_battery})
         # HA's Energy page set up with this inverter's solar and grid counters.
-        energy_prefs = {"energy_sources": [
-            {"type": "solar", "stat_energy_from": "sensor.dev1_renamed_solar_energy"},
-            {"type": "grid", "flow_from": [{"stat_energy_from": "sensor.dev1_renamed_grid_import_energy"}]},
-        ]}
-        scenarios.append({"name": "energy_zh", "flow": False, "hass": fake_hass(["dev1"], "zh-Hans"), "energyPrefs": energy_prefs})
-        other_meter = {"energy_sources": [{"type": "solar", "stat_energy_from": "sensor.other_meter"}]}
-        scenarios.append({"name": "energy_other", "flow": False, "hass": fake_hass(["dev1"], "zh-Hans"), "energyPrefs": other_meter})
+        energy_prefs = {
+            "energy_sources": [
+                {"type": "solar", "stat_energy_from": "sensor.dev1_renamed_solar_energy"},
+                {
+                    "type": "grid",
+                    "flow_from": [{"stat_energy_from": "sensor.dev1_renamed_grid_import_energy"}],
+                },
+            ]
+        }
+        scenarios.append(
+            {
+                "name": "energy_zh",
+                "flow": False,
+                "hass": fake_hass(["dev1"], "zh-Hans"),
+                "energyPrefs": energy_prefs,
+            }
+        )
+        other_meter = {
+            "energy_sources": [{"type": "solar", "stat_energy_from": "sensor.other_meter"}]
+        }
+        scenarios.append(
+            {
+                "name": "energy_other",
+                "flow": False,
+                "hass": fake_hass(["dev1"], "zh-Hans"),
+                "energyPrefs": other_meter,
+            }
+        )
         # A read-only source with power and battery level only (AECC's local interface).
         aecc = fake_hass(["dev1"], "zh-Hans")
-        aecc_keys = {"solar_power", "battery_power", "grid_power", "load_power", "battery_total_soc", "backup_load_power"}
-        aecc["entities"] = {k: v for k, v in aecc["entities"].items() if v["translation_key"] in aecc_keys}
+        aecc_keys = {
+            "solar_power",
+            "battery_power",
+            "grid_power",
+            "load_power",
+            "battery_total_soc",
+            "backup_load_power",
+        }
+        aecc["entities"] = {
+            k: v for k, v in aecc["entities"].items() if v["translation_key"] in aecc_keys
+        }
         scenarios.append({"name": "aecc", "flow": False, "hass": aecc})
         # AECC with a Shenggerui inverter's registers: counters, still no controls.
         counted = fake_hass(["dev1"], "zh-Hans")
-        counted_keys = aecc_keys | {"solar_energy", "battery_charge_energy", "battery_discharge_energy",
-                                    "load_energy", "grid_import_energy", "grid_export_energy",
-                                    "running_state"}
-        counted["entities"] = {k: v for k, v in counted["entities"].items() if v["translation_key"] in counted_keys}
+        counted_keys = aecc_keys | {
+            "solar_energy",
+            "battery_charge_energy",
+            "battery_discharge_energy",
+            "load_energy",
+            "grid_import_energy",
+            "grid_export_energy",
+            "running_state",
+        }
+        counted["entities"] = {
+            k: v for k, v in counted["entities"].items() if v["translation_key"] in counted_keys
+        }
         scenarios.append({"name": "aecc_counters", "flow": False, "hass": counted})
         # The same with Shenggerui controls allowed: no EMS mode (pending), no remote task.
         ruled = fake_hass(["dev1"], "zh-Hans")
-        ruled_keys = counted_keys | {"inverter_power", "min_soc", "backup_soc", "grid_charge", "tou_schedule", "alarm_status"}
-        ruled["entities"] = {k: v for k, v in ruled["entities"].items() if v["translation_key"] in ruled_keys}
+        ruled_keys = counted_keys | {
+            "inverter_power",
+            "min_soc",
+            "backup_soc",
+            "grid_charge",
+            "tou_schedule",
+            "alarm_status",
+        }
+        ruled["entities"] = {
+            k: v for k, v in ruled["entities"].items() if v["translation_key"] in ruled_keys
+        }
         scenarios.append({"name": "aecc_controls", "flow": False, "hass": ruled})
         no_mode = fake_hass(["dev1"], "zh-Hans")
-        no_mode["entities"] = {k: v for k, v in no_mode["entities"].items() if v["translation_key"] != "work_mode"}
+        no_mode["entities"] = {
+            k: v for k, v in no_mode["entities"].items() if v["translation_key"] != "work_mode"
+        }
         scenarios.append({"name": "no_mode_sensor", "flow": False, "hass": no_mode})
-        scenarios.append({"name": "energy_error", "flow": False, "hass": fake_hass(["dev1"], "zh-Hans"), "energyPrefs": "error"})
+        scenarios.append(
+            {
+                "name": "energy_error",
+                "flow": False,
+                "hass": fake_hass(["dev1"], "zh-Hans"),
+                "energyPrefs": "error",
+            }
+        )
         cls.hass = {s["name"]: s["hass"] for s in scenarios}
         run = subprocess.run(
             [NODE, str(ROOT / "tests" / "js" / "run_strategy.mjs"), str(STRATEGY)],
@@ -251,7 +322,9 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertEqual(flow["alarm_entity"], "sensor.dev1_renamed_alarm_status")
         self.assertEqual(flow["soc_entity"], "sensor.dev1_renamed_battery_total_soc")
         # The house card switches to the circle diagram; both labels come along.
-        self.assertEqual((flow["text"]["toDiagram"], flow["text"]["toHouse"]), ("切换为简图", "切换为房屋图"))
+        self.assertEqual(
+            (flow["text"]["toDiagram"], flow["text"]["toHouse"]), ("切换为简图", "切换为房屋图")
+        )
         self.assertEqual(flow["text"]["gridMissing"], "电网断开")
         self.assertEqual(flow["text"]["batteryMissing"], "电池未接入")
         # A negative home load is drawn as 0 W with a one-line hint naming the reading.
@@ -306,15 +379,24 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertIn("confirmation", power["icon_tap_action"])
         start = cards.index(mode) + 1
         tiles = {c["entity"]: c for c in cards[start:] if c["type"] == "tile"}
-        self.assertEqual(tiles["number.dev1_renamed_backup_soc"]["features"], [{"type": "numeric-input", "style": "slider"}])
+        self.assertEqual(
+            tiles["number.dev1_renamed_backup_soc"]["features"],
+            [{"type": "numeric-input", "style": "slider"}],
+        )
         self.assertEqual(tiles["switch.dev1_renamed_grid_charge"]["features"], [{"type": "toggle"}])
         # Settings are half width: side by side on the phone pages as in a section.
-        for key in ("switch.dev1_renamed_grid_charge", "switch.dev1_renamed_export_limit_enable",
-                    "number.dev1_renamed_backup_soc", "number.dev1_renamed_export_limit"):
+        for key in (
+            "switch.dev1_renamed_grid_charge",
+            "switch.dev1_renamed_export_limit_enable",
+            "number.dev1_renamed_backup_soc",
+            "number.dev1_renamed_export_limit",
+        ):
             self.assertEqual(tiles[key]["grid_options"], {"columns": 6})
         self.assertIn("number.dev1_renamed_export_limit", tiles)
         # No second mode selector beside the card.
-        self.assertFalse([c for c in cards if c["type"] == "tile" and c["entity"].startswith("select.")])
+        self.assertFalse(
+            [c for c in cards if c["type"] == "tile" and c["entity"].startswith("select.")]
+        )
 
     def test_no_device_explains_what_to_do(self):
         self.assertIn("No EnergyLIB device found", text(self.out["empty"]))
@@ -345,7 +427,9 @@ class StrategyOutputTests(unittest.TestCase):
         sections = self.out["full_zh"]["views"][0]["sections"]
         self.assertEqual(len(sections), 4)  # three columns, then the phone pages
         flow, energy, right, phone = sections
-        self.assertFalse(any(s.get("column_span") for s in sections[:3]))  # the columns; the phone pages span
+        self.assertFalse(
+            any(s.get("column_span") for s in sections[:3])
+        )  # the columns; the phone pages span
 
         def headings(sec):
             return [c["heading"] for c in sec["cards"] if c["type"] == "heading"]
@@ -356,8 +440,16 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertEqual(headings(right), ["运行控制", "运行记录"])
         self.assertIn("custom:energylib-tou", [c["type"] for c in right["cards"]])
         flow_types = [c["type"] for c in flow["cards"]]
-        self.assertEqual(flow_types[:5], ["custom:energylib-offline", "heading", "custom:energylib-house-flow",
-                                          "custom:energylib-day-curve", "custom:energylib-sankey"])
+        self.assertEqual(
+            flow_types[:5],
+            [
+                "custom:energylib-offline",
+                "heading",
+                "custom:energylib-house-flow",
+                "custom:energylib-day-curve",
+                "custom:energylib-sankey",
+            ],
+        )
         self.assertIn("custom:energylib-alarms", flow_types)
         # The live power split with "now", the running totals with statistics (11-23).
         self.assertIn("custom:energylib-sankey", flow_types)
@@ -381,7 +473,9 @@ class StrategyOutputTests(unittest.TestCase):
         # Statistics: the power split, then 24 h of power; no Energy page here, so
         # no kWh history charts.
         energy_types = [c["type"] for c in energy["cards"]]
-        self.assertEqual(energy_types[:3], ["heading", "heading", "tile"])  # statistics, then the totals
+        self.assertEqual(
+            energy_types[:3], ["heading", "heading", "tile"]
+        )  # statistics, then the totals
         self.assertEqual(energy["cards"][1]["heading"], "累计电量")
         self.assertIn("24 小时功率趋势", [c.get("title") for c in energy["cards"]])
         self.assertNotIn("custom:energylib-sankey", energy_types)
@@ -407,12 +501,24 @@ class StrategyOutputTests(unittest.TestCase):
         energy = self.out["energy_zh"]["views"][0]["sections"][1]
         types = [c["type"] for c in energy["cards"]]
         # The power split and 24 h of power, then the Energy page's cards.
-        self.assertEqual(types[1:2] + types[8:], [
-            "heading", "history-graph", "markdown", "heading", "energy-date-selection", "energy-usage-graph",
-            "energy-self-sufficiency-gauge", "energy-solar-consumed-gauge", "energy-sankey",
-        ])
+        self.assertEqual(
+            types[1:2] + types[8:],
+            [
+                "heading",
+                "history-graph",
+                "markdown",
+                "heading",
+                "energy-date-selection",
+                "energy-usage-graph",
+                "energy-self-sufficiency-gauge",
+                "energy-solar-consumed-gauge",
+                "energy-sankey",
+            ],
+        )
         self.assertEqual(energy["cards"][10]["heading"], "能源统计")
-        self.assertIn("正为放电", energy["cards"][9]["content"])  # the note on the signs under the 24 h chart
+        self.assertIn(
+            "正为放电", energy["cards"][9]["content"]
+        )  # the note on the signs under the 24 h chart
         self.assertNotIn("custom:energylib-links", types)  # the cards are here: no link to the page
         self.assertNotIn("statistics-graph", types)  # HA's cards instead of ours
         # Other meters on the Energy page, or its settings unreadable: no history charts.
@@ -480,16 +586,28 @@ class StrategyOutputTests(unittest.TestCase):
                     # A heading always has a card under it.
                     self.assertTrue(i + 1 < len(cards) and cards[i + 1]["type"] != "heading", card)
                 if card["type"] in ("statistics-graph", "history-graph", "logbook"):
-                    self.assertTrue(card["entities"], card)  # an empty list is HA's "configuration error"
+                    self.assertTrue(
+                        card["entities"], card
+                    )  # an empty list is HA's "configuration error"
         flow = next(c for c in live["cards"] if c["type"] == "custom:energylib-house-flow")
         self.assertEqual(flow["solar_entity"], "sensor.dev1_renamed_solar_power")
         # No energy counters and no controls: now and statistics, as on the phone.
-        self.assertEqual([c["type"] for c in live["cards"]][:4],
-                         ["custom:energylib-offline", "heading", "custom:energylib-house-flow",
-                          "custom:energylib-day-curve"])
+        self.assertEqual(
+            [c["type"] for c in live["cards"]][:4],
+            [
+                "custom:energylib-offline",
+                "heading",
+                "custom:energylib-house-flow",
+                "custom:energylib-day-curve",
+            ],
+        )
         self.assertIn("运行状态", [c.get("heading") for c in live["cards"]])
-        self.assertEqual([c["type"] for c in stats["cards"]], ["heading", "history-graph", "markdown"])
-        self.assertNotIn("markdown", [c["type"] for c in live["cards"]])  # the signs note went with the chart
+        self.assertEqual(
+            [c["type"] for c in stats["cards"]], ["heading", "history-graph", "markdown"]
+        )
+        self.assertNotIn(
+            "markdown", [c["type"] for c in live["cards"]]
+        )  # the signs note went with the chart
         self.assertIn("custom:energylib-sankey", [c["type"] for c in live["cards"]])
         self.assertNotIn("custom:energylib-today", text(view))
         self.assertNotIn("statistics-graph", text(view))
@@ -508,16 +626,28 @@ class StrategyOutputTests(unittest.TestCase):
     def test_admin_without_energy_page_gets_a_pointer_to_set_it_up(self):
         energy = self.out["gateway_admin"]["views"][0]["sections"][1]
         links = [c for c in energy["cards"] if c["type"] == "custom:energylib-links"]
-        self.assertEqual([l["links"][0]["path"] for l in links], ["/config/energy"])
-        self.assertEqual(links[0]["links"][0]["name"], "在能源面板中添加本逆变器，可按日 / 周 / 月 / 年查看统计")
+        self.assertEqual([c["links"][0]["path"] for c in links], ["/config/energy"])
+        self.assertEqual(
+            links[0]["links"][0]["name"], "在能源面板中添加本逆变器，可按日 / 周 / 月 / 年查看统计"
+        )
         member = self.out["gateway_member"]["views"][0]["sections"][1]
         self.assertFalse([c for c in member["cards"] if c["type"] == "custom:energylib-links"])
 
     def test_phone_gets_the_columns_as_pages(self):
         flow, energy, right, phone = self.out["full_zh"]["views"][0]["sections"]
         # Phones and touch tablets get pages; a browser with a mouse keeps the columns.
-        wide = [{"condition": "screen", "media_query": "(min-width: 1366px), (min-width: 768px) and (pointer: fine)"}]
-        narrow = [{"condition": "screen", "media_query": "(max-width: 767px), (max-width: 1365px) and (pointer: coarse)"}]
+        wide = [
+            {
+                "condition": "screen",
+                "media_query": "(min-width: 1366px), (min-width: 768px) and (pointer: fine)",
+            }
+        ]
+        narrow = [
+            {
+                "condition": "screen",
+                "media_query": "(max-width: 767px), (max-width: 1365px) and (pointer: coarse)",
+            }
+        ]
         self.assertTrue(all(s["visibility"] == wide for s in (flow, energy, right)))
         self.assertEqual(phone["visibility"], narrow)
         self.assertEqual(phone["column_span"], 3)  # the whole width on a tablet
@@ -530,7 +660,14 @@ class StrategyOutputTests(unittest.TestCase):
         # Home screen (11-23): no heading above the house, then today's energy and the
         # totals, then the charts and the status; the Sankey is on the statistics page.
         now_types = [c["type"] for c in now]
-        self.assertEqual(now_types[:3], ["custom:energylib-house-flow", "custom:energylib-day-curve", "custom:energylib-sankey"])
+        self.assertEqual(
+            now_types[:3],
+            [
+                "custom:energylib-house-flow",
+                "custom:energylib-day-curve",
+                "custom:energylib-sankey",
+            ],
+        )
         self.assertIn("custom:energylib-sankey", now_types)  # the live split stays with "now"
         self.assertTrue(now[0]["frameless"])  # the phone house has no card frame
         self.assertNotIn("frameless", flow["cards"][2])
@@ -538,7 +675,9 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertIn("tile", [c["type"] for c in stats])  # running totals on the statistics page
         # Today's curve: one reading at a time; the grid shows in, out and net.
         curve = now[1]
-        self.assertEqual([tab["key"] for tab in curve["tabs"]], ["grid", "solar", "load", "battery"])
+        self.assertEqual(
+            [tab["key"] for tab in curve["tabs"]], ["grid", "solar", "load", "battery"]
+        )
         grid = curve["tabs"][0]
         self.assertTrue(grid["net"])
         self.assertEqual([e["label"] for e in grid["energy"]], ["买电", "卖电"])
@@ -584,14 +723,19 @@ class StrategyServingTests(unittest.TestCase):
         self.assertEqual(source.count("import("), 1)
         self.assertIn("./translations/${lang}.json?v=${encodeURIComponent(VERSION)}", source)
         self.assertEqual(
-            sorted(p.name for p in STRATEGY.parent.iterdir()), [STRATEGY.name, "house", "translations"]
+            sorted(p.name for p in STRATEGY.parent.iterdir()),
+            [STRATEGY.name, "house", "translations"],
         )
         # The house flow card's pictures, versioned like the translations.
         self.assertEqual(
-            sorted(p.name for p in (STRATEGY.parent / "house").iterdir()), ["house-dark.webp", "house-light.webp"]
+            sorted(p.name for p in (STRATEGY.parent / "house").iterdir()),
+            ["house-dark.webp", "house-light.webp"],
         )
         self.assertIn("./house/house-dark.webp?v=${encodeURIComponent(VERSION)}", source)
-        self.assertIn('FRONTEND_DIR / "house"', dashboard := (COMPONENT / "dashboard.py").read_text(encoding="utf-8"))
+        self.assertIn(
+            'FRONTEND_DIR / "house"',
+            dashboard := (COMPONENT / "dashboard.py").read_text(encoding="utf-8"),
+        )
         dashboard = (COMPONENT / "dashboard.py").read_text(encoding="utf-8")
         self.assertIn(f'STRATEGY_FILE = "{STRATEGY.name}"', dashboard)
 

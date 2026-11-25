@@ -195,8 +195,8 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
   });
   // The same order on every device: the power switch (it asks first), the mode
   // card (a tap writes), then the settings. Whether the inverter runs at all comes
-  // before how it runs. A device with controls but no EMS mode yet (AECC with a
-  // Shenggerui inverter) keeps the mode card's place, marked pending.
+  // before how it runs. A device with controls but no EMS mode yet (a local-interface device with a
+  // register inverter) keeps the mode card's place, marked pending.
   const hasControls = ["switch.inverter_power", "number.min_soc", "number.backup_soc", "switch.grid_charge"].some((id) => ent[id]);
   const modeCard = ent["select.home_mode"] && s("work_mode")
     ? { type: "custom:energylib-mode", device_id: device.id, mode_entity: s("work_mode"), select_entity: ent["select.home_mode"] }
@@ -285,7 +285,7 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
   // The card carries its own title, so no section heading above it.
   // The work-mode sensor marks a source that has controls (on or off); without it
   // (a read-only source) there is no schedule, no control note and no change log.
-  // A source without an EMS mode but with controls (AECC with a Shenggerui
+  // A source without an EMS mode but with controls (a local-interface device with a register
   // inverter, its mode still to be defined) counts too.
   const controllable = Boolean(s("work_mode") || hasControls);
   const touCards = !controllable ? [] : tou
@@ -1933,7 +1933,7 @@ class EnergyLibRemoteTaskCard extends HTMLElement {
   }
 }
 
-// The EMS mode, as in the AECC app: a row of mode icons (the current one marked)
+// The EMS mode, as in the app: a row of mode icons (the current one marked)
 // and one line on what the picked mode does. A tap writes at once; the backend
 // serializes, writes and reads back. The battery/grid settings are Home
 // Assistant's own tiles below this card (one design for every device). The modes
@@ -2083,7 +2083,7 @@ class EnergyLibModeCard extends HTMLElement {
   getGridOptions() { return { columns: 12 }; }
 }
 
-// The time-of-use plan, edited on the page as in the AECC app: one row per period,
+// The time-of-use plan, edited on the page as in the app: one row per period,
 // "+ Add period", the weekdays and the mode outside the periods. Changes are a
 // draft until "Save to device" writes the whole plan once (user decision 2026-11-19),
 // through energylib.set_tou_schedule: the same backend path as the integration's own form
