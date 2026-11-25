@@ -873,18 +873,18 @@ class EnergyLibFlowCard extends HTMLElement {
 
 // House energy flow: a picture of a home with glowing pulses running along the
 // cables in it, the three live readings above the roof and the battery state in
-// front. The picture is 1170 x 906 (light and dark versions in frontend/house/);
-// the routes below are in its pixels and follow the cables drawn in it.
+// front. The light and dark pictures (frontend/house/) are the same render of one scene;
+// the routes below are in a 1170 x 906 frame over them and follow the cables drawn in it.
 const HOUSE_W = 1170;
 const HOUSE_H = 906;
-const HOUSE_HUB = [720, 573]; // where the wall cable splits
+const HOUSE_HUB = [726, 516]; // where the wall cable splits
 // Each route is drawn from its first point to its last ("forward"). The grid
 // cable has two pieces, above and below the box on the wall.
 const HOUSE_ROUTES = {
-  solar: [[[890, 352], [870, 400], [870, 557]]], // roof panels down to the inverter on the battery
-  grid: [[[720, 412], [720, 450]], [[720, 512], HOUSE_HUB]], // grid entry, through the wall box, to the junction
-  inverter: [[[832, 582], HOUSE_HUB]], // inverter out to the junction
-  home: [[HOUSE_HUB, [597, 564]]], // junction into the house
+  solar: [[[837, 395], [817, 427], [831, 450], [831, 498]]], // roof panels down to the inverter above the battery
+  grid: [[[726, 424], [726, 437]], [[726, 470], HOUSE_HUB]], // grid entry, through the wall box, to the junction
+  inverter: [[[797, 527], HOUSE_HUB]], // inverter out to the junction
+  home: [[HOUSE_HUB, [680, 509]]], // junction into the house
 };
 const HOUSE_DASH = [[30, 0.25], [18, 0.45], [9, 0.8]]; // pulse tail layers: length (of 100), opacity
 
@@ -992,7 +992,7 @@ class EnergyLibHouseFlowCard extends HTMLElement {
       .num b{font-size:clamp(18px,5.4vw,28px);font-weight:600} .num small{font-size:12px;margin-left:2px;color:var(--secondary-text-color)}
       .name{font-size:13px;color:var(--secondary-text-color);white-space:nowrap}
       .metric.missing .name{color:#e53935}
-      .battery{position:absolute;left:64%;top:79%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;
+      .battery{position:absolute;left:66%;top:80%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;
         display:flex;flex-direction:column;gap:2px;text-shadow:0 1px 3px color-mix(in srgb,var(--card-background-color,#000) 80%,transparent)}
       .battery .state{font-size:13px;color:var(--secondary-text-color)}
       .battery.charging .state{color:#38d39f} .battery.discharging .state{color:#ff9f43}
@@ -1093,8 +1093,6 @@ class EnergyLibHouseFlowCard extends HTMLElement {
     this.classList.toggle("light", !dark);
     const src = HOUSE_IMAGES[dark ? "dark" : "light"];
     if (this.$("img").getAttribute("src") !== src) this.$("img").setAttribute("src", src);
-    // The light picture sits 0.3 % lower and further right than the dark one.
-    this.$("routes").setAttribute("transform", dark ? "" : `translate(${HOUSE_W * 0.003} ${HOUSE_H * 0.003})`);
     const m = houseModel(hass, this.config);
     // The house always shows; without readings the values read "--", nothing
     // flows and one line under the picture says why.

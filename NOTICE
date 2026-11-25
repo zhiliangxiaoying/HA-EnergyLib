@@ -8,6 +8,12 @@ names and trademarks belong to their respective owners. The license does not gra
 rights to brand images or trademarks (Apache-2.0, section 6).
 
 The house pictures of the overview's energy-flow card
-(custom_components/energylib/frontend/house/) are used with permission. They are not
-covered by the Apache License, all rights reserved; do not reuse them outside this
-integration.
+(custom_components/energylib/frontend/house/) were modelled and rendered for this
+integration. They show EnergyLIB products and the EnergyLIB brand mark, to which the
+license grants no rights (see above). They contain these third-party models:
+
+- The car: "Tesla M3 model" by wintrez, licensed under Creative Commons Attribution 4.0
+  (https://creativecommons.org/licenses/by/4.0/). Original:
+  https://sketchfab.com/3d-models/tesla-m3-model-3a602469d7874d1397efa67182198705
+  Changes: the maker's logos and number plates removed, refinished and rendered.
+- A potted plant: "Potted Plant 02" by Rico Cilliers, Poly Haven (polyhaven.com), CC0 1.0.
