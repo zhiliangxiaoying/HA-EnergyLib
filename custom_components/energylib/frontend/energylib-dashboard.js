@@ -687,6 +687,7 @@ class EnergyLibFlowCard extends HTMLElement {
   setConfig(config) {
     this.config = config;
     this.text = config.text || {};
+    this.classList.toggle("embedded", config.embedded === true);
     if (this.shadowRoot) return;
     const root = this.attachShadow({ mode: "open" });
     const pos = ([x, y]) => `left:${x / 4}%;top:${(y / 330) * 100}%`;
@@ -754,6 +755,12 @@ class EnergyLibFlowCard extends HTMLElement {
       .node.missing .badge{display:block}
       .hint,.notice{font-size:12px;line-height:1.5;color:var(--secondary-text-color);padding-top:6px}
       .notice{font-size:13px;padding:0 0 8px;text-align:center}
+      /* On a tablet the house is much larger than the circles: they grow with it. */
+      :host(.embedded){container-type:inline-size}
+      /* The circles' middle is at 175 of 330 and the card pads its top more: moved to the card's middle. */
+      :host(.embedded) .stage{transform:translateY(calc(-3.03% - 3px))}
+      @container (min-width:680px){:host(.embedded) .stage{zoom:1.3}}
+      :host(.embedded) .hint,:host(.embedded) .notice{padding-left:calc(var(--chips-inset,16px) - 16px)}
     </style>
     <ha-card><div class="head"><div class="title" id="title"></div><div class="chip" id="chip" hidden></div></div>
       <div class="stage" id="stage"><svg viewBox="0 0 400 330">
@@ -962,20 +969,28 @@ class EnergyLibHouseFlowCard extends HTMLElement {
         display:flex;align-items:center;justify-content:center;color:var(--secondary-text-color);
         background:color-mix(in srgb,var(--card-background-color,#1c1c1c) 70%,transparent)}
       .switch:hover{color:var(--primary-text-color)} .switch ha-icon{--mdc-icon-size:20px}
+      /* Both views stay in the layout, one above the other: the card is always as tall as the
+         taller one, so switching moves nothing, and the house spreads over that height. */
       #views{display:grid;position:relative} #house,#diagram{grid-area:1/1;align-self:center;min-width:0}
+      #house{align-self:stretch;display:flex;flex-direction:column}
       /* Opacity hides the whole layer at once: HA's ha-card inside the diagram fades its own
-         visibility over 0.3 s, so visibility alone left both views showing on quick switches.
-         The hidden view is taken out of the layout (11-23): the card is as tall as the view
-         on screen, so the house leaves no empty band under it on a phone. */
-      .under{visibility:hidden;opacity:0;pointer-events:none;position:absolute;top:0;left:0;right:0}
+         visibility over 0.3 s, so visibility alone left both views showing on quick switches. */
+      .under{visibility:hidden;opacity:0;pointer-events:none}
       energylib-flow{display:block;width:100%;--ha-card-border-width:0;--ha-card-box-shadow:none;--ha-card-background:transparent;--ha-card-border-radius:0}
       /* Running state, bottom left of the card in both views; a tap opens its history. */
       .chips{position:absolute;left:12px;bottom:12px;z-index:2;display:flex;gap:6px}
+      /* Beside the circles there is room for one above the other only. */
+      .chips.stacked{flex-direction:column;align-items:flex-start;max-width:36%}
+      .chips.stacked .chip{max-width:100%;box-sizing:border-box} .chip i{flex:none}
+      .chips.stacked span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .chip.mode i{background:#ff9f43} .chip.mode{color:var(--primary-text-color);background:color-mix(in srgb,var(--secondary-text-color) 20%,transparent)}
       .chip{display:flex;align-items:center;gap:6px;padding:3px 10px;border:0;border-radius:12px;
         font:inherit;font-size:12px;cursor:pointer;color:var(--c,var(--secondary-text-color));background:color-mix(in srgb,var(--c,#888) 16%,transparent)}
       .chip i{width:7px;height:7px;border-radius:50%;background:currentColor}
-      .stage{position:relative;width:100%;max-width:720px;margin:0 auto;aspect-ratio:${HOUSE_W}/${HOUSE_H}}
+      .stage{position:relative;flex:1 1 auto;width:100%;max-width:720px;margin:0 auto;display:flex;flex-direction:column;container-type:inline-size}
+      /* The house stands midway between the readings and the state (its ground is the picture's lower fifth). */
+      .stage::before{content:"";flex:2 0 0} .stage::after{content:"";flex:1 0 0}
+      .pic{position:relative;flex:none;width:100%;aspect-ratio:${HOUSE_W}/${HOUSE_H}}
       img,svg{position:absolute;inset:0;width:100%;height:100%}
       img{object-fit:contain;user-select:none;pointer-events:none}
       .route{display:none} .route.on{display:inline}
@@ -985,27 +1000,29 @@ class EnergyLibHouseFlowCard extends HTMLElement {
       .pulse{stroke:var(--flow-b);stroke-width:6}
       .route .pulse:nth-of-type(3){stroke:var(--flow-a)}
       .head{stroke:var(--head);stroke-width:8}
-      .metric{position:absolute;top:1%;width:24%;height:15%;padding:0 0 0 10px;border:0;
-        border-left:2px dashed color-mix(in srgb,var(--secondary-text-color) 55%,transparent);background:none;color:inherit;
-        font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px}
+      /* Three equal columns about the card's middle, clear of the switch button. */
+      .metric{position:absolute;top:2.5%;width:23.4%;height:15%;padding:0;border:0;background:none;color:inherit;
+        font:inherit;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+      .metric + .metric{border-left:2px dashed color-mix(in srgb,var(--secondary-text-color) 40%,transparent)}
       .num{color:var(--primary-text-color);white-space:nowrap}
-      .num b{font-size:clamp(18px,5.4vw,28px);font-weight:600} .num small{font-size:12px;margin-left:2px;color:var(--secondary-text-color)}
-      .name{font-size:13px;color:var(--secondary-text-color);white-space:nowrap}
+      .num b{font-size:clamp(17px,6cqw,30px);font-weight:600} .num small{font-size:12px;margin-left:2px;color:var(--secondary-text-color)}
+      .name{font-size:13px;line-height:1.15;max-width:100%;color:var(--secondary-text-color)}
       .metric.missing .name{color:#e53935}
       .battery{position:absolute;left:66%;top:80%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;
         display:flex;flex-direction:column;gap:2px;text-shadow:0 1px 3px color-mix(in srgb,var(--card-background-color,#000) 80%,transparent)}
       .battery .state{font-size:13px;color:var(--secondary-text-color)}
       .battery.charging .state{color:#38d39f} .battery.discharging .state{color:#ff9f43}
       .battery .line{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
-      .battery .soc{font-size:clamp(16px,4.6vw,24px);font-weight:600;color:var(--primary-text-color)}
-      .battery .pw{font-size:clamp(14px,4vw,20px);font-weight:600;color:var(--primary-text-color)}
+      .battery .soc{font-size:clamp(16px,5cqw,24px);font-weight:600;color:var(--primary-text-color)}
+      .battery .pw{font-size:clamp(14px,4.4cqw,20px);font-weight:600;color:var(--primary-text-color)}
       .battery small{font-size:12px;font-weight:400;margin-left:1px;color:var(--secondary-text-color)}
       .battery.missing .state{color:#e53935}
       .notice,.hint{font-size:12px;line-height:1.5;color:var(--secondary-text-color);padding:0 16px 10px}
       .notice{font-size:13px;padding:4px 16px 12px;text-align:center}
       /* The running chip sits bottom left of the card: text under the house starts
          to its right, so the two never overlap. */
-      :host(.chip-on) .notice,:host(.chip-on) .hint{padding-left:var(--chips-w,96px)}
+      :host(.chip-on){--chips-inset:var(--chips-w,96px)}
+      :host(.chip-on) .notice,:host(.chip-on) .hint{padding-left:var(--chips-inset)}
       [hidden]{display:none!important}
       @media (prefers-reduced-motion:reduce){.halo,.pulse,.head{display:none}.tube{opacity:.85}}
     </style>
@@ -1013,13 +1030,13 @@ class EnergyLibHouseFlowCard extends HTMLElement {
       <div class="chips" id="chips"><button class="chip" id="chip" hidden><i></i><span id="chip-text"></span></button>
         <button class="chip mode" id="mode" hidden><i></i><span id="mode-text"></span></button></div>
       <div id="views"><div id="house"><div class="stage" id="stage">
-        <img id="img" alt="">
+        <div class="pic"><img id="img" alt="">
         <svg viewBox="0 0 ${HOUSE_W} ${HOUSE_H}" role="img"><title id="aria"></title>
           <defs><filter id="hf-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter></defs>
           <g id="routes">${Object.entries(HOUSE_ROUTES).map(route).join("")}</g></svg>
-        ${metric("load", 19)}${metric("grid", 44)}${metric("solar", 69)}
         <button class="battery" id="battery"><span class="state" id="bat-state"></span>
-          <span class="line"><span class="soc" id="bat-soc"></span><span class="pw" id="bat-pw"></span></span></button>
+          <span class="line"><span class="soc" id="bat-soc"></span><span class="pw" id="bat-pw"></span></span></button></div>
+        ${metric("load", 14.9)}${metric("grid", 38.3)}${metric("solar", 61.7)}
       </div>
       <div class="notice" id="notice" hidden></div><div class="hint" id="hint" hidden></div></div>
       <div id="diagram" class="under"></div></div></ha-card>`;
@@ -1075,10 +1092,10 @@ class EnergyLibHouseFlowCard extends HTMLElement {
       this.$("diagram").append(this.diagram);
       if (this._hass) this.diagram.hass = this._hass;
     }
-    // Both views share one grid cell; the hidden one is out of the layout, so the
-    // card takes the height of the view on screen.
+    // Both views share one grid cell and keep their place in it.
     this.$("house").classList.toggle("under", diagram);
     this.$("diagram").classList.toggle("under", !diagram);
+    this.$("chips").classList.toggle("stacked", diagram);
     this.$("switch-icon").setAttribute("icon", diagram ? "mdi:home-lightning-bolt-outline" : "mdi:chart-donut");
     const label = diagram ? this.text.toHouse : this.text.toDiagram;
     this.$("switch").setAttribute("aria-label", label || "");
@@ -1113,7 +1130,12 @@ class EnergyLibHouseFlowCard extends HTMLElement {
     const chipsKey = `${this.$("chip").hidden}|${this.$("chip-text").textContent}|${this.$("mode").hidden}|${this.$("mode-text").textContent}`;
     if (chipsKey !== this.chipsKey) {
       this.chipsKey = chipsKey;
-      requestAnimationFrame(() => this.style.setProperty("--chips-w", `${this.$("chips").offsetWidth + 24}px`));
+      // Their width side by side, whichever way they stand now: the text wraps alike in both views.
+      requestAnimationFrame(() => {
+        const chips = [...this.$("chips").children].filter((c) => !c.hidden);
+        const width = chips.reduce((sum, c) => sum + c.offsetWidth, 0) + 6 * Math.max(chips.length - 1, 0);
+        this.style.setProperty("--chips-w", `${width + 24}px`);
+      });
     }
     if (runningKnown) {
       this.$("chip-text").textContent = hass.formatEntityState ? hass.formatEntityState(running) : running.state;
