@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "เวลาสิ้นสุดโดยประมาณของการชาร์จ/คายประจุระยะไกล"
+      },
+      "ev_charge_power": {
+        "name": "กำลังไฟเครื่องชาร์จ EV"
+      },
+      "ev_charger_status": {
+        "name": "สถานะเครื่องชาร์จ EV",
+        "state": {
+          "idle": "ว่าง",
+          "waiting_for_vehicle": "เสียบปลั๊กแล้ว รอรถ",
+          "connected": "เชื่อมต่อรถแล้ว",
+          "charging": "กำลังชาร์จ",
+          "preparing": "กำลังเตรียม",
+          "finished": "ชาร์จเสร็จแล้ว",
+          "off": "ปิด",
+          "other": "อื่น ๆ"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "พลังงานสะสมเครื่องชาร์จ EV"
+      },
+      "ev_session_energy": {
+        "name": "พลังงานการชาร์จครั้งนี้"
+      },
+      "ev_session_duration": {
+        "name": "ระยะเวลาการชาร์จครั้งนี้"
+      },
+      "ev_charger_voltage_a": {
+        "name": "แรงดัน L1 เครื่องชาร์จ EV"
+      },
+      "ev_charger_voltage_b": {
+        "name": "แรงดัน L2 เครื่องชาร์จ EV"
+      },
+      "ev_charger_voltage_c": {
+        "name": "แรงดัน L3 เครื่องชาร์จ EV"
+      },
+      "ev_charger_current_a": {
+        "name": "กระแส L1 เครื่องชาร์จ EV"
+      },
+      "ev_charger_current_b": {
+        "name": "กระแส L2 เครื่องชาร์จ EV"
+      },
+      "ev_charger_current_c": {
+        "name": "กระแส L3 เครื่องชาร์จ EV"
+      },
+      "ev_connector_energy": {
+        "name": "พลังงานหัวชาร์จ EV"
+      },
+      "plug_power": {
+        "name": "กำลังไฟ"
+      },
+      "plug_energy": {
+        "name": "พลังงาน"
+      },
+      "plug_voltage": {
+        "name": "แรงดัน"
+      },
+      "plug_current": {
+        "name": "กระแส"
+      },
+      "heater_power": {
+        "name": "กำลังไฟ"
+      },
+      "heater_temperature": {
+        "name": "อุณหภูมิ"
+      },
+      "heater_temperature_max": {
+        "name": "อุณหภูมิสูงสุด"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "มิเตอร์ออนไลน์"
+      },
+      "ev_charger_meter_online": {
+        "name": "มิเตอร์เครื่องชาร์จ EV ออนไลน์"
+      },
+      "plug_on": {
+        "name": "เปิดอยู่"
+      },
+      "heater_on": {
+        "name": "เปิดอยู่"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "ลดพีก",
           "other": "อื่น ๆ"
         }
+      },
+      "ev_charge_mode": {
+        "name": "โหมดชาร์จ EV",
+        "state": {
+          "eco": "ECO",
+          "fast": "เร็ว",
+          "smart": "อัจฉริยะ",
+          "green": "สีเขียว"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "ระยะเวลา"
+      },
+      "ev_charge_current": {
+        "name": "ขีดจำกัดกระแสชาร์จ EV"
+      },
+      "ev_grid_max_power": {
+        "name": "กำลังไฟเสริมจากกริดสูงสุดสำหรับ EV"
+      },
+      "grid_import_limit": {
+        "name": "ขีดจำกัดการซื้อไฟจากกริด"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "อนุญาตการชาร์จ/คายประจุระยะไกล"
+      },
+      "ev_charger_on": {
+        "name": "เปิด/ปิดเครื่องชาร์จ EV"
+      },
+      "ev_green_priority": {
+        "name": "ให้ความสำคัญพลังงานสีเขียวของเครื่องชาร์จ EV"
+      },
+      "ev_plug_and_charge": {
+        "name": "เสียบแล้วชาร์จ (EV)"
+      },
+      "ev_battery_charging": {
+        "name": "การชาร์จแบตเตอรี่ของเครื่องชาร์จ EV"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "อินเวอร์เตอร์เครื่องเดิมกลับมาออนไลน์ จึงไม่ได้แทนที่"
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "ปลั๊กอัจฉริยะ {serial}"
+    },
+    "heater": {
+      "name": "เครื่องทำน้ำร้อน {serial}"
     }
   }
 }

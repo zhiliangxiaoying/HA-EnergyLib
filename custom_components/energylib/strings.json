@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Remote charge/discharge estimated end time"
+      },
+      "ev_charge_power": {
+        "name": "EV charger power"
+      },
+      "ev_charger_status": {
+        "name": "EV charger status",
+        "state": {
+          "idle": "Idle",
+          "waiting_for_vehicle": "Plugged in, waiting for vehicle",
+          "connected": "Vehicle connected",
+          "charging": "Charging",
+          "preparing": "Preparing",
+          "finished": "Charging finished",
+          "off": "Off",
+          "other": "Other"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "EV charger total energy"
+      },
+      "ev_session_energy": {
+        "name": "EV session energy"
+      },
+      "ev_session_duration": {
+        "name": "EV session duration"
+      },
+      "ev_charger_voltage_a": {
+        "name": "EV charger voltage L1"
+      },
+      "ev_charger_voltage_b": {
+        "name": "EV charger voltage L2"
+      },
+      "ev_charger_voltage_c": {
+        "name": "EV charger voltage L3"
+      },
+      "ev_charger_current_a": {
+        "name": "EV charger current L1"
+      },
+      "ev_charger_current_b": {
+        "name": "EV charger current L2"
+      },
+      "ev_charger_current_c": {
+        "name": "EV charger current L3"
+      },
+      "ev_connector_energy": {
+        "name": "EV connector energy"
+      },
+      "plug_power": {
+        "name": "Power"
+      },
+      "plug_energy": {
+        "name": "Energy"
+      },
+      "plug_voltage": {
+        "name": "Voltage"
+      },
+      "plug_current": {
+        "name": "Current"
+      },
+      "heater_power": {
+        "name": "Power"
+      },
+      "heater_temperature": {
+        "name": "Temperature"
+      },
+      "heater_temperature_max": {
+        "name": "Maximum temperature"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Meter online"
+      },
+      "ev_charger_meter_online": {
+        "name": "EV charger meter online"
+      },
+      "plug_on": {
+        "name": "Power"
+      },
+      "heater_on": {
+        "name": "Power"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Peak shaving",
           "other": "Other"
         }
+      },
+      "ev_charge_mode": {
+        "name": "EV charge mode",
+        "state": {
+          "eco": "ECO",
+          "fast": "Fast",
+          "smart": "Smart",
+          "green": "Green"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Duration"
+      },
+      "ev_charge_current": {
+        "name": "EV charging current limit"
+      },
+      "ev_grid_max_power": {
+        "name": "EV maximum grid top-up power"
+      },
+      "grid_import_limit": {
+        "name": "Grid purchase limit"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Allow remote charge/discharge"
+      },
+      "ev_charger_on": {
+        "name": "EV charger on/off"
+      },
+      "ev_green_priority": {
+        "name": "EV charger green power priority"
+      },
+      "ev_plug_and_charge": {
+        "name": "EV plug and charge"
+      },
+      "ev_battery_charging": {
+        "name": "EV charger battery charging"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "The old inverter is online again, so nothing was replaced."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Smart plug {serial}"
+    },
+    "heater": {
+      "name": "Water heater {serial}"
     }
   }
 }

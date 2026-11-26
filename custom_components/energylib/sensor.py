@@ -6,7 +6,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import RETIRED_ALARM_ENTITIES
 from .energylib_core.model.points import BINARY_KINDS
-from .entity import EnergyLibEntity
+from .entity import EnergyLibAccessoryEntity, EnergyLibEntity, accessory_points
 
 PARALLEL_UPDATES = 0
 CLASSES = {
@@ -22,6 +22,7 @@ CLASSES = {
     "schedule": SensorDeviceClass.ENUM,
     "task": SensorDeviceClass.ENUM,
     "timestamp": SensorDeviceClass.TIMESTAMP,
+    "duration": SensorDeviceClass.DURATION,
 }
 
 
@@ -32,6 +33,30 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for p in coordinator.device.points()
         if p.kind not in BINARY_KINDS and p.key not in RETIRED_ALARM_ENTITIES
     )
+    async_add_entities(
+        EnergyLibAccessorySensor(coordinator, kind, serial, point)
+        for kind, serial, point in accessory_points(coordinator, binary=False)
+    )
+
+
+class EnergyLibAccessorySensor(EnergyLibAccessoryEntity, SensorEntity):
+    def __init__(self, coordinator, kind, serial, point):
+        super().__init__(coordinator, kind, serial, point)
+        self._attr_device_class = CLASSES.get(point.kind)
+        self._attr_native_unit_of_measurement = point.unit
+        self._attr_state_class = (
+            SensorStateClass.TOTAL_INCREASING
+            if point.kind == "energy"
+            else SensorStateClass.MEASUREMENT
+        )
+
+    @property
+    def suggested_display_precision(self):
+        return self.point.digits
+
+    @property
+    def native_value(self):
+        return self.accessory_value
 
 
 class EnergyLibSensor(EnergyLibEntity, SensorEntity):

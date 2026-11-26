@@ -21,6 +21,7 @@
     "trendsHeading": "趋势",
     "status": "运行状态",
     "alarms": "故障与告警",
+    "evCharger": "充电桩",
     "controls": "运行控制",
     "remote": "远程调度",
     "startCharge": "开始充电",

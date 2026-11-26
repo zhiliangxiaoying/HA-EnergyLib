@@ -31,6 +31,20 @@ WORK_MODES = (
     "other",
 )
 RUNNING_STATES = ("standby", "ready", "off_grid", "on_grid", "other")
+# EV charger state. The inverter-attached charger reports its plug state or that it
+# charges; a charger of an EMS reports each connector as off, preparing, charging or
+# finished.
+EV_CHARGER_STATES = (
+    "idle",
+    "waiting_for_vehicle",
+    "connected",
+    "charging",
+    "preparing",
+    "finished",
+    "off",
+    "other",
+)
+EV_CHARGE_MODES = ("eco", "fast", "smart", "green")
 # Values of DeviceRuntime.schedule_status(): active period type, or why none applies.
 TOU_STATUSES = ("charge", "discharge", "outside_period", "expired", "inactive", "remote")
 
@@ -127,6 +141,62 @@ OPTIONAL = (
         Measurement(
             "meter_online", "connectivity", enabled=False, capabilities=frozenset({"meter"})
         ),
+    )
+    # EV charger behind the inverter, only when the inverter reports one. Power and
+    # status are on by default for those devices; the rest start disabled.
+    + (
+        Measurement(
+            "ev_charge_power",
+            "power",
+            "kW",
+            capabilities=frozenset({"charger"}),
+            interval=FLOW_INTERVAL,
+        ),
+        Measurement(
+            "ev_charger_status",
+            "enum",
+            capabilities=frozenset({"charger", "charger_status"}),
+            options=EV_CHARGER_STATES,
+        ),
+        Measurement(
+            "ev_charger_energy", "energy", "kWh", False, frozenset({"charger"}), interval=60
+        ),
+        Measurement(
+            "ev_session_energy", "energy", "kWh", False, frozenset({"charger"}), interval=60
+        ),
+        Measurement(
+            "ev_session_duration",
+            "duration",
+            "s",
+            False,
+            frozenset({"charger"}),
+            interval=60,
+            digits=0,
+        ),
+        # The EMS's "connector energy" (ConnectorElectricity): its document does not say
+        # whether it is per session or lifetime, so it is a counter that may reset.
+        Measurement(
+            "ev_connector_energy", "energy", "kWh", False, frozenset({"charger"}), interval=60
+        ),
+        Measurement(
+            "ev_charger_meter_online",
+            "connectivity",
+            enabled=False,
+            capabilities=frozenset({"charger", "charger_status"}),
+        ),
+    )
+    + tuple(
+        Measurement(
+            f"ev_charger_{kind}_{phase}",
+            kind,
+            unit,
+            False,
+            frozenset({"charger"} | ({"charger_three_phase"} if phase != "a" else set())),
+        )
+        for kind, unit in (("voltage", "V"), ("current", "A"))
+        for phase in "abc"
+    )
+    + (
         Measurement(
             "tou_schedule",
             "schedule",
@@ -208,9 +278,50 @@ CONTROLS = (
     Control("max_soc", "number", minimum=50, maximum=100, advanced=True),
     Control("max_charge_current", "number", maximum=300, step=0.1, advanced=True),
     Control("max_discharge_current", "number", maximum=300, step=0.1, advanced=True),
+    # EV charger behind the inverter: offered only when the inverter reports one.
+    # On/off and the current limit are main controls; the rest start disabled.
+    Control("ev_charger_on", "switch", maximum=1),
+    Control("ev_charge_current", "number", minimum=6, maximum=32),
+    Control("ev_charge_mode", "select", options=EV_CHARGE_MODES, advanced=True),
+    Control("ev_green_priority", "switch", maximum=1, advanced=True),
+    Control("ev_plug_and_charge", "switch", maximum=1, advanced=True),
+    Control("ev_battery_charging", "switch", maximum=1, advanced=True),
+    # 0 kW turns the limit off (protocol range 0-1000 kW).
+    Control("ev_grid_max_power", "number", maximum=1000, step=0.1, advanced=True),
+    # Grid purchase limit of an inverter behind an EMS (kW; device default 1 kW).
+    Control("grid_import_limit", "number", maximum=65.5, step=0.1, advanced=True),
 )
 DRAFTS = (
     Control("remote_target_power", "number", step=0.1, power_range="unipolar"),
     Control("remote_duration", "number", minimum=1, maximum=1440),
 )
 BUTTONS = ("start_charge", "start_discharge", "stop_remote")
+
+
+@dataclass(frozen=True)
+class AccessoryPoint:
+    """A reading of a device an EMS manages (smart plug, water heater)."""
+
+    key: str
+    kind: str  # power_state (binary), power, energy, voltage, current, temperature
+    unit: str | None = None
+    enabled: bool = True
+    digits: int | None = None
+
+
+# Accessories become their own devices under the EMS, one per serial number.
+ACCESSORY_POINTS = {
+    "plug": (
+        AccessoryPoint("plug_on", "power_state"),
+        AccessoryPoint("plug_power", "power", "W", digits=0),
+        AccessoryPoint("plug_energy", "energy", "kWh", False, 2),
+        AccessoryPoint("plug_voltage", "voltage", "V", False, 1),
+        AccessoryPoint("plug_current", "current", "A", False, 2),
+    ),
+    "heater": (
+        AccessoryPoint("heater_on", "power_state"),
+        AccessoryPoint("heater_power", "power", "W", digits=0),
+        AccessoryPoint("heater_temperature", "temperature", "°C", digits=1),
+        AccessoryPoint("heater_temperature_max", "temperature", "°C", False, 1),
+    ),
+}

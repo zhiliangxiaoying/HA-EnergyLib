@@ -5,7 +5,7 @@ from homeassistant.const import EntityCategory
 
 from .const import RETIRED_ALARM_ENTITIES
 from .energylib_core.model.points import BINARY_KINDS
-from .entity import EnergyLibEntity
+from .entity import EnergyLibAccessoryEntity, EnergyLibEntity, accessory_points
 
 PARALLEL_UPDATES = 0
 
@@ -17,6 +17,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for p in c.device.points()
         if p.kind in BINARY_KINDS and p.key not in RETIRED_ALARM_ENTITIES
     )
+    async_add_entities(
+        EnergyLibAccessoryPower(c, kind, serial, point)
+        for kind, serial, point in accessory_points(c, binary=True)
+    )
+
+
+class EnergyLibAccessoryPower(EnergyLibAccessoryEntity, BinarySensorEntity):
+    """Whether a smart plug or water heater is switched on."""
+
+    _attr_device_class = BinarySensorDeviceClass.POWER
+
+    @property
+    def is_on(self):
+        return self.accessory_value
 
 
 class EnergyLibProblem(EnergyLibEntity, BinarySensorEntity):

@@ -21,6 +21,7 @@
     "trendsHeading": "Trends",
     "status": "Status",
     "alarms": "Faults and warnings",
+    "evCharger": "EV charger",
     "controls": "Controls",
     "remote": "Remote dispatch",
     "startCharge": "Start charging",

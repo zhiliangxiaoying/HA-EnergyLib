@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
-from .legacy import IdentityMismatch, decode_float
+from .legacy import IdentityMismatch, decode_float, decode_u32
 from .model.alarms import ALARM_KEYS, AlarmTracker
 from .model.points import CONTROLS, MEASUREMENTS
 from .model.remote import REMOTE_KEYS, RemoteDraft
@@ -377,10 +377,19 @@ class DeviceRuntime:
         if not parts or any(p is None for p in parts):
             self.values[key] = None
             return
-        if key == "running_state":
-            self.values[key] = self.profile.decode_enum(key, parts[0])
+        if maps[0].encoding == "bits":
+            # FC02 points: a single link bit, or an enum the profile decodes.
+            if MEASUREMENTS[key].kind == "connectivity":
+                self.values[key] = bool(parts[0][0])
+            else:
+                self.values[key] = self.profile.decode_enum(key, parts[0])
         else:
-            values = [decode_float(words, kind=MEASUREMENTS[key].kind) for words in parts]
+            values = [
+                decode_u32(words)
+                if m.encoding == "u32"
+                else decode_float(words, kind=MEASUREMENTS[key].kind)
+                for words, m in zip(parts, maps, strict=True)
+            ]
             # Profiles convert device sign conventions to the standard ones here
             # (grid + = import, battery + = discharge).
             values = [None if v is None else v * m.scale for v, m in zip(values, maps, strict=True)]

@@ -43,6 +43,8 @@ class EnergyLibSelect(EnergyLibControl, SelectEntity):
         self._attr_translation_key = definition.key
         self._offered = list(coordinator.device.control_options(definition))
         self._encodable = coordinator.device.control_options(definition, restoring=True)
+        if definition.advanced:
+            self._attr_entity_registry_enabled_default = False
 
     @property
     def options(self):

@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Fin estimado de la carga/descarga remota"
+      },
+      "ev_charge_power": {
+        "name": "Potencia del cargador VE"
+      },
+      "ev_charger_status": {
+        "name": "Estado del cargador VE",
+        "state": {
+          "idle": "Inactivo",
+          "waiting_for_vehicle": "Enchufado, esperando vehículo",
+          "connected": "Vehículo conectado",
+          "charging": "Cargando",
+          "preparing": "Preparando",
+          "finished": "Carga finalizada",
+          "off": "Apagado",
+          "other": "Otro"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Energía total del cargador VE"
+      },
+      "ev_session_energy": {
+        "name": "Energía de la sesión de carga"
+      },
+      "ev_session_duration": {
+        "name": "Duración de la sesión de carga"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Tensión L1 del cargador VE"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Tensión L2 del cargador VE"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Tensión L3 del cargador VE"
+      },
+      "ev_charger_current_a": {
+        "name": "Corriente L1 del cargador VE"
+      },
+      "ev_charger_current_b": {
+        "name": "Corriente L2 del cargador VE"
+      },
+      "ev_charger_current_c": {
+        "name": "Corriente L3 del cargador VE"
+      },
+      "ev_connector_energy": {
+        "name": "Energía del conector VE"
+      },
+      "plug_power": {
+        "name": "Potencia"
+      },
+      "plug_energy": {
+        "name": "Energía"
+      },
+      "plug_voltage": {
+        "name": "Tensión"
+      },
+      "plug_current": {
+        "name": "Corriente"
+      },
+      "heater_power": {
+        "name": "Potencia"
+      },
+      "heater_temperature": {
+        "name": "Temperatura"
+      },
+      "heater_temperature_max": {
+        "name": "Temperatura máxima"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Contador en línea"
+      },
+      "ev_charger_meter_online": {
+        "name": "Medidor del cargador VE en línea"
+      },
+      "plug_on": {
+        "name": "Encendido"
+      },
+      "heater_on": {
+        "name": "Encendido"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Recorte de picos",
           "other": "Otro"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Modo de carga del VE",
+        "state": {
+          "eco": "ECO",
+          "fast": "Rápido",
+          "smart": "Inteligente",
+          "green": "Verde"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Duración"
+      },
+      "ev_charge_current": {
+        "name": "Límite de corriente de carga del VE"
+      },
+      "ev_grid_max_power": {
+        "name": "Potencia máxima de apoyo de la red del VE"
+      },
+      "grid_import_limit": {
+        "name": "Límite de compra de red"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Permitir carga/descarga remota"
+      },
+      "ev_charger_on": {
+        "name": "Cargador VE encendido/apagado"
+      },
+      "ev_green_priority": {
+        "name": "Prioridad de energía verde del cargador VE"
+      },
+      "ev_plug_and_charge": {
+        "name": "Enchufar y cargar (VE)"
+      },
+      "ev_battery_charging": {
+        "name": "Carga de batería del cargador VE"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "El inversor antiguo vuelve a estar en línea, así que no se sustituyó nada."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Enchufe inteligente {serial}"
+    },
+    "heater": {
+      "name": "Calentador de agua {serial}"
     }
   }
 }

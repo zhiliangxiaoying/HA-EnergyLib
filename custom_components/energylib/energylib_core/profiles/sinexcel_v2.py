@@ -11,7 +11,9 @@ not hardware-verified:
     no separate master switch (Q5); effective dates are U32 local-as-UTC stamps;
   - rated power for limits comes from 0x2008 (U16, value / 100);
   - power on/off: writing 1.0 to 0x3C42 / 0x3C44 is a one-shot command and the
-    FC02 DCAC state bit 0x1011 (1 = on) confirms it (Q17).
+    FC02 DCAC state bit 0x1011 (1 = on) confirms it (Q17);
+  - EV charger: present when 0x31BE (enable) reads 1 and its power answers; the
+    3-bit plug state 0x2030-0x2032 is read LSB first like 0x1001.
 Controls are offered only when the device answers every control register, and
 HA still requires the user's explicit "allow control" option.
 """
@@ -23,7 +25,7 @@ import math
 import struct
 from datetime import date, datetime, timezone
 
-from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float
+from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float, decode_u32
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
 from ..planner import ReadBlock, plan_reads
@@ -70,6 +72,38 @@ BATTERY_2_ADDRESSES = {
     "max_charge_current": 0x30B2,
     "max_discharge_current": 0x30B4,
 }
+# EV charger component (PDF ch. 11, pp177-194, and host settings p81-82). The
+# inverter's 0x31BE enables it; 0x398A is the charger type (1 EU single phase
+# 7 kW, 2 CN single phase 7 kW, 3 EU three phase 22 kW), and B/C phase values
+# apply to type 3 only. Multi-bit FC02 fields are read LSB first, like 0x1001.
+CHARGER_ENABLE, CHARGER_TYPE, CHARGER_THREE_PHASE_TYPE = 0x31BE, 0x398A, 3
+CHARGER_POWER = 0x400C  # W
+CHARGER_ALARM_BITS = (0x2000, 0x12)  # FC02 0x2000-0x2011: 8 protections, 8 reserved, 2 warnings
+CHARGER_STATUS = (0x2030, 12)  # FC02 0x2030-0x203B: plug state (3 bits) ... charging
+CHARGER_METER_ONLINE = 0x203A
+CHARGER_ANALOG = {
+    "ev_charger_voltage_a": 0x4000,
+    "ev_charger_voltage_b": 0x4002,
+    "ev_charger_voltage_c": 0x4004,
+    "ev_charger_current_a": 0x4006,
+    "ev_charger_current_b": 0x4008,
+    "ev_charger_current_c": 0x400A,
+    "ev_charger_energy": 0x400E,  # kWh
+    "ev_session_energy": 0x4052,  # kWh
+}
+CHARGER_SESSION_DURATION = 0x4050  # U32 seconds
+CHARGER_PLUG_STATES = ("idle", "waiting_for_vehicle", "connected")
+# Writable charger settings: key -> (address, encoding).
+CHARGER_CONTROLS = {
+    "ev_charger_on": (0x392A, "u32"),  # 0 off, 1 on
+    "ev_charge_current": (0x3924, "float"),  # [6, 32] A
+    "ev_charge_mode": (0x31C0, "float"),  # 0 ECO, 1 FAST, 2 SMART, 3 GREEN
+    "ev_green_priority": (0x39BC, "u32"),
+    "ev_plug_and_charge": (0x3992, "u32"),
+    "ev_battery_charging": (0x31C6, "float"),  # "电池充电使能" (host settings)
+    "ev_grid_max_power": (0x39BE, "float"),  # kW, 0 = off
+}
+CHARGE_MODE_CODES = {0: "eco", 1: "fast", 2: "smart", 3: "green"}
 HEARTBEAT, HEARTBEAT_TIMEOUT, ESCAPE_MODE = 0xC068, 0xC06A, 0xC06C
 # Power on/off commands (PDF p108, "general settings") and the DCAC state bit
 # (FC02, 0 = off, 1 = on) that confirms them.
@@ -207,6 +241,7 @@ class SinexcelProfile:
         self.tou_limits = None
         self._flow_block_enabled = True
         self.control_addresses = dict(CONTROL_ADDRESSES)
+        self.charger_controls = {}  # Offered EV charger settings: key -> (address, encoding).
         # The device's own watchdog settings, kept from the first remote start until
         # the session is left (a renewal must not record our own 60 s / escape 1).
         self._saved_watchdog = None
@@ -349,6 +384,7 @@ class SinexcelProfile:
             self.capabilities.add("generator")
         elif probes["port_use"] == 4:
             self.capabilities.add("ac_couple")
+        await self._probe_charger(client)
         await self._configure_controls(client)
         addresses = {
             "battery_soc": 0x1212,
@@ -400,8 +436,28 @@ class SinexcelProfile:
         self.mappings["inverter_temperature"] = tuple(
             Mapping(f"temperature_{i}", 0x10DE + i * 2, unit=client.unit_id) for i in range(5)
         )
+        if "charger" in self.capabilities:
+            unit = client.unit_id
+            self.mappings["ev_charge_power"] = (
+                Mapping("ev_charge_power", CHARGER_POWER, unit=unit, scale=0.001),  # W -> kW
+            )
+            self.mappings.update(
+                {k: (Mapping(k, a, unit=unit),) for k, a in CHARGER_ANALOG.items()}
+            )
+            self.mappings["ev_session_duration"] = (
+                Mapping("ev_session_duration", CHARGER_SESSION_DURATION, unit=unit, encoding="u32"),
+            )
+            if "charger_status" in self.capabilities:
+                self.mappings["ev_charger_status"] = (
+                    Mapping("ev_charger_status", *CHARGER_STATUS, 2, unit, "bits"),
+                )
+                self.mappings["ev_charger_meter_online"] = (
+                    Mapping("ev_charger_meter_online", CHARGER_METER_ONLINE, 1, 2, unit, "bits"),
+                )
         if client.unit_id == 1:
             alarm_sources = tuple(Mapping(f"alarms_{u}", 0x1048, 202, 2, u, "bits") for u in (1, 2))
+            if "charger_alarms" in self.capabilities:
+                alarm_sources += (Mapping("alarms_charger", *CHARGER_ALARM_BITS, 2, 1, "bits"),)
             # The grid summary bit sits outside the alarm table. Only a device that
             # answers it gets the source, so an unsupported address never leaves the
             # alarm status permanently incomplete. (BMS communication is already in
@@ -420,11 +476,43 @@ class SinexcelProfile:
                 }
             )
 
+    async def _probe_charger(self, client):
+        """An EV charger counts when the inverter enables it and its power answers.
+
+        The charger's status bits and alarms are separate capabilities, so a
+        firmware that answers the readings but not FC02 still gets the readings.
+        """
+
+        async def answers(read, *args):
+            try:
+                return await read(*args)
+            except DeviceException as err:
+                if err.code not in (1, 2):
+                    raise
+                return None
+
+        enable = await answers(client.read_holding_registers, CHARGER_ENABLE, 2)
+        if enable is None or decode_float(enable, kind="capability") != 1:
+            return
+        if await answers(client.read_holding_registers, CHARGER_POWER, 2) is None:
+            return
+        self.capabilities.add("charger")
+        kind = await answers(client.read_holding_registers, CHARGER_TYPE, 2)
+        if kind is not None and decode_u32(kind) == CHARGER_THREE_PHASE_TYPE:
+            self.capabilities.add("charger_three_phase")
+        if await answers(self.read_discrete_inputs, client, *CHARGER_STATUS) is not None:
+            self.capabilities.add("charger_status")
+        if client.unit_id == 1 and (
+            await answers(self.read_discrete_inputs, client, *CHARGER_ALARM_BITS) is not None
+        ):
+            self.capabilities.add("charger_alarms")
+
     async def _configure_controls(self, client):
         """Offer controls only for a device that answers every control register."""
         self.controls_supported, self.control_keys = False, frozenset()
         self.max_power_kw = self.tou_limits = None
         self.power_control = False
+        self.charger_controls = {}
         if client.unit_id != 1:  # V001B031 writes go to slave 1 only.
             return
         try:
@@ -462,10 +550,16 @@ class SinexcelProfile:
                 self.power_control = False
             else:
                 self.power_control = True
+            # Each EV charger setting is offered when it answers.
+            if "charger" in self.capabilities:
+                for key, (address, encoding) in CHARGER_CONTROLS.items():
+                    if await self._readable(client, [(address, 2)]):
+                        self.charger_controls[key] = (address, encoding)
             self.control_keys = frozenset(
                 c.key
                 for c in CONTROLS
                 if c.key in self.control_addresses
+                or c.key in self.charger_controls
                 or (c.key == "inverter_power" and self.power_control)
             )
             self.capabilities.update("ctrl_" + key for key in self.control_keys)
@@ -482,7 +576,29 @@ class SinexcelProfile:
             # Assumption (unconfirmed): 0x1001 is the least significant bit.
             code = sum(int(bit) << i for i, bit in enumerate(raw))
             return RUNNING_STATES[code] if code < 4 else "other"
+        if key == "ev_charger_status":
+            # Bits 0x2030-0x2032: plug state; 0x203B (the last bit): charging.
+            if raw[-1]:
+                return "charging"
+            code = sum(int(bit) << i for i, bit in enumerate(raw[:3]))
+            return CHARGER_PLUG_STATES[code] if code < len(CHARGER_PLUG_STATES) else "other"
+        if key == "ev_charge_mode":
+            if raw is None or not raw.is_integer():
+                return None
+            return CHARGE_MODE_CODES.get(int(raw))
         return None
+
+    def _decode_charger_control(self, key, words, encoding):
+        """A charger setting's state, or None when the device value is not one we know."""
+        raw = decode_u32(words) if encoding == "u32" else decode_float(words, kind="control")
+        if raw is None:
+            return None
+        if key == "ev_charge_mode":
+            return self.decode_enum(key, raw)
+        definition = next(c for c in CONTROLS if c.key == key)
+        if definition.platform == "switch" and raw not in (0, 1):
+            return None
+        return raw
 
     def control_read_keys(self, key, *, preflight=False):
         """Read related state on demand; normal edits have no preflight reads."""
@@ -509,8 +625,17 @@ class SinexcelProfile:
         power = "inverter_power" in self.control_keys and (keys is None or "inverter_power" in keys)
         if keys is not None:
             keys = set(keys) - {"inverter_power"}
-        if keys is not None and not keys <= addresses.keys():
+        if keys is not None and not keys <= addresses.keys() | self.charger_controls.keys():
             raise InvalidResponse("Unsupported control read")
+        # Charger settings first: one the device reports an unknown value for is left
+        # out (its entity becomes unavailable) instead of failing every inverter control.
+        for key, (address, encoding) in self.charger_controls.items():
+            if keys is not None and key not in keys:
+                continue
+            words = await client.read_holding_registers(address, 2)
+            value = self._decode_charger_control(key, words, encoding)
+            if value is not None:
+                result[key] = value
         for key, address in addresses.items():
             if keys is not None and key not in keys:
                 continue
@@ -548,7 +673,22 @@ class SinexcelProfile:
             if value not in codes:
                 raise InvalidResponse("Mode has no device code in this profile")
             return float(codes[value])
+        if key == "ev_charge_mode":
+            codes = {name: code for code, name in CHARGE_MODE_CODES.items()}
+            if value not in codes:
+                raise InvalidResponse("Charge mode has no device code in this profile")
+            return float(codes[value])
         return float(value)
+
+    async def write_u32(self, client, address, value):
+        if not value.is_integer() or not 0 <= value <= 0xFFFFFFFF:
+            raise InvalidResponse("U32 value out of range")
+        words = u32_words(int(value))
+        await client.write_registers(address, words, retry_safe=False)
+        actual = await client.read_holding_registers(address, 2)
+        if actual != words:
+            raise InvalidResponse("Write read-back differs")
+        return decode_u32(actual)
 
     async def write_float(self, client, address, value):
         words = floats([value])
@@ -638,6 +778,22 @@ class SinexcelProfile:
     async def apply_control(self, client, key, value):
         if key == "inverter_power":
             return {key: await self.switch_power(client, bool(value))}
+        if key in self.charger_controls:
+            # Charger settings are single-send (not retry-safe) with exact read-back.
+            address, encoding = self.charger_controls[key]
+            value = self.control_values(key, value)
+            if encoding == "u32":
+                words = u32_words(int(value))
+                await self.write_u32(client, address, value)
+            else:
+                words = floats([value])
+                await client.write_registers(address, words, retry_safe=False)
+                if await client.read_holding_registers(address, 2) != words:
+                    raise InvalidResponse("Write read-back differs")
+            confirmed = self._decode_charger_control(key, words, encoding)
+            if confirmed is None:
+                raise InvalidResponse("Charger setting read-back is not a known value")
+            return {key: confirmed}
         changes = [(key, self.control_addresses[key], self.control_values(key, value))]
         if key in BATTERY_2_ADDRESSES and "battery_2" in self.capabilities:
             changes.append((key + "_2", BATTERY_2_ADDRESSES[key], float(value)))

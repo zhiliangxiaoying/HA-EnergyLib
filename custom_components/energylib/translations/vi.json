@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Thời điểm dự kiến kết thúc sạc/xả từ xa"
+      },
+      "ev_charge_power": {
+        "name": "Công suất bộ sạc xe điện"
+      },
+      "ev_charger_status": {
+        "name": "Trạng thái bộ sạc xe điện",
+        "state": {
+          "idle": "Chờ",
+          "waiting_for_vehicle": "Đã cắm, chờ xe",
+          "connected": "Xe đã kết nối",
+          "charging": "Đang sạc",
+          "preparing": "Đang chuẩn bị",
+          "finished": "Sạc xong",
+          "off": "Tắt",
+          "other": "Khác"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Tổng điện năng bộ sạc xe điện"
+      },
+      "ev_session_energy": {
+        "name": "Điện năng phiên sạc"
+      },
+      "ev_session_duration": {
+        "name": "Thời lượng phiên sạc"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Điện áp L1 bộ sạc xe điện"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Điện áp L2 bộ sạc xe điện"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Điện áp L3 bộ sạc xe điện"
+      },
+      "ev_charger_current_a": {
+        "name": "Dòng điện L1 bộ sạc xe điện"
+      },
+      "ev_charger_current_b": {
+        "name": "Dòng điện L2 bộ sạc xe điện"
+      },
+      "ev_charger_current_c": {
+        "name": "Dòng điện L3 bộ sạc xe điện"
+      },
+      "ev_connector_energy": {
+        "name": "Điện năng đầu sạc xe điện"
+      },
+      "plug_power": {
+        "name": "Công suất"
+      },
+      "plug_energy": {
+        "name": "Điện năng"
+      },
+      "plug_voltage": {
+        "name": "Điện áp"
+      },
+      "plug_current": {
+        "name": "Dòng điện"
+      },
+      "heater_power": {
+        "name": "Công suất"
+      },
+      "heater_temperature": {
+        "name": "Nhiệt độ"
+      },
+      "heater_temperature_max": {
+        "name": "Nhiệt độ tối đa"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Đồng hồ trực tuyến"
+      },
+      "ev_charger_meter_online": {
+        "name": "Công tơ bộ sạc xe điện trực tuyến"
+      },
+      "plug_on": {
+        "name": "Đang bật"
+      },
+      "heater_on": {
+        "name": "Đang bật"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Cắt đỉnh",
           "other": "Khác"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Chế độ sạc xe điện",
+        "state": {
+          "eco": "ECO",
+          "fast": "Nhanh",
+          "smart": "Thông minh",
+          "green": "Xanh"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Thời lượng"
+      },
+      "ev_charge_current": {
+        "name": "Giới hạn dòng sạc xe điện"
+      },
+      "ev_grid_max_power": {
+        "name": "Công suất bù lưới tối đa cho xe điện"
+      },
+      "grid_import_limit": {
+        "name": "Giới hạn mua điện lưới"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Cho phép sạc/xả từ xa"
+      },
+      "ev_charger_on": {
+        "name": "Bật/tắt bộ sạc xe điện"
+      },
+      "ev_green_priority": {
+        "name": "Ưu tiên điện xanh cho bộ sạc xe điện"
+      },
+      "ev_plug_and_charge": {
+        "name": "Cắm là sạc (xe điện)"
+      },
+      "ev_battery_charging": {
+        "name": "Sạc pin của bộ sạc xe điện"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "Biến tần cũ đã trực tuyến lại nên không thay gì."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Ổ cắm thông minh {serial}"
+    },
+    "heater": {
+      "name": "Máy nước nóng {serial}"
     }
   }
 }

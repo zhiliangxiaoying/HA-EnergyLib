@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Geschatte eindtijd laden/ontladen op afstand"
+      },
+      "ev_charge_power": {
+        "name": "Laadpaalvermogen"
+      },
+      "ev_charger_status": {
+        "name": "Laadpaalstatus",
+        "state": {
+          "idle": "Inactief",
+          "waiting_for_vehicle": "Ingeplugd, wacht op voertuig",
+          "connected": "Voertuig verbonden",
+          "charging": "Laden",
+          "preparing": "Voorbereiden",
+          "finished": "Laden voltooid",
+          "off": "Uit",
+          "other": "Overig"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Totale energie laadpaal"
+      },
+      "ev_session_energy": {
+        "name": "Energie laadsessie"
+      },
+      "ev_session_duration": {
+        "name": "Duur laadsessie"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Laadpaalspanning L1"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Laadpaalspanning L2"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Laadpaalspanning L3"
+      },
+      "ev_charger_current_a": {
+        "name": "Laadpaalstroom L1"
+      },
+      "ev_charger_current_b": {
+        "name": "Laadpaalstroom L2"
+      },
+      "ev_charger_current_c": {
+        "name": "Laadpaalstroom L3"
+      },
+      "ev_connector_energy": {
+        "name": "Energie laadconnector"
+      },
+      "plug_power": {
+        "name": "Vermogen"
+      },
+      "plug_energy": {
+        "name": "Energie"
+      },
+      "plug_voltage": {
+        "name": "Spanning"
+      },
+      "plug_current": {
+        "name": "Stroom"
+      },
+      "heater_power": {
+        "name": "Vermogen"
+      },
+      "heater_temperature": {
+        "name": "Temperatuur"
+      },
+      "heater_temperature_max": {
+        "name": "Maximale temperatuur"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Meter online"
+      },
+      "ev_charger_meter_online": {
+        "name": "Laadpaalmeter online"
+      },
+      "plug_on": {
+        "name": "Aan"
+      },
+      "heater_on": {
+        "name": "Aan"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Piekafvlakking",
           "other": "Overig"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Laadmodus laadpaal",
+        "state": {
+          "eco": "ECO",
+          "fast": "Snel",
+          "smart": "Slim",
+          "green": "Groen"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Duur"
+      },
+      "ev_charge_current": {
+        "name": "Laadstroomlimiet laadpaal"
+      },
+      "ev_grid_max_power": {
+        "name": "Max. netaanvulvermogen laadpaal"
+      },
+      "grid_import_limit": {
+        "name": "Netafnamelimiet"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Laden/ontladen op afstand toestaan"
+      },
+      "ev_charger_on": {
+        "name": "Laadpaal aan/uit"
+      },
+      "ev_green_priority": {
+        "name": "Laadpaal voorrang groene stroom"
+      },
+      "ev_plug_and_charge": {
+        "name": "Laadpaal Plug & Charge"
+      },
+      "ev_battery_charging": {
+        "name": "Laadpaal batterijladen"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "De oude omvormer is weer online, er is niets vervangen."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Slimme stekker {serial}"
+    },
+    "heater": {
+      "name": "Boiler {serial}"
     }
   }
 }

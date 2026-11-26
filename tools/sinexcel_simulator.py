@@ -51,6 +51,18 @@ PARAMETER_BLOCKS = {
     0x314E: 2,
     **dict(SCHEDULE_BLOCKS),
 }
+# EV charger settings the integration writes; served only with --charger.
+CHARGER_CONTROLS = _sx.CHARGER_CONTROLS
+CHARGER_LIMITS = {  # Protocol ranges, enforced like a device would (exception 3).
+    "ev_charger_on": (0, 1),
+    "ev_charge_current": (6, 32),
+    "ev_charge_mode": (0, 3),
+    "ev_green_priority": (0, 1),
+    "ev_plug_and_charge": (0, 1),
+    "ev_battery_charging": (0, 1),
+    "ev_grid_max_power": (0, 1000),
+}
+CHARGER_VOLTAGE = 230.0
 
 
 SCENARIOS = ("normal", "off_grid", "no_battery", "off_grid_no_battery")
@@ -71,6 +83,8 @@ class BenchConfig:
     rated_kw: float = 5.0  # Served at 0x2008 as U16 value * 100 (V001B031).
     # Bench scenario for flow displays: grid and/or battery 1 missing.
     scenario: str = "normal"
+    # An EU single-phase 7 kW EV charger behind the inverter, a car plugged in.
+    charger: bool = False
 
     def __post_init__(self):
         if not self.serial or len(self.serial) > 24:
@@ -124,6 +138,9 @@ class BenchModel:
             (ESCAPE_MODE, 1),
         ):
             self.set_float(address, value)
+        self.ev_energy = self.ev_session_energy = self.ev_session_seconds = 0.0
+        if config.charger:
+            self.setup_charger()
         for (address, _), words in zip(
             SCHEDULE_BLOCKS, _sx.encode_schedule(_tou.TouSchedule(), datetime.now().date())
         ):
@@ -152,6 +169,59 @@ class BenchModel:
         self.bits[1][0x1001] = on and "off_grid" not in self.config.scenario
         self.bits[1][0x1002] = on
         self.bits[1][0x1003] = False
+
+    def setup_charger(self):
+        """Protocol defaults where it gives them; the charger on, a car plugged in."""
+        self.set_float(_sx.CHARGER_ENABLE, 1)
+        for address in (0x31C2, 0x31C4, 0x31C8):  # min power, fast-charge limit, phase
+            self.set_float(address, 0)
+        self.set_u32(_sx.CHARGER_TYPE, 1)  # EU single phase 7 kW
+        for key, value in (
+            ("ev_charger_on", 1),
+            ("ev_charge_current", 16),
+            ("ev_charge_mode", 0),
+            ("ev_green_priority", 0),
+            ("ev_plug_and_charge", 1),
+            ("ev_battery_charging", 0),
+            ("ev_grid_max_power", 0),
+        ):
+            address, encoding = CHARGER_CONTROLS[key]
+            (self.set_u32 if encoding == "u32" else self.set_float)(address, value)
+        self.bits[1].update({a: False for a in range(0x2000, 0x2046)})
+        self.bits[1][0x2031] = True  # plug state 2 (LSB first): vehicle connected
+        self.bits[1][_sx.CHARGER_METER_ONLINE] = True
+        self.tick_charger(0)
+
+    def get_u32(self, address):
+        return self.registers[address] << 16 | self.registers[address + 1]
+
+    def set_u32(self, address, value):
+        self.registers.update({address: value >> 16 & 0xFFFF, address + 1: value & 0xFFFF})
+
+    def tick_charger(self, seconds):
+        """Charges at the current limit while switched on; separate from the home load
+        (the protocol does not say whether 0x1274 includes the charger)."""
+        on = self.get_u32(CHARGER_CONTROLS["ev_charger_on"][0]) == 1
+        current = self.get_float(CHARGER_CONTROLS["ev_charge_current"][0]) if on else 0.0
+        power_w = CHARGER_VOLTAGE * current
+        self.bits[1][0x203B] = on
+        self.ev_energy += power_w / 1000 * seconds / 3600
+        if on:
+            self.ev_session_energy += power_w / 1000 * seconds / 3600
+            self.ev_session_seconds += seconds
+        for key, value in (
+            ("ev_charger_voltage_a", CHARGER_VOLTAGE),
+            ("ev_charger_voltage_b", 0),
+            ("ev_charger_voltage_c", 0),
+            ("ev_charger_current_a", current),
+            ("ev_charger_current_b", 0),
+            ("ev_charger_current_c", 0),
+            ("ev_charger_energy", self.ev_energy),
+            ("ev_session_energy", self.ev_session_energy),
+        ):
+            self.set_float(_sx.CHARGER_ANALOG[key], value)
+        self.set_float(_sx.CHARGER_POWER, power_w)
+        self.set_u32(_sx.CHARGER_SESSION_DURATION, int(self.ev_session_seconds))
 
     def set_float(self, address, value):
         self.registers.update({address + i: w for i, w in enumerate(_sx.floats([value]))})
@@ -306,6 +376,8 @@ class BenchModel:
             )
         for address, value in extras.items():
             self.set_float(address, value)
+        if self.config.charger:
+            self.tick_charger(seconds)
 
     @staticmethod
     def outside_power(mode, battery):
@@ -336,6 +408,21 @@ class BenchModel:
             POWER_ON: 2,
             POWER_OFF: 2,
         }
+        charger = {a: (k, e) for k, (a, e) in CHARGER_CONTROLS.items()}
+        if self.config.charger and address in charger:
+            key, encoding = charger[address]
+            if len(words) != 2:
+                return 2
+            value = (
+                words[0] << 16 | words[1]
+                if encoding == "u32"
+                else struct.unpack(">f", struct.pack(">2H", *words))[0]
+            )
+            low, high = CHARGER_LIMITS[key]
+            if not math.isfinite(value) or not low <= value <= high:
+                return 3
+            self.registers.update({address + i: w for i, w in enumerate(words)})
+            return 0
         if allowed.get(address) != len(words):
             return 2
         if len(words) == 2:
@@ -491,6 +578,7 @@ async def run(args):
         args.enable_writes,
         args.rated_kw,
         args.scenario,
+        args.charger,
     )
     state = json.loads(args.state.read_text()) if args.state.exists() else None
     model = BenchModel(config, state=state)
@@ -544,6 +632,7 @@ if __name__ == "__main__":
     parser.add_argument("--scenario", choices=SCENARIOS, default="normal")
     parser.add_argument("--max-registers", type=int, default=60)
     parser.add_argument("--enable-writes", action="store_true")
+    parser.add_argument("--charger", action="store_true", help="An EV charger behind the inverter")
     parser.add_argument(
         "--mdns", action="store_true", help="Advertise _energylib._tcp.local. on --bind"
     )

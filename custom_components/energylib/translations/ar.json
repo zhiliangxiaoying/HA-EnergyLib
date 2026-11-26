@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "الانتهاء المتوقع للشحن/التفريغ عن بُعد"
+      },
+      "ev_charge_power": {
+        "name": "قدرة شاحن المركبة الكهربائية"
+      },
+      "ev_charger_status": {
+        "name": "حالة شاحن المركبة الكهربائية",
+        "state": {
+          "idle": "خامل",
+          "waiting_for_vehicle": "موصول، بانتظار المركبة",
+          "connected": "المركبة متصلة",
+          "charging": "جارٍ الشحن",
+          "preparing": "قيد التحضير",
+          "finished": "اكتمل الشحن",
+          "off": "متوقف",
+          "other": "أخرى"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "إجمالي طاقة الشاحن"
+      },
+      "ev_session_energy": {
+        "name": "طاقة جلسة الشحن"
+      },
+      "ev_session_duration": {
+        "name": "مدة جلسة الشحن"
+      },
+      "ev_charger_voltage_a": {
+        "name": "جهد L1 للشاحن"
+      },
+      "ev_charger_voltage_b": {
+        "name": "جهد L2 للشاحن"
+      },
+      "ev_charger_voltage_c": {
+        "name": "جهد L3 للشاحن"
+      },
+      "ev_charger_current_a": {
+        "name": "تيار L1 للشاحن"
+      },
+      "ev_charger_current_b": {
+        "name": "تيار L2 للشاحن"
+      },
+      "ev_charger_current_c": {
+        "name": "تيار L3 للشاحن"
+      },
+      "ev_connector_energy": {
+        "name": "طاقة موصل المركبة"
+      },
+      "plug_power": {
+        "name": "القدرة"
+      },
+      "plug_energy": {
+        "name": "الطاقة"
+      },
+      "plug_voltage": {
+        "name": "الجهد"
+      },
+      "plug_current": {
+        "name": "التيار"
+      },
+      "heater_power": {
+        "name": "القدرة"
+      },
+      "heater_temperature": {
+        "name": "درجة الحرارة"
+      },
+      "heater_temperature_max": {
+        "name": "أقصى درجة حرارة"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "العداد متصل"
+      },
+      "ev_charger_meter_online": {
+        "name": "عداد الشاحن متصل"
+      },
+      "plug_on": {
+        "name": "قيد التشغيل"
+      },
+      "heater_on": {
+        "name": "قيد التشغيل"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "خفض الذروة",
           "other": "أخرى"
         }
+      },
+      "ev_charge_mode": {
+        "name": "وضع شحن المركبة",
+        "state": {
+          "eco": "ECO",
+          "fast": "سريع",
+          "smart": "ذكي",
+          "green": "أخضر"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "المدة"
+      },
+      "ev_charge_current": {
+        "name": "حد تيار شحن المركبة"
+      },
+      "ev_grid_max_power": {
+        "name": "أقصى قدرة دعم من الشبكة للمركبة"
+      },
+      "grid_import_limit": {
+        "name": "حد الشراء من الشبكة"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "السماح بالشحن/التفريغ عن بُعد"
+      },
+      "ev_charger_on": {
+        "name": "تشغيل/إيقاف الشاحن"
+      },
+      "ev_green_priority": {
+        "name": "أولوية الطاقة الخضراء للشاحن"
+      },
+      "ev_plug_and_charge": {
+        "name": "وصّل واشحن"
+      },
+      "ev_battery_charging": {
+        "name": "شحن البطارية في الشاحن"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "عاد العاكس القديم متصلًا، لذا لم يُستبدل شيء."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "مقبس ذكي {serial}"
+    },
+    "heater": {
+      "name": "سخان مياه {serial}"
     }
   }
 }

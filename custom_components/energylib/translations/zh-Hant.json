@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "遠端充放電預計結束時間"
+      },
+      "ev_charge_power": {
+        "name": "充電樁功率"
+      },
+      "ev_charger_status": {
+        "name": "充電樁狀態",
+        "state": {
+          "idle": "待機",
+          "waiting_for_vehicle": "已插槍，等待車輛",
+          "connected": "車輛已連接",
+          "charging": "充電中",
+          "preparing": "準備",
+          "finished": "充電結束",
+          "off": "關閉",
+          "other": "其他"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "充電樁累計電量"
+      },
+      "ev_session_energy": {
+        "name": "本次充電電量"
+      },
+      "ev_session_duration": {
+        "name": "本次充電時長"
+      },
+      "ev_charger_voltage_a": {
+        "name": "充電樁 L1 電壓"
+      },
+      "ev_charger_voltage_b": {
+        "name": "充電樁 L2 電壓"
+      },
+      "ev_charger_voltage_c": {
+        "name": "充電樁 L3 電壓"
+      },
+      "ev_charger_current_a": {
+        "name": "充電樁 L1 電流"
+      },
+      "ev_charger_current_b": {
+        "name": "充電樁 L2 電流"
+      },
+      "ev_charger_current_c": {
+        "name": "充電樁 L3 電流"
+      },
+      "ev_connector_energy": {
+        "name": "充電槍用電量"
+      },
+      "plug_power": {
+        "name": "功率"
+      },
+      "plug_energy": {
+        "name": "用電量"
+      },
+      "plug_voltage": {
+        "name": "電壓"
+      },
+      "plug_current": {
+        "name": "電流"
+      },
+      "heater_power": {
+        "name": "功率"
+      },
+      "heater_temperature": {
+        "name": "溫度"
+      },
+      "heater_temperature_max": {
+        "name": "最高溫度"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "電表在線"
+      },
+      "ev_charger_meter_online": {
+        "name": "充電樁電表在線"
+      },
+      "plug_on": {
+        "name": "開關狀態"
+      },
+      "heater_on": {
+        "name": "開關狀態"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "削峰填谷",
           "other": "其他"
         }
+      },
+      "ev_charge_mode": {
+        "name": "充電樁充電模式",
+        "state": {
+          "eco": "經濟",
+          "fast": "快充",
+          "smart": "智慧",
+          "green": "綠電"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "充放電時長"
+      },
+      "ev_charge_current": {
+        "name": "充電樁電流限制"
+      },
+      "ev_grid_max_power": {
+        "name": "充電樁電網最大補充功率"
+      },
+      "grid_import_limit": {
+        "name": "購電功率上限"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "允許遠端充放電"
+      },
+      "ev_charger_on": {
+        "name": "充電樁開關"
+      },
+      "ev_green_priority": {
+        "name": "充電樁綠電優先"
+      },
+      "ev_plug_and_charge": {
+        "name": "充電樁隨插即充"
+      },
+      "ev_battery_charging": {
+        "name": "充電樁電池充電啟用"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "舊逆變器又在線了，沒有取代。"
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "智慧插座 {serial}"
+    },
+    "heater": {
+      "name": "熱水器 {serial}"
     }
   }
 }

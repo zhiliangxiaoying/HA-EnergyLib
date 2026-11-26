@@ -70,6 +70,60 @@ class EnergyLibControl(EnergyLibEntity):
         return result
 
 
+class EnergyLibAccessoryEntity(CoordinatorEntity):
+    """A reading of a device the EMS manages (smart plug, water heater).
+
+    Each accessory is its own device under the EMS, named by its kind and the
+    last 4 characters of its serial number.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, kind, serial, point):
+        super().__init__(coordinator)
+        runtime = coordinator.device
+        self.kind, self.serial, self.point = kind, serial, point
+        self._attr_unique_id = f"{runtime.unique_id}_{kind}_{serial}_{point.key}"
+        self._attr_translation_key = point.key
+        self._attr_entity_registry_enabled_default = point.enabled
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{runtime.unique_id}_{kind}_{serial}")},
+            translation_key=kind,
+            translation_placeholders={"serial": serial[-4:]},
+            serial_number=serial,
+            via_device=(DOMAIN, runtime.unique_id),
+        )
+
+    @property
+    def _item(self):
+        return self.coordinator.device.accessories.get((self.kind, self.serial)) or {}
+
+    @property
+    def accessory_value(self):
+        return (self._item.get("values") or {}).get(self.point.key)
+
+    @property
+    def available(self):
+        return super().available and self.accessory_value is not None
+
+    @property
+    def extra_state_attributes(self):
+        return self._item.get("attributes")
+
+
+def accessory_points(coordinator, binary):
+    """(kind, serial, point) for every accessory reading of this platform."""
+    from .energylib_core.model.points import ACCESSORY_POINTS
+
+    device = coordinator.device
+    return [
+        (kind, serial, point)
+        for kind, serial in getattr(device, "accessory_list", list)()
+        for point in ACCESSORY_POINTS.get(kind, ())
+        if (point.kind == "power_state") == binary
+    ]
+
+
 def controls_for(coordinator, platform):
     from .energylib_core.model.points import CONTROLS
 

@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Ожидаемое окончание удалённого заряда/разряда"
+      },
+      "ev_charge_power": {
+        "name": "Мощность зарядной станции"
+      },
+      "ev_charger_status": {
+        "name": "Состояние зарядной станции",
+        "state": {
+          "idle": "Ожидание",
+          "waiting_for_vehicle": "Подключено, ожидание автомобиля",
+          "connected": "Автомобиль подключён",
+          "charging": "Зарядка",
+          "preparing": "Подготовка",
+          "finished": "Зарядка завершена",
+          "off": "Выкл.",
+          "other": "Другое"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Общая энергия зарядной станции"
+      },
+      "ev_session_energy": {
+        "name": "Энергия сеанса зарядки"
+      },
+      "ev_session_duration": {
+        "name": "Длительность сеанса зарядки"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Напряжение L1 зарядной станции"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Напряжение L2 зарядной станции"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Напряжение L3 зарядной станции"
+      },
+      "ev_charger_current_a": {
+        "name": "Ток L1 зарядной станции"
+      },
+      "ev_charger_current_b": {
+        "name": "Ток L2 зарядной станции"
+      },
+      "ev_charger_current_c": {
+        "name": "Ток L3 зарядной станции"
+      },
+      "ev_connector_energy": {
+        "name": "Энергия разъёма ЭМ"
+      },
+      "plug_power": {
+        "name": "Мощность"
+      },
+      "plug_energy": {
+        "name": "Энергия"
+      },
+      "plug_voltage": {
+        "name": "Напряжение"
+      },
+      "plug_current": {
+        "name": "Ток"
+      },
+      "heater_power": {
+        "name": "Мощность"
+      },
+      "heater_temperature": {
+        "name": "Температура"
+      },
+      "heater_temperature_max": {
+        "name": "Максимальная температура"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Счётчик в сети"
+      },
+      "ev_charger_meter_online": {
+        "name": "Счётчик зарядной станции в сети"
+      },
+      "plug_on": {
+        "name": "Включено"
+      },
+      "heater_on": {
+        "name": "Включено"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Срезание пиков",
           "other": "Другое"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Режим зарядки ЭМ",
+        "state": {
+          "eco": "ECO",
+          "fast": "Быстрый",
+          "smart": "Умный",
+          "green": "Зелёный"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Длительность"
+      },
+      "ev_charge_current": {
+        "name": "Ограничение тока зарядки ЭМ"
+      },
+      "ev_grid_max_power": {
+        "name": "Макс. мощность подпитки от сети для ЭМ"
+      },
+      "grid_import_limit": {
+        "name": "Лимит покупки из сети"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Разрешить удалённый заряд/разряд"
+      },
+      "ev_charger_on": {
+        "name": "Зарядная станция вкл./выкл."
+      },
+      "ev_green_priority": {
+        "name": "Приоритет зелёной энергии зарядной станции"
+      },
+      "ev_plug_and_charge": {
+        "name": "Подключи и заряжай"
+      },
+      "ev_battery_charging": {
+        "name": "Зарядка батареи зарядной станции"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "Старый инвертор снова в сети, поэтому ничего не заменено."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Умная розетка {serial}"
+    },
+    "heater": {
+      "name": "Водонагреватель {serial}"
     }
   }
 }

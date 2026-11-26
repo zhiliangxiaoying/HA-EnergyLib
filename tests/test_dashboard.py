@@ -53,6 +53,20 @@ def fake_hass(devices, language, controls=True):
     return {"entities": entities, "devices": registry_devices, "language": language}
 
 
+def with_accessory():
+    """One EMS with a smart plug it manages: the plug is a device under it."""
+    hass = fake_hass(["dev1"], "en")
+    hass["devices"]["plug1"] = {"id": "plug1", "name": "Smart plug DC40", "via_device_id": "dev1"}
+    hass["entities"]["sensor.plug_power"] = {
+        "entity_id": "sensor.plug_power",
+        "platform": "energylib",
+        "device_id": "plug1",
+        "translation_key": "plug_power",
+        "name": "Power",
+    }
+    return hass
+
+
 def referenced(value):
     """Every entity ID a generated config points at."""
     found = set()
@@ -139,6 +153,7 @@ class StrategyOutputTests(unittest.TestCase):
             {"name": "read_only_en", "flow": False, "hass": fake_hass(["dev1"], "en", False)},
             {"name": "empty", "flow": False, "hass": fake_hass([], "en")},
             {"name": "two", "flow": True, "hass": fake_hass(["dev1", "dev2"], "en")},
+            {"name": "accessory", "flow": True, "hass": with_accessory()},
         ]
         remote_only = fake_hass(["dev1"], "en")
         legacy_keys = {c.key for c in CONTROLS} | {"home_mode"}
@@ -393,9 +408,14 @@ class StrategyOutputTests(unittest.TestCase):
         ):
             self.assertEqual(tiles[key]["grid_options"], {"columns": 6})
         self.assertIn("number.dev1_renamed_export_limit", tiles)
-        # No second mode selector beside the card.
-        self.assertFalse(
-            [c for c in cards if c["type"] == "tile" and c["entity"].startswith("select.")]
+        # No second mode selector beside the card (the EV charge mode is its own setting).
+        self.assertEqual(
+            [
+                c["entity"]
+                for c in cards
+                if c["type"] == "tile" and c["entity"].startswith("select.")
+            ],
+            ["select.dev1_renamed_ev_charge_mode"],
         )
 
     def test_no_device_explains_what_to_do(self):
@@ -423,6 +443,10 @@ class StrategyOutputTests(unittest.TestCase):
         for view in views:
             self.assertTrue(all(f".{view['path']}_" in r for r in referenced(view)))
 
+    def test_devices_under_an_ems_get_no_page(self):
+        views = self.out["accessory"]["views"]
+        self.assertEqual([v["path"] for v in views], ["overview"])
+
     def test_overview_columns_are_balanced(self):
         sections = self.out["full_zh"]["views"][0]["sections"]
         self.assertEqual(len(sections), 4)  # three columns, then the phone pages
@@ -436,8 +460,17 @@ class StrategyOutputTests(unittest.TestCase):
 
         # The web columns are the phone pages side by side (11-23): now (house,
         # today's curve, today, totals, status), statistics, control with the log.
-        self.assertEqual(headings(flow), ["实时能流", "运行状态"])
-        self.assertEqual(headings(right), ["运行控制", "运行记录"])
+        # A device with an EV charger gets its block on both: state and power with
+        # "now", its settings after the inverter's controls.
+        self.assertEqual(headings(flow), ["实时能流", "充电桩", "运行状态"])
+        self.assertEqual(headings(right), ["运行控制", "充电桩", "运行记录"])
+        ev_now = [c["entity"] for c in flow["cards"] if c["type"] == "tile"]
+        self.assertEqual(
+            ev_now, ["sensor.dev1_renamed_ev_charger_status", "sensor.dev1_renamed_ev_charge_power"]
+        )
+        ev_controls = [c["entity"] for c in right["cards"] if "_ev_" in c.get("entity", "")]
+        self.assertEqual(ev_controls[0], "switch.dev1_renamed_ev_charger_on")
+        self.assertEqual(len(ev_controls), 7)
         self.assertIn("custom:energylib-tou", [c["type"] for c in right["cards"]])
         flow_types = [c["type"] for c in flow["cards"]]
         self.assertEqual(

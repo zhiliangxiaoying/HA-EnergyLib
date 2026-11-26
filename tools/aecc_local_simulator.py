@@ -6,8 +6,11 @@ interface document, 2026-11-16):
 - `{"Get": "EnergycontrolparametersList"}`: control parameters;
 - `{"Set": "DataTransmission"}` with a Modbus RTU frame for slave 1 (read 0x03,
   write 0x06 / 0x10 to the settings and on/off, with the device's range checks): the
-  Shenggerui inverter's registers (protocol V2.7.1): battery, PV, AC OUT, grid
-  CT, state, alarms, energy counters, machine code 54.
+  Shenggerui inverter's registers (protocol V2.7.1.1): battery, PV, AC OUT, grid
+  CT, state, alarms, energy counters, machine code 54, the EMS mode 0xA034 and
+  forced charge/discharge 0xA109-0xA10C (timed by the "inverter");
+- with `--accessories` (or ACCESSORIES = True): one EV charger charging on
+  connector 1, a smart plug and a water heater in the summary's lists.
 It optionally advertises itself the way AECC devices do: `_http._tcp` service
 named `sxd-mdns-if-<sn>` with TXT `s_sn`, `s_ip`, `s_type`, `s_port`. Signs follow
 the convention assumed in energylib_core/aecc_local.py (unverified): battery
@@ -51,9 +54,65 @@ def scenario(t=None):
             "TotalChargePower": charge,  # charging
         },
         "Storage_list": [],
-        "PlugInfoList": [],
-        "ChargerInfoList": [],
-        "HotInfoList": [],
+        **(
+            accessories(t)
+            if ACCESSORIES
+            else {"PlugInfoList": [], "ChargerInfoList": [], "HotInfoList": []}
+        ),
+    }
+
+
+ACCESSORIES = False  # set by --accessories
+
+
+def accessories(t):
+    """The document's example devices, the charger charging at 7 kW."""
+    hours = max(0.0, (t - START) / 3600)
+    return {
+        "ChargerInfoList": [
+            {
+                "DevAddr": 55,
+                "lsThirdParty": 0,
+                "FansDevType": 0,
+                "lsInterconnect": 1,
+                "ChargerSN": "SXDI78C594",
+                "ChargerStatus": 1,
+                "Connector1Status": 2,
+                "Connector1Power": 7000,
+                "Connector2Status": 0,
+                "Connector2Power": 0,
+                "ConnectorElectricity": round(12.5 + 7 * hours, 2),
+            }
+        ],
+        "PlugInfoList": [
+            {
+                "DevAddr": 110,
+                "lsThirdParty": 0,
+                "FansDevType": 6,
+                "lsInterconnect": 1,
+                "PlugSN": "NKPG1DDC40",
+                "PlugStatus": 1,
+                "PlugActvePower": 120,
+                "PlugVol": 2301,
+                "PlugCurrent": 0.52,
+                "PlugRatePower": 2000,
+                "PlugElectricity": round(3.2 + 0.12 * hours, 3),
+            }
+        ],
+        "HotInfoList": [
+            {
+                "DevAddr": 150,
+                "lsThirdParty": 0,
+                "FansDevType": 6,
+                "lsInterconnect": 1,
+                "HotSN": "SXDI7A47B8",
+                "HotStatus": 1,
+                "HotActvePower": 1200,
+                "HotActvePowerMAX": 1200,
+                "HotTEMP": 452,
+                "HotTEMPMAX": 600,
+            }
+        ],
     }
 
 
@@ -66,9 +125,18 @@ def s16(value):
     return int(value) & 0xFFFF
 
 
-# Writable settings (protocol V2.7.1 defaults, plus one charge period 01:00-05:00).
+# Writable settings (protocol V2.7.1.1 defaults, plus one charge period 01:00-05:00).
 SETTINGS = {
+    **{0xA028 + i: 0 for i in range(13)},  # 0xA028-0xA034 (read as one block)
+    0xA028: 1,  # load supply priority: line first (default)
     0xA02E: 2,  # charge source: mixed
+    0xA034: 0,  # grid feed setting: earlier behaviour, not an EMS mode
+    0xA108: 1000,  # purchase limit, W
+    0xA109: 0,  # forced power, W (S16, > 0 discharging)
+    0xA10A: 3600,  # forced duration, s
+    0xA10B: 0,  # forced enable
+    0xA10C: 0,  # remaining, s (read only)
+    0xA10D: 1,  # grid charging allowed
     0xA09C: 5,
     0xA09D: 100,
     0xA09E: 10,
@@ -88,9 +156,16 @@ SETTINGS = {
     0xA0AC: 0,
     0xA0AD: 0,
 }
-STATE = {"on": True, "alarms": [0] * 8}
+STATE = {"on": True, "alarms": [0] * 8, "force_until": None}
+READ_ONLY = {0xA10C}
+MODES = {0, 1, 2, 3, 4, 5, 8, 10, 11, 12, 13}  # 0xA034 values of V2.7.1.1
 RANGES = {
+    0xA028: (0, 3),
     0xA02E: (0, 3),
+    0xA108: (0, 65535),
+    0xA10A: (0, 64800),
+    0xA10B: (0, 1),
+    0xA10D: (0, 1),
     0xA09C: (0, 100),
     0xA09D: (0, 100),
     0xA09E: (0, 100),
@@ -105,6 +180,8 @@ def _valid(address, value):
         return True
     if address not in SETTINGS:
         return False
+    if address == 0xA034:
+        return value in MODES
     if 0xA0A1 <= address <= 0xA0AD and address != 0xA0A7:
         return value >> 8 <= 23 and value & 0xFF <= 59  # 24:00 and 12:60 are refused
     low, high = RANGES.get(address, (0, 0xFFFF))
@@ -114,17 +191,42 @@ def _valid(address, value):
 def write(address, values):
     """Apply a write like the inverter: Modbus exception code, or None."""
     for i, value in enumerate(values):
-        if address + i != 0x9C40 and address + i not in SETTINGS:
+        if address + i != 0x9C40 and (address + i not in SETTINGS or address + i in READ_ONLY):
             return 0x0B  # not writable (the device answers 0x0B, not 0x07)
         if not _valid(address + i, value):
             return 3
+    running = SETTINGS[0xA10B] == 1
     for i, value in enumerate(values):
-        if address + i == 0x9C40:
+        target = address + i
+        if target == 0x9C40:
             if value in (0, 1):
                 STATE["on"] = bool(value)
+        elif target in (0xA109, 0xA10A) and running:
+            continue  # the protocol: a change while forced charge/discharge runs is ignored
         else:
-            SETTINGS[address + i] = value
+            SETTINGS[target] = value
+        if target == 0xA10B:
+            if value == 1 and not running:
+                STATE["force_until"] = time.time() + SETTINGS[0xA10A]
+            elif value == 0:
+                STATE["force_until"] = None
     return None
+
+
+def _forced(t):
+    """Forced charge/discharge: the remaining time, ending by itself."""
+    until = STATE["force_until"]
+    if SETTINGS[0xA10B] != 1 or until is None:
+        SETTINGS[0xA10C] = 0
+        return None
+    remaining = max(0, round(until - t))
+    SETTINGS[0xA10C] = remaining
+    if not remaining:
+        SETTINGS[0xA10B] = 0
+        STATE["force_until"] = None
+        return None
+    power = SETTINGS[0xA109]
+    return power - 0x10000 if power >= 0x8000 else power
 
 
 def registers(t=None):
@@ -136,11 +238,13 @@ def registers(t=None):
     t = time.time() if t is None else t
     s = scenario(t)["SSumInfoList"]
     hours = max(0.0, (t - START) / 3600)  # counters grow while the simulator runs
+    forced = _forced(t)
+    battery_w = -s["TotalChargePower"] if forced is None else forced
     pv = s["TotalPVPower"]
     load = pv - s["TotalChargePower"] + s["MeterTotalActivePower"]
     regs = {
         0x7530: 532,  # 53.2 V
-        0x7531: s16(round(-s["TotalChargePower"] / 53.2 * 10)),  # charging: negative
+        0x7531: s16(round(battery_w / 53.2 * 10)),  # charging: negative
         0x7532: 64,
         0x753B: 3800,
         0x753C: round(pv / 2 / 380 * 10),
@@ -159,7 +263,7 @@ def registers(t=None):
         0x7595: 2 if STATE["on"] else 0,  # inverter / standby
         0xC738: 54,
         **{0x75A5 + i: word for i, word in enumerate(STATE["alarms"])},
-        **SETTINGS,
+        **{a: (s16(v) if a == 0xA109 else v) for a, v in SETTINGS.items()},
     }
     for address, kwh in (
         (0xCB52, 812.4 + 1.6 * hours),
@@ -281,7 +385,10 @@ async def main():
     parser.add_argument("--serial", default="AECCSIM0001")
     parser.add_argument("--type", type=int, default=131)
     parser.add_argument("--mdns", action="store_true")
+    parser.add_argument("--accessories", action="store_true", help="charger, plug, heater")
     args = parser.parse_args()
+    global ACCESSORIES
+    ACCESSORIES = args.accessories
     server = await asyncio.start_server(serve_client, args.bind, args.port)
     zc = info = None
     if args.mdns:

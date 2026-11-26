@@ -49,7 +49,8 @@ function energyLibDevices(hass) {
   );
   return [...ids]
     .map((id) => hass.devices[id])
-    .filter(Boolean)
+    // Devices an EMS manages (smart plugs, water heaters) sit under it: no page of their own.
+    .filter((device) => device && !device.via_device_id)
     .sort((a, b) => (a.name_by_user || a.name || "").localeCompare(b.name_by_user || b.name || ""));
 }
 
@@ -177,6 +178,8 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
     ["number.max_soc", "mdi:battery-arrow-up", "cyan", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_charge_current", "mdi:current-dc", "light-blue", [{ type: "numeric-input", style: "slider" }]],
     ["number.max_discharge_current", "mdi:current-dc", "deep-purple", [{ type: "numeric-input", style: "slider" }]],
+    // Grid purchase limit of an inverter behind an EMS (advanced, starts disabled).
+    ["number.grid_import_limit", "mdi:transmission-tower-import", "purple", [{ type: "numeric-input", style: "buttons" }]],
   ].filter(([key]) => !skip.includes(key)).flatMap(([key, icon, color, features]) => {
     // Settings are half width, so two sit side by side on the phone pages as in a
     // section on the web (the mode selector stays full width).
@@ -206,6 +209,22 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
       { icon_tap_action: { action: "toggle", confirmation: { text: t.powerConfirm } }, grid_options: { columns: 12 } }),
       modeCard, ...tileControls(["switch.inverter_power", "select.home_mode"])])
     : tileControls();
+  // EV charger behind the inverter (only when it reports one): its state and power on
+  // the live page, its settings with the controls. Advanced ones appear once enabled.
+  const evCards = titled(heading(t.evCharger, "mdi:ev-station"), [
+    tile(s("ev_charger_status"), "mdi:ev-plug-type2", "green", { grid_options: { columns: 6 } }),
+    tile(s("ev_charge_power"), "mdi:ev-station", "green", { grid_options: { columns: 6 } }),
+  ]);
+  const evControlCards = titled(heading(t.evCharger, "mdi:ev-station"), [
+    ["switch.ev_charger_on", "mdi:ev-station", "green", [{ type: "toggle" }]],
+    ["number.ev_charge_current", "mdi:current-ac", "light-green", [{ type: "numeric-input", style: "slider" }]],
+    ["select.ev_charge_mode", "mdi:car-electric", "indigo", [{ type: "select-options" }]],
+    ["switch.ev_green_priority", "mdi:leaf", "green", [{ type: "toggle" }]],
+    ["switch.ev_plug_and_charge", "mdi:power-plug", "teal", [{ type: "toggle" }]],
+    ["switch.ev_battery_charging", "mdi:home-battery", "cyan", [{ type: "toggle" }]],
+    ["number.ev_grid_max_power", "mdi:transmission-tower-import", "purple", [{ type: "numeric-input", style: "buttons" }]],
+  ].map(([key, icon, color, features]) => tile(ent[key], icon, color,
+    { features, ...(key === "select.ev_charge_mode" ? {} : { grid_options: { columns: 6 } }) })));
   const link = (name, icon, path) => ({ name, icon, path });
   // Day / week / month / year history comes only from HA's Energy page (one way,
   // user decision 2026-11-19): when it is set up with this inverter's counters, its
@@ -314,7 +333,7 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
   // 2. energy, in kWh: today, the totals, HA's energy cards (or our charts);
   // 3. control: mode and settings, schedule, manual dispatch, and the log of what
   //    changed.
-  const controlColumn = compact([...controlSection, ...touCards, dispatch || (!hasControls && controllable && { type: "markdown", content: t.controlsOff })]);
+  const controlColumn = compact([...controlSection, ...evControlCards, ...touCards, dispatch || (!hasControls && controllable && { type: "markdown", content: t.controlsOff })]);
   // Today's curve (11-23, after a reference app's energy page): one reading at a
   // time, picked with live tiles, its kWh for the day and its power from midnight,
   // with a date switch. Under the house on the phone and on the web.
@@ -351,7 +370,7 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
   // user: the two were the wrong way round).
   // Today's curve carries today's kWh per reading; the today card repeated them (11-23, user:
   // removed; its self-use went to the curve's PV figures, its mode chip onto the house).
-  const nowRest = compact([curve, ...(curve ? [] : dailyCards), sankey, socChart, ...statusCards,
+  const nowRest = compact([curve, ...(curve ? [] : dailyCards), sankey, ...evCards, socChart, ...statusCards,
     ...(controlColumn.length ? [] : logCards)]);
   const phoneNow = [...house, ...nowRest];
   // The note on the signs goes with the 24 h power chart it explains (11-23, user).

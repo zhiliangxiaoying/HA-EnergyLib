@@ -35,9 +35,11 @@ class EnergyLibNumber(EnergyLibControl, NumberEntity):
         self._display_digits = max(0, -Decimal(str(definition.step)).as_tuple().exponent)
         self._attr_native_unit_of_measurement = (
             "kW"
-            if definition.key in ("remote_power", "export_limit")
+            if definition.key
+            in ("remote_power", "export_limit", "ev_grid_max_power", "grid_import_limit")
             else "A"
-            if definition.key in ("max_charge_current", "max_discharge_current")
+            if definition.key
+            in ("max_charge_current", "max_discharge_current", "ev_charge_current")
             else "%"
         )
         if definition.advanced:

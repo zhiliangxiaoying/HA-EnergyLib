@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Voraussichtliches Ende der Fernladung/-entladung"
+      },
+      "ev_charge_power": {
+        "name": "Wallbox-Leistung"
+      },
+      "ev_charger_status": {
+        "name": "Wallbox-Status",
+        "state": {
+          "idle": "Leerlauf",
+          "waiting_for_vehicle": "Eingesteckt, wartet auf Fahrzeug",
+          "connected": "Fahrzeug verbunden",
+          "charging": "Lädt",
+          "preparing": "Vorbereitung",
+          "finished": "Laden beendet",
+          "off": "Aus",
+          "other": "Sonstiges"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Wallbox-Gesamtenergie"
+      },
+      "ev_session_energy": {
+        "name": "Energie des Ladevorgangs"
+      },
+      "ev_session_duration": {
+        "name": "Dauer des Ladevorgangs"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Wallbox-Spannung L1"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Wallbox-Spannung L2"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Wallbox-Spannung L3"
+      },
+      "ev_charger_current_a": {
+        "name": "Wallbox-Strom L1"
+      },
+      "ev_charger_current_b": {
+        "name": "Wallbox-Strom L2"
+      },
+      "ev_charger_current_c": {
+        "name": "Wallbox-Strom L3"
+      },
+      "ev_connector_energy": {
+        "name": "Energie Ladeanschluss"
+      },
+      "plug_power": {
+        "name": "Leistung"
+      },
+      "plug_energy": {
+        "name": "Energie"
+      },
+      "plug_voltage": {
+        "name": "Spannung"
+      },
+      "plug_current": {
+        "name": "Strom"
+      },
+      "heater_power": {
+        "name": "Leistung"
+      },
+      "heater_temperature": {
+        "name": "Temperatur"
+      },
+      "heater_temperature_max": {
+        "name": "Höchsttemperatur"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Zähler online"
+      },
+      "ev_charger_meter_online": {
+        "name": "Wallbox-Zähler online"
+      },
+      "plug_on": {
+        "name": "Eingeschaltet"
+      },
+      "heater_on": {
+        "name": "Eingeschaltet"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Lastspitzenkappung",
           "other": "Sonstiges"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Wallbox-Lademodus",
+        "state": {
+          "eco": "ECO",
+          "fast": "Schnell",
+          "smart": "Smart",
+          "green": "Grün"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Dauer"
+      },
+      "ev_charge_current": {
+        "name": "Wallbox-Ladestromgrenze"
+      },
+      "ev_grid_max_power": {
+        "name": "Wallbox maximale Netzergänzungsleistung"
+      },
+      "grid_import_limit": {
+        "name": "Netzbezugsgrenze"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Fernladen/-entladen erlauben"
+      },
+      "ev_charger_on": {
+        "name": "Wallbox ein/aus"
+      },
+      "ev_green_priority": {
+        "name": "Wallbox Ökostrom-Vorrang"
+      },
+      "ev_plug_and_charge": {
+        "name": "Wallbox Plug & Charge"
+      },
+      "ev_battery_charging": {
+        "name": "Wallbox Batterieladung"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "Der alte Wechselrichter ist wieder online, es wurde nichts ersetzt."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Smarte Steckdose {serial}"
+    },
+    "heater": {
+      "name": "Warmwasserbereiter {serial}"
     }
   }
 }

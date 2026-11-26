@@ -51,11 +51,15 @@ class EnergyLibSwitch(EnergyLibControl, SwitchEntity):
     def __init__(self, coordinator, definition):
         super().__init__(coordinator, definition.key)
         self._attr_translation_key = definition.key
-        if definition.key == "inverter_power":
-            self._attr_icon = "mdi:power"
+        if definition.key in ("inverter_power", "ev_charger_on"):
+            self._attr_icon = (
+                "mdi:power" if definition.key == "inverter_power" else "mdi:ev-station"
+            )
             # A main control, not a setting: HomeKit bridges then include it
             # with the switch domain instead of by entity ID.
             self._attr_entity_category = None
+        if definition.advanced:
+            self._attr_entity_registry_enabled_default = False
 
     @property
     def is_on(self):

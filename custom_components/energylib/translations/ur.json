@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "ریموٹ چارج/ڈسچارج کے ختم ہونے کا تخمینی وقت"
+      },
+      "ev_charge_power": {
+        "name": "ای وی چارجر پاور"
+      },
+      "ev_charger_status": {
+        "name": "ای وی چارجر کی حالت",
+        "state": {
+          "idle": "غیر فعال",
+          "waiting_for_vehicle": "پلگ لگا ہے، گاڑی کا انتظار",
+          "connected": "گاڑی منسلک",
+          "charging": "چارج ہو رہا ہے",
+          "preparing": "تیاری",
+          "finished": "چارجنگ مکمل",
+          "off": "بند",
+          "other": "دیگر"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "ای وی چارجر کی کل توانائی"
+      },
+      "ev_session_energy": {
+        "name": "اس چارجنگ کی توانائی"
+      },
+      "ev_session_duration": {
+        "name": "اس چارجنگ کا دورانیہ"
+      },
+      "ev_charger_voltage_a": {
+        "name": "ای وی چارجر L1 وولٹیج"
+      },
+      "ev_charger_voltage_b": {
+        "name": "ای وی چارجر L2 وولٹیج"
+      },
+      "ev_charger_voltage_c": {
+        "name": "ای وی چارجر L3 وولٹیج"
+      },
+      "ev_charger_current_a": {
+        "name": "ای وی چارجر L1 کرنٹ"
+      },
+      "ev_charger_current_b": {
+        "name": "ای وی چارجر L2 کرنٹ"
+      },
+      "ev_charger_current_c": {
+        "name": "ای وی چارجر L3 کرنٹ"
+      },
+      "ev_connector_energy": {
+        "name": "ای وی کنیکٹر توانائی"
+      },
+      "plug_power": {
+        "name": "پاور"
+      },
+      "plug_energy": {
+        "name": "توانائی"
+      },
+      "plug_voltage": {
+        "name": "وولٹیج"
+      },
+      "plug_current": {
+        "name": "کرنٹ"
+      },
+      "heater_power": {
+        "name": "پاور"
+      },
+      "heater_temperature": {
+        "name": "درجہ حرارت"
+      },
+      "heater_temperature_max": {
+        "name": "زیادہ سے زیادہ درجہ حرارت"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "میٹر آن لائن"
+      },
+      "ev_charger_meter_online": {
+        "name": "ای وی چارجر میٹر آن لائن"
+      },
+      "plug_on": {
+        "name": "آن"
+      },
+      "heater_on": {
+        "name": "آن"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "پیک شیونگ",
           "other": "دیگر"
         }
+      },
+      "ev_charge_mode": {
+        "name": "ای وی چارجنگ موڈ",
+        "state": {
+          "eco": "ECO",
+          "fast": "تیز",
+          "smart": "اسمارٹ",
+          "green": "سبز"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "دورانیہ"
+      },
+      "ev_charge_current": {
+        "name": "ای وی چارجنگ کرنٹ کی حد"
+      },
+      "ev_grid_max_power": {
+        "name": "ای وی کے لیے گرڈ کی زیادہ سے زیادہ اضافی پاور"
+      },
+      "grid_import_limit": {
+        "name": "گرڈ سے خریداری کی حد"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "ریموٹ چارج/ڈسچارج کی اجازت دیں"
+      },
+      "ev_charger_on": {
+        "name": "ای وی چارجر آن/آف"
+      },
+      "ev_green_priority": {
+        "name": "ای وی چارجر سبز بجلی کو ترجیح"
+      },
+      "ev_plug_and_charge": {
+        "name": "پلگ اور چارج (ای وی)"
+      },
+      "ev_battery_charging": {
+        "name": "ای وی چارجر بیٹری چارجنگ"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "پرانا انورٹر دوبارہ آن لائن ہے، اس لیے کچھ نہیں بدلا گیا۔"
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "اسمارٹ پلگ {serial}"
+    },
+    "heater": {
+      "name": "واٹر ہیٹر {serial}"
     }
   }
 }

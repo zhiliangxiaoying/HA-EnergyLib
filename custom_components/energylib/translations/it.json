@@ -310,6 +310,73 @@
       },
       "remote_end_time": {
         "name": "Fine prevista carica/scarica remota"
+      },
+      "ev_charge_power": {
+        "name": "Potenza wallbox"
+      },
+      "ev_charger_status": {
+        "name": "Stato wallbox",
+        "state": {
+          "idle": "Inattiva",
+          "waiting_for_vehicle": "Collegata, in attesa del veicolo",
+          "connected": "Veicolo collegato",
+          "charging": "In carica",
+          "preparing": "Preparazione",
+          "finished": "Ricarica terminata",
+          "off": "Spento",
+          "other": "Altro"
+        }
+      },
+      "ev_charger_energy": {
+        "name": "Energia totale wallbox"
+      },
+      "ev_session_energy": {
+        "name": "Energia della sessione di ricarica"
+      },
+      "ev_session_duration": {
+        "name": "Durata della sessione di ricarica"
+      },
+      "ev_charger_voltage_a": {
+        "name": "Tensione L1 wallbox"
+      },
+      "ev_charger_voltage_b": {
+        "name": "Tensione L2 wallbox"
+      },
+      "ev_charger_voltage_c": {
+        "name": "Tensione L3 wallbox"
+      },
+      "ev_charger_current_a": {
+        "name": "Corrente L1 wallbox"
+      },
+      "ev_charger_current_b": {
+        "name": "Corrente L2 wallbox"
+      },
+      "ev_charger_current_c": {
+        "name": "Corrente L3 wallbox"
+      },
+      "ev_connector_energy": {
+        "name": "Energia connettore VE"
+      },
+      "plug_power": {
+        "name": "Potenza"
+      },
+      "plug_energy": {
+        "name": "Energia"
+      },
+      "plug_voltage": {
+        "name": "Tensione"
+      },
+      "plug_current": {
+        "name": "Corrente"
+      },
+      "heater_power": {
+        "name": "Potenza"
+      },
+      "heater_temperature": {
+        "name": "Temperatura"
+      },
+      "heater_temperature_max": {
+        "name": "Temperatura massima"
       }
     },
     "binary_sensor": {
@@ -321,6 +388,15 @@
       },
       "meter_online": {
         "name": "Contatore online"
+      },
+      "ev_charger_meter_online": {
+        "name": "Contatore wallbox online"
+      },
+      "plug_on": {
+        "name": "Acceso"
+      },
+      "heater_on": {
+        "name": "Acceso"
       }
     },
     "select": {
@@ -353,6 +429,15 @@
           "peak_shaving": "Taglio dei picchi",
           "other": "Altro"
         }
+      },
+      "ev_charge_mode": {
+        "name": "Modalità di ricarica wallbox",
+        "state": {
+          "eco": "ECO",
+          "fast": "Veloce",
+          "smart": "Smart",
+          "green": "Verde"
+        }
       }
     },
     "number": {
@@ -382,6 +467,15 @@
       },
       "remote_duration": {
         "name": "Durata"
+      },
+      "ev_charge_current": {
+        "name": "Limite corrente di ricarica wallbox"
+      },
+      "ev_grid_max_power": {
+        "name": "Potenza massima integrativa dalla rete wallbox"
+      },
+      "grid_import_limit": {
+        "name": "Limite di prelievo dalla rete"
       }
     },
     "switch": {
@@ -399,6 +493,18 @@
       },
       "allow_remote_control": {
         "name": "Consenti carica/scarica remota"
+      },
+      "ev_charger_on": {
+        "name": "Wallbox acceso/spento"
+      },
+      "ev_green_priority": {
+        "name": "Priorità energia verde wallbox"
+      },
+      "ev_plug_and_charge": {
+        "name": "Collega e ricarica (wallbox)"
+      },
+      "ev_battery_charging": {
+        "name": "Ricarica batteria wallbox"
       }
     },
     "button": {
@@ -581,6 +687,14 @@
           "old_online": "Il vecchio inverter è di nuovo online, quindi non è stato sostituito nulla."
         }
       }
+    }
+  },
+  "device": {
+    "plug": {
+      "name": "Presa smart {serial}"
+    },
+    "heater": {
+      "name": "Scaldacqua {serial}"
     }
   }
 }

@@ -193,6 +193,21 @@ assert len(_data) == 202
 # severity follows the table's grid rows (warning).
 GRID_ALARM_BIT = 0x1014
 
+# FC02 Unit 1 EV charger component, PDF p178 (classification column: 故障 = fault,
+# 告警 = warning; 0x2008-0x200F are reserved and stay unrecognized if ever set).
+CHARGER_ALARMS = {
+    0x2000: ("f", "充电桩电网继电器保护", "EV charger grid relay protection"),
+    0x2001: ("f", "充电桩急停保护", "EV charger emergency stop"),
+    0x2002: ("f", "充电桩RCD保护", "EV charger RCD protection"),
+    0x2003: ("f", "充电桩过流保护", "EV charger overcurrent protection"),
+    0x2004: ("f", "充电桩接地保护", "EV charger grounding protection"),
+    0x2005: ("f", "充电桩策略保护", "EV charger strategy protection"),
+    0x2006: ("f", "充电桩电流异常保护", "EV charger current abnormal protection"),
+    0x2007: ("f", "充电桩过温保护", "EV charger overtemperature protection"),
+    0x2010: ("w", "充电桩电网电压异常", "EV charger grid voltage abnormal"),
+    0x2011: ("w", "充电桩电网频率异常", "EV charger grid frequency abnormal"),
+}
+
 
 def describe_alarm(profile, function, unit, address):
     result = {
@@ -223,4 +238,13 @@ def describe_alarm(profile, function, unit, address):
         )
     elif profile == "sinexcel_v2" and function == 2 and unit == 1 and address == GRID_ALARM_BIT:
         result.update(name="电网异常", name_en="Grid abnormal", severity="warning")
+    elif profile == "sinexcel_v2" and function == 2 and unit == 1 and address in CHARGER_ALARMS:
+        severity, zh, en = CHARGER_ALARMS[address]
+        result.update(
+            name=zh,
+            name_en=en,
+            severity={"f": "fault", "w": "warning"}[severity],
+            evidence_page=178,
+            applicable_types=[1, 2, 3],  # Charger types (0x398A), all DEFAULT.
+        )
     return result

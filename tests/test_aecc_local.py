@@ -333,9 +333,11 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             requests = runtime.client.requests
             data = await runtime.refresh(set(keys))
             live, energy = len(aecc_local.TS_LIVE_BLOCKS), len(aecc_local.TS_ENERGY_BLOCKS)
-            # Registers only (no EnergyParameter), plus the control parameters.
-            self.assertEqual(runtime.client.requests - requests, live + energy + 1)
-            self.assertEqual(runtime.last_frame_count, live + energy + 1)
+            # Registers, the EMS mode block, one summary to look for accessories (none
+            # here) and the control parameters.
+            self.assertEqual(runtime.client.requests - requests, live + energy + 3)
+            self.assertEqual(runtime.last_frame_count, live + energy + 3)
+            self.assertEqual(data["work_mode"], "other")
             self.assertGreater(data["solar_energy"], 2000)
             self.assertEqual(data["battery_voltage"], 53.2)
             self.assertEqual(data["running_state"], "on_grid")
@@ -408,6 +410,7 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
             dict(simulator.STATE),
             list(simulator.STATE["alarms"]),
         )
+        simulator.STATE["force_until"] = None
         self.server = await asyncio.start_server(serve_client, "127.0.0.1", 0)
         port = self.server.sockets[0].getsockname()[1]
         self.runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", port), "AECCSIM0001", 131)
@@ -469,11 +472,21 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
     async def test_controls_are_read(self):
         r = self.runtime
         self.assertTrue(r.profile.controls_supported)
-        self.assertFalse(getattr(r.profile, "remote_supported", True))
+        self.assertTrue(r.profile.remote_supported)  # forced charge/discharge 0xA109-0xA10C
         self.assertEqual(
             r.controls,
-            {"min_soc": 5, "backup_soc": 10, "grid_charge": True, "inverter_power": True},
+            {
+                "min_soc": 5,
+                "backup_soc": 10,
+                "grid_charge": True,
+                "inverter_power": True,
+                "work_mode": "other",  # 0xA034 = 0: the earlier feed-in behaviour
+                "grid_import_limit": 1.0,
+                "remote_control": 0,
+            },
         )
+        self.assertFalse(r.attributes["work_mode"]["hybrid_supply"])
+        self.assertTrue({"remote_status", "remote_end_time", "work_mode"} <= self.keys)
         self.assertIn("tou_schedule", self.keys)
         attributes = r.attributes["tou_schedule"]
         self.assertEqual(
@@ -499,12 +512,74 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ControlError):
             await r.set_control("backup_soc", 101)
         await r.set_control("grid_charge", False)
-        self.assertEqual(simulator.SETTINGS[0xA02E], 3)
+        self.assertEqual(simulator.SETTINGS[0xA10D], 0)  # V2.7.1.1 grid charging switch
+        self.assertEqual(simulator.SETTINGS[0xA02E], 2)  # the charge source is left alone
         self.assertFalse(r.controls["grid_charge"])
         await r.set_control("grid_charge", True)
-        self.assertEqual(simulator.SETTINGS[0xA02E], 2)
+        self.assertEqual(simulator.SETTINGS[0xA10D], 1)
+        await r.set_control("grid_import_limit", 2.5)
+        self.assertEqual(simulator.SETTINGS[0xA108], 2500)
+        self.assertEqual(r.controls["grid_import_limit"], 2.5)
         with self.assertRaises(ControlError):
-            await r.set_control("work_mode", "backup")  # the mode is pending
+            await r.set_control("grid_import_limit", 70)
+
+    async def test_ems_mode_sets_hybrid_supply_then_the_mode(self):
+        r = self.runtime
+        from energylib_under_test.energylib_core.model.points import CONTROLS
+
+        mode = next(c for c in CONTROLS if c.key == "work_mode")
+        self.assertEqual(
+            r.control_options(mode),
+            ("self_consumption", "time_of_use", "backup", "feed_in_priority"),
+        )
+        await r.set_control("work_mode", "backup")
+        self.assertEqual((simulator.SETTINGS[0xA028], simulator.SETTINGS[0xA034]), (3, 13))
+        self.assertEqual((r.controls["work_mode"], r.values["work_mode"]), ("backup", "backup"))
+        self.assertTrue(r.attributes["work_mode"]["hybrid_supply"])
+        await r.set_control("work_mode", "feed_in_priority")
+        self.assertEqual(simulator.SETTINGS[0xA034], 12)
+        with self.assertRaises(ControlError):
+            await r.set_control("work_mode", "peak_shaving")
+        # The plan only runs in time-of-use; saving it with activate switches to it.
+        await r.set_schedule(
+            {"periods": [{"type": "charge", "start": "01:00", "end": "05:00", "power": 0}]},
+            activate=True,
+        )
+        self.assertEqual(simulator.SETTINGS[0xA034], 11)
+        data = await r.refresh(self.keys, force=True)
+        self.assertEqual(data["work_mode"], "time_of_use")
+
+    async def test_forced_charge_and_discharge_are_timed_by_the_inverter(self):
+        r = self.runtime
+        await r.set_battery_power(-2.5, 600)  # charge 2.5 kW for 10 minutes
+        self.assertEqual(
+            (simulator.SETTINGS[0xA109], simulator.SETTINGS[0xA10A], simulator.SETTINGS[0xA10B]),
+            (0x10000 - 2500, 600, 1),
+        )
+        self.assertEqual((r.remote_status, r.controls["remote_control"]), ("charging", 1))
+        self.assertIsNotNone(r.remote_end_time)
+        self.assertEqual(r.attributes["remote_status"]["target_power_kw"], -2.5)
+        data = await r.refresh(self.keys, force=True)
+        self.assertLess(data["battery_power"], -2)  # the simulated battery follows
+        # The mode cannot change while it runs; a new task replaces the running one.
+        with self.assertRaisesRegex(ControlError, "Stop remote"):
+            await r.set_control("work_mode", "backup")
+        await r.set_battery_power(1.0, 300)
+        self.assertEqual((simulator.SETTINGS[0xA109], simulator.SETTINGS[0xA10A]), (1000, 300))
+        self.assertEqual(r.remote_status, "discharging")
+        await r.stop_remote()
+        self.assertEqual((simulator.SETTINGS[0xA10B], r.remote_status), (0, "stopped"))
+        self.assertIsNone(r.remote_deadline)
+        for power, seconds in ((40, 60), (1, 64801), (1, 0), (1, 1.5)):
+            with self.subTest(power=power, seconds=seconds), self.assertRaises(ControlError):
+                await r.set_battery_power(power, seconds)
+
+    async def test_forced_task_that_ends_on_the_device_is_completed(self):
+        r = self.runtime
+        await r.set_battery_power(-1, 60)
+        simulator.STATE["force_until"] = 0  # the inverter's timer ran out
+        await r.refresh(self.keys, force=True)
+        self.assertEqual((r.remote_status, r.controls["remote_control"]), ("completed", 0))
 
     async def test_a_refused_write_is_reported(self):
         simulator.RANGES[0xA09E] = (0, 20)  # the device refuses what our check allows
@@ -601,11 +676,6 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
                 await call
         self.assertEqual(simulator.SETTINGS[0xA09C], 5)
 
-    async def test_no_remote_task_even_with_controls(self):
-        for call in (self.runtime.set_battery_power(1, 60), self.runtime.stop_remote()):
-            with self.assertRaisesRegex(ControlError, "No remote"):
-                await call
-
     async def test_register_error_reflects_this_poll(self):
         real = self.runtime.client.read_registers
 
@@ -635,3 +705,111 @@ class ShenggeruiControlTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(polled, [True])
         self.assertFalse(self.runtime.controls["inverter_power"])
+
+
+class AccessoryTests(unittest.IsolatedAsyncioTestCase):
+    """Chargers, plugs and water heaters from the EMS summary (read only)."""
+
+    async def asyncSetUp(self):
+        simulator.ACCESSORIES = True
+        self.server = await asyncio.start_server(serve_client, "127.0.0.1", 0)
+        self.port = self.server.sockets[0].getsockname()[1]
+
+    async def asyncTearDown(self):
+        simulator.ACCESSORIES = False
+        self.server.close()
+        await self.server.wait_closed()
+
+    def test_charger_state_is_the_most_active_connector(self):
+        def charger(c1, c2, p1=0, p2=0):
+            return {
+                "Connector1Status": c1,
+                "Connector2Status": c2,
+                "Connector1Power": p1,
+                "Connector2Power": p2,
+                "ConnectorElectricity": 1.5,
+            }
+
+        for connectors, state in (
+            ((0, 0), "off"),
+            ((1, 0), "preparing"),
+            ((3, 1), "preparing"),
+            ((3, 0), "finished"),
+            ((2, 3), "charging"),
+            ((9, 0), "other"),
+        ):
+            values, _ = aecc_local.decode_chargers({"ChargerInfoList": [charger(*connectors)]})
+            self.assertEqual(values["ev_charger_status"], state, connectors)
+        values, details = aecc_local.decode_chargers(
+            {"ChargerInfoList": [charger(2, 2, 3000, 4000), charger(2, 0, 7000)]}
+        )
+        self.assertEqual(values["ev_charge_power"], 14.0)  # summed, W -> kW
+        self.assertEqual(values["ev_connector_energy"], 3.0)
+        self.assertEqual(len(details["chargers"]), 2)
+        self.assertEqual(aecc_local.decode_chargers({"ChargerInfoList": []}), ({}, None))
+        values, _ = aecc_local.decode_chargers({"ChargerInfoList": [{"Connector1Status": 2}]})
+        self.assertIsNone(values["ev_charge_power"])  # missing is unknown, never zero
+
+    def test_plug_and_heater_units(self):
+        items = aecc_local.decode_accessories(scenario())
+        plug = items[("plug", "NKPG1DDC40")]
+        self.assertEqual(
+            {k: plug["values"][k] for k in ("plug_on", "plug_power", "plug_voltage")},
+            {"plug_on": True, "plug_power": 120, "plug_voltage": 230.1},  # 0.1 V
+        )
+        self.assertEqual(plug["attributes"]["rated_power_w"], 2000)
+        heater = items[("heater", "SXDI7A47B8")]["values"]
+        self.assertEqual(
+            (heater["heater_temperature"], heater["heater_temperature_max"]), (45.2, 60)
+        )
+        self.assertTrue(heater["heater_on"])
+
+    async def test_summary_device_gets_charger_points_and_accessories(self):
+        runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", self.port), "AECCSIM0001", 34)
+        try:
+            await runtime.initialize("AECCSIM0001")
+            keys = [p.key for p in runtime.points()]
+            self.assertEqual(keys[-3:], list(aecc_local.CHARGER_KEYS))
+            self.assertEqual(
+                runtime.accessory_list(), [("heater", "SXDI7A47B8"), ("plug", "NKPG1DDC40")]
+            )
+            data = await runtime.refresh(set(keys))
+            self.assertEqual(data["ev_charge_power"], 7.0)
+            self.assertEqual(data["ev_charger_status"], "charging")
+            self.assertEqual(
+                runtime.attributes["ev_charger_status"]["chargers"][0]["serial"], "SXDI78C594"
+            )
+            self.assertFalse(runtime.capabilities_changed)
+            simulator.ACCESSORIES = False  # the EMS no longer reports them
+            await runtime.refresh(set(keys))
+            self.assertTrue(runtime.capabilities_changed)
+            self.assertEqual(runtime.accessory_list(), [])
+        finally:
+            await runtime.close()
+
+    async def test_register_device_reads_the_summary_only_for_accessories(self):
+        runtime = AeccLocalRuntime(AeccLocalClient("127.0.0.1", self.port), "AECCSIM0001", 131)
+        try:
+            await runtime.initialize("AECCSIM0001")
+            self.assertTrue(runtime.registers)
+            keys = {p.key for p in runtime.points()}
+            await runtime.refresh(keys)
+            data = await runtime.refresh(keys)
+            # Live blocks plus the summary every poll while the EMS reports accessories.
+            self.assertEqual(runtime.last_frame_count, len(aecc_local.TS_LIVE_BLOCKS) + 1)
+            self.assertEqual(data["ev_charge_power"], 7.0)
+            self.assertEqual(
+                runtime.accessories[("plug", "NKPG1DDC40")]["values"]["plug_power"], 120
+            )
+            real = runtime.client.energy_parameters
+
+            async def fails():
+                raise AeccLocalError("No answer")
+
+            runtime.client.energy_parameters = fails
+            data = await runtime.refresh(keys)
+            self.assertIsNone(data["ev_charge_power"])  # unknown, not the last value
+            self.assertEqual(runtime.accessories[("plug", "NKPG1DDC40")]["values"], {})
+            runtime.client.energy_parameters = real
+        finally:
+            await runtime.close()

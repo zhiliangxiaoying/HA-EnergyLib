@@ -1,8 +1,10 @@
 """Shenggerui inverter alarm bits 0x75A5-0x75AC (128 bits, bit n = register 0x75A5 + n // 16).
 
 Names and levels from the manufacturer's alarm workbook (80 conditions, F01-F80
-= bits 0-79). Levels: 一级/二级 -> fault, 三级 -> warning, 四级 and unlevelled
--> info. Reserved and unlisted bits are reported as unrecognised, never dropped.
+= bits 0-79), updated to table 1 of protocol V2.7.1.1 (2026-11-20): bits 59, 60,
+75, 76 and 82 added, 77-79 renamed. Levels: 一级/二级 -> fault, 三级 -> warning,
+四级 and unlevelled -> info (the bits V2.7.1.1 adds have no level there). Reserved
+and unlisted bits are reported as unrecognised, never dropped.
 """
 
 ALARM_BASE = 0x75A5
@@ -69,6 +71,8 @@ _ALARMS = {
     56: ("i", "PD板告警", "PD board alarm"),
     57: ("i", "BMS并包数量异常", "BMS pack count abnormal"),
     58: ("i", "BMS升级", "BMS updating"),
+    59: ("i", "BMS系统故障", "BMS system fault"),
+    60: ("i", "BMS加热异常", "BMS heating abnormal"),
     64: ("i", "电网过压", "Grid overvoltage"),
     65: ("i", "电网欠压", "Grid undervoltage"),
     66: ("i", "电网过频", "Grid overfrequency"),
@@ -80,9 +84,12 @@ _ALARMS = {
     72: ("i", "直流拉弧", "DC arc"),
     73: ("i", "孤岛保护", "Anti-islanding protection"),
     74: ("f", "电表通讯异常", "Meter communication fault"),
-    77: ("w", "并机发电机输入不一致", "Parallel generator input mismatch"),
-    78: ("w", "发电机输入相位错误", "Generator input phase error"),
-    79: ("f", "输出电流反灌", "Output current backfeed"),
+    75: ("i", "微逆并网功率超限", "Micro-inverter grid power over limit"),
+    76: ("i", "市电输入开路", "Grid input open"),
+    77: ("w", "并机发电机不一致", "Parallel generator mismatch"),
+    78: ("w", "发电机输入异常", "Generator input abnormal"),
+    79: ("f", "输出电流反灌保护", "Output current backfeed protection"),
+    82: ("i", "ROCOF频率异常", "ROCOF frequency abnormal"),
 }
 SEVERITY = {"f": "fault", "w": "warning", "i": "info"}
 # Bits shown on the flow display as a missing battery / grid.

@@ -75,6 +75,13 @@ def decode_float(words: list[int], *, kind: str) -> float | None:
     return value
 
 
+def decode_u32(words: list[int]) -> float:
+    """Unsigned 32-bit value, high word first (ABCD like the floats)."""
+    if len(words) != 2:
+        raise InvalidResponse("A U32 requires two registers")
+    return float(words[0] << 16 | words[1])
+
+
 def decode_serial(words: list[int]) -> str:
     """Decode ASCII identity, removing only trailing NUL/space padding."""
     if len(words) != 12:
