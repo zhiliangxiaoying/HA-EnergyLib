@@ -21,10 +21,9 @@ Two ways of reading, chosen once at setup:
 `EnergycontrolparametersList` is read every 5 minutes for the diagnostics only.
 
 Devices the EMS manages (`EnergyParameter` lists, read only; the document has no
-command for them): EV chargers (`ChargerInfoList`) become the standard EV
-charger points of this device, summed over chargers and connectors; smart plugs
+command for them): EV chargers (`ChargerInfoList`), smart plugs
 (`PlugInfoList`) and water heaters / heat pumps (`HotInfoList`) become their own
-devices, one per serial number. With a Shenggerui inverter the summary is read
+devices under this one, one per serial number. With a Shenggerui inverter the summary is read
 for them every poll while the EMS reports any, else every 5 minutes to notice
 new ones. A changed set of accessories rebuilds the entities.
 
@@ -33,7 +32,10 @@ back, never retried): inverter on/off 0x9C40 (confirmed from the startup state
 0x7594), EMS mode 0xA034 (10 self-consumption, 11 time-of-use, 12 sell first,
 13 backup first; valid in Hybrid supply, so 0xA028 is set to 3 first), backup SOC
 0xA09E (switch to grid below it), minimum SOC 0xA09C (discharge cut-off), grid
-charging 0xA10D (modes 10-13), grid purchase limit 0xA108, the time-of-use plan
+charging 0xA10D (modes 10-13), grid purchase limit 0xA108, export limit 0xA03F
+(modes 10-13 only: the manufacturer's answer of 2026-11-26, not yet in the
+protocol text; 0 = no export; in other modes 0xA03F means other things, so it is
+not written there), the time-of-use plan
 0xA0A0-0xA0AD (3 charge + 3 discharge periods, each kind with its enable; no
 power, no weekdays) and forced charge/discharge 0xA109-0xA10C (power, duration
 timed by the inverter, enable, remaining time; a change while it runs is
@@ -150,10 +152,13 @@ TS_CONTROL_KEYS = frozenset(
         "min_soc",
         "grid_charge",
         "grid_import_limit",
+        "export_limit",
     }
 )
-# 0xA028 load supply priority .. 0xA02E charge priority .. 0xA034 grid feed setting.
-TS_MODE_BLOCK = (0xA028, 13)
+# 0xA028 load supply priority .. 0xA02E charge priority .. 0xA034 grid feed setting
+# .. 0xA03F grid power (in modes 10-13 the export limit, W).
+TS_MODE_BLOCK = (0xA028, 24)
+TS_EXPORT_LIMIT = 0xA03F
 TS_SUPPLY_PRIORITY, TS_GRID_SETTING, TS_HYBRID = 0xA028, 0xA034, 3
 TS_MODE_CODES = {10: "self_consumption", 11: "time_of_use", 12: "feed_in_priority", 13: "backup"}
 # 0xA108 purchase limit (W), 0xA109 forced power (W, S16, > 0 discharging), 0xA10A
@@ -161,8 +166,9 @@ TS_MODE_CODES = {10: "self_consumption", 11: "time_of_use", 12: "feed_in_priorit
 TS_DISPATCH_BLOCK = (0xA108, 6)
 TS_IMPORT_LIMIT, TS_FORCE_POWER, TS_FORCE_ENABLE, TS_GRID_CHARGE = 0xA108, 0xA109, 0xA10B, 0xA10D
 TS_FORCE_MAX_S = 64800  # 18 h
-# No rated-power register in V2.7.1.1: the forced power's own range is the limit.
-TS_MAX_POWER_KW = 32.767
+# No rated-power register in V2.7.1.1: the grid-side power range of the protocol
+# (0xA03F, 0xA089: 0-15000 W) limits the export limit and forced charge/discharge.
+TS_MAX_POWER_KW = 15.0
 TS_SETTINGS_BLOCK = (
     0xA09C,
     18,
@@ -183,10 +189,12 @@ ALARM_KEYS = tuple(p.key for p in ALARM_SUMMARIES)
 # Grid voltage above which "inverter state" counts as on grid (hybrid running).
 GRID_PRESENT_V = 100
 # Devices the EMS manages: kind -> (list in EnergyParameter, serial field).
-ACCESSORY_LISTS = {"plug": ("PlugInfoList", "PlugSN"), "heater": ("HotInfoList", "HotSN")}
-CHARGER_LIST = "ChargerInfoList"
+ACCESSORY_LISTS = {
+    "charger": ("ChargerInfoList", "ChargerSN"),
+    "plug": ("PlugInfoList", "PlugSN"),
+    "heater": ("HotInfoList", "HotSN"),
+}
 CONNECTOR_STATES = {0: "off", 1: "preparing", 2: "charging", 3: "finished"}
-CHARGER_KEYS = ("ev_charge_power", "ev_charger_status", "ev_connector_energy")
 
 
 def _number(raw):
@@ -261,49 +269,27 @@ def _scaled(raw, factor):
 
 
 def accessory_keys(response):
-    """{(kind, serial)} of the plugs and water heaters, plus ("charger", "") with a charger."""
-    keys = {
+    """{(kind, serial)} of the chargers, plugs and water heaters the EMS reports."""
+    return frozenset(
         (kind, str(item[field]))
         for kind, (name, field) in ACCESSORY_LISTS.items()
         for item in _items(response, name)
         if item.get(field) not in (None, "")
-    }
-    if _items(response, CHARGER_LIST):
-        keys.add(("charger", ""))
-    return frozenset(keys)
+    )
 
 
-def decode_chargers(response):
-    """(values, attributes) of the EV charger points; ({}, None) without a charger.
-
-    Power and energy are summed over chargers and connectors. The state is the
-    most active connector: charging, then preparing, then finished, then off.
-    """
-    chargers = _items(response, CHARGER_LIST)
-    if not chargers:
-        return {}, None
-    powers, energies, states, details = [], [], [], []
-    for item in chargers:
-        connectors = {}
-        for n in (1, 2):
-            raw = _number(item.get(f"Connector{n}Status"))
-            state = CONNECTOR_STATES.get(raw, "other") if raw is not None else None
-            power = _number(item.get(f"Connector{n}Power"))
-            states.append(state)
-            powers.append(power)
-            connectors[f"connector_{n}"] = {"state": state, "power_w": power}
-        energy = _number(item.get("ConnectorElectricity"))
-        energies.append(energy if energy is None or energy >= 0 else None)
-        details.append(
-            {
-                "serial": item.get("ChargerSN"),
-                "status": item.get("ChargerStatus"),  # no value table in the document
-                **connectors,
-                "energy_kwh": energy,
-                "third_party": item.get("lsThirdParty"),
-                "model": item.get("FansDevType"),
-            }
-        )
+def decode_charger(item):
+    """One EV charger: the state of its most active connector (charging, then
+    preparing, then finished, then off), both connectors' power summed, and its
+    connector energy; each connector in the attributes."""
+    states, powers, connectors = [], [], {}
+    for n in (1, 2):
+        raw = _number(item.get(f"Connector{n}Status"))
+        state = CONNECTOR_STATES.get(raw, "other") if raw is not None else None
+        power = _number(item.get(f"Connector{n}Power"))
+        states.append(state)
+        powers.append(power)
+        connectors[f"connector_{n}"] = {"state": state, "power_w": power}
     if None in states:
         status = None
     else:
@@ -312,16 +298,29 @@ def decode_chargers(response):
             "off" if all(s == "off" for s in states) else "other",
         )
     watts = _sum(powers)
+    energy = _number(item.get("ConnectorElectricity"))
     return {
-        "ev_charge_power": None if watts is None else round(watts / 1000, 3),
-        "ev_charger_status": status,
-        "ev_connector_energy": _sum(energies),
-    }, {"chargers": details}
+        "values": {
+            "ev_charger_status": status,
+            "ev_charge_power": None if watts is None else round(watts / 1000, 3),
+            "ev_connector_energy": energy if energy is None or energy >= 0 else None,
+        },
+        "attributes": {
+            "status": item.get("ChargerStatus"),  # no value table in the document
+            **connectors,
+            "third_party": item.get("lsThirdParty"),
+            "model": item.get("FansDevType"),
+        },
+    }
 
 
 def decode_accessories(response):
-    """{(kind, serial): {"values": {...}, "attributes": {...}}} for plugs and heaters."""
+    """{(kind, serial): {"values": {...}, "attributes": {...}}} per charger, plug, heater."""
     result = {}
+    for item in _items(response, ACCESSORY_LISTS["charger"][0]):
+        serial = item.get("ChargerSN")
+        if serial not in (None, ""):
+            result[("charger", str(serial))] = decode_charger(item)
     for item in _items(response, ACCESSORY_LISTS["plug"][0]):
         serial = item.get("PlugSN")
         if serial in (None, ""):
@@ -562,7 +561,6 @@ class AeccLocalRuntime:
         # Devices the EMS manages (from EnergyParameter).
         self.accessories = {}  # (kind, serial) -> {"values": ..., "attributes": ...}
         self._accessory_keys = frozenset()
-        self._charger_values = {}
         self._lock = asyncio.Lock()
 
     @property
@@ -575,15 +573,13 @@ class AeccLocalRuntime:
 
     def points(self):
         keys = list(TS_KEYS) + list(ALARM_KEYS) if self.registers else list(KEYS)
-        if ("charger", "") in self._accessory_keys:
-            keys += CHARGER_KEYS
         if self.registers and self.allow_control:
             keys += ["tou_schedule", "remote_status", "remote_end_time"]
         return [MEASUREMENTS[key] for key in keys]
 
     def accessory_list(self):
-        """(kind, serial) of every plug and water heater, in a stable order."""
-        return sorted(k for k in self._accessory_keys if k[0] != "charger")
+        """(kind, serial) of every charger, plug and water heater, in a stable order."""
+        return sorted(self._accessory_keys)
 
     async def initialize(self, expected_serial=None):
         """The EMS answers with a system summary (the serial is from discovery).
@@ -615,17 +611,12 @@ class AeccLocalRuntime:
         )
 
     def _take_accessories(self, response, *, initial=False):
-        """Accessory and charger values from one EnergyParameter answer."""
+        """Accessory values from one EnergyParameter answer."""
         keys = accessory_keys(response)
         if not initial and keys != self._accessory_keys:
             self.capabilities_changed = True  # the host reloads to add/remove entities
         self._accessory_keys = keys
         self.accessories = decode_accessories(response)
-        self._charger_values, details = decode_chargers(response)
-        if details is None:
-            self.attributes.pop("ev_charger_status", None)
-        else:
-            self.attributes["ev_charger_status"] = details
 
     def _accessories_unknown(self):
         """A failed summary read: every accessory reading is unknown, never stale."""
@@ -633,7 +624,6 @@ class AeccLocalRuntime:
             key: {"values": {}, "attributes": item["attributes"]}
             for key, item in self.accessories.items()
         }
-        self._charger_values = dict.fromkeys(self._charger_values)
 
     async def _read_blocks(self, blocks):
         """{start: registers or None}, the number read, the last error (or None)."""
@@ -717,7 +707,6 @@ class AeccLocalRuntime:
             values = decode(response)
             self._take_accessories(response)
             frames = 1
-        values.update(self._charger_values)
         if now >= self._next_controls:
             self._next_controls = now + CONTROL_INTERVAL
             try:
@@ -776,6 +765,7 @@ class AeccLocalRuntime:
             # Unknown device values leave the entity unavailable.
             "grid_charge": {0: False, 1: True}.get(dispatch[5]),
             "grid_import_limit": dispatch[0] / 1000,
+            "export_limit": self._mode_words[TS_EXPORT_LIMIT - TS_MODE_BLOCK[0]] / 1000,
             "remote_control": 1 if dispatch[3] == 1 else 0,
         }
         self.values["work_mode"] = mode
@@ -888,22 +878,36 @@ class AeccLocalRuntime:
                 _words, dispatch = await self._read_controls()
                 if dispatch[5] != expected:
                     raise self._mismatch()
+            elif key == "export_limit":
+                watts = self._power_watts(definition, value)
+                # 0xA03F is the export limit only in our modes; elsewhere it sets a
+                # fixed feed-in or certification power.
+                if self.values.get("work_mode") not in TS_MODE_CODES.values():
+                    raise ControlError("Choose an EMS mode before setting the export limit")
+                await self._write(TS_EXPORT_LIMIT, [watts])
+                await self._read_controls()
+                if self._mode_words[TS_EXPORT_LIMIT - TS_MODE_BLOCK[0]] != watts:
+                    raise self._mismatch()
             else:  # grid_import_limit, kW on the entity, W on the device
-                if (
-                    isinstance(value, bool)
-                    or not isinstance(value, (int, float))
-                    or not math.isfinite(value)
-                ):
-                    raise ControlError("Numeric value required")
-                low, high = definition.limits(None)
-                if not low <= value <= high:
-                    raise ControlError("Value outside limits")
-                watts = round(value * 1000)
+                watts = self._power_watts(definition, value)
                 await self._write(TS_IMPORT_LIMIT, [watts])
                 _words, dispatch = await self._read_controls()
                 if dispatch[0] != watts:
                     raise self._mismatch()
             self.last_command = "confirmed"
+
+    def _power_watts(self, definition, value):
+        """A power setting in kW, checked against its limits, as whole watts."""
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
+            raise ControlError("Numeric value required")
+        low, high = definition.limits(self.profile.max_power_kw)
+        if not low <= value <= high:
+            raise ControlError("Value outside limits")
+        return round(value * 1000)
 
     async def _write_mode(self, mode):
         """Hybrid supply first (0xA034 is valid there only), then the mode; lock held."""

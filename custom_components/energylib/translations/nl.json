@@ -312,10 +312,10 @@
         "name": "Geschatte eindtijd laden/ontladen op afstand"
       },
       "ev_charge_power": {
-        "name": "Laadpaalvermogen"
+        "name": "Vermogen"
       },
       "ev_charger_status": {
-        "name": "Laadpaalstatus",
+        "name": "Status",
         "state": {
           "idle": "Inactief",
           "waiting_for_vehicle": "Ingeplugd, wacht op voertuig",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "Totale energie laadpaal"
+        "name": "Totale energie"
       },
       "ev_session_energy": {
         "name": "Energie laadsessie"
@@ -337,22 +337,22 @@
         "name": "Duur laadsessie"
       },
       "ev_charger_voltage_a": {
-        "name": "Laadpaalspanning L1"
+        "name": "Spanning L1"
       },
       "ev_charger_voltage_b": {
-        "name": "Laadpaalspanning L2"
+        "name": "Spanning L2"
       },
       "ev_charger_voltage_c": {
-        "name": "Laadpaalspanning L3"
+        "name": "Spanning L3"
       },
       "ev_charger_current_a": {
-        "name": "Laadpaalstroom L1"
+        "name": "Stroom L1"
       },
       "ev_charger_current_b": {
-        "name": "Laadpaalstroom L2"
+        "name": "Stroom L2"
       },
       "ev_charger_current_c": {
-        "name": "Laadpaalstroom L3"
+        "name": "Stroom L3"
       },
       "ev_connector_energy": {
         "name": "Energie laadconnector"
@@ -390,7 +390,7 @@
         "name": "Meter online"
       },
       "ev_charger_meter_online": {
-        "name": "Laadpaalmeter online"
+        "name": "Meter online"
       },
       "plug_on": {
         "name": "Aan"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "Laadmodus laadpaal",
+        "name": "Laadmodus",
         "state": {
           "eco": "ECO",
           "fast": "Snel",
@@ -469,10 +469,10 @@
         "name": "Duur"
       },
       "ev_charge_current": {
-        "name": "Laadstroomlimiet laadpaal"
+        "name": "Laadstroomlimiet"
       },
       "ev_grid_max_power": {
-        "name": "Max. netaanvulvermogen laadpaal"
+        "name": "Max. netaanvulvermogen"
       },
       "grid_import_limit": {
         "name": "Netafnamelimiet"
@@ -498,13 +498,13 @@
         "name": "Laadpaal aan/uit"
       },
       "ev_green_priority": {
-        "name": "Laadpaal voorrang groene stroom"
+        "name": "Voorrang groene stroom"
       },
       "ev_plug_and_charge": {
-        "name": "Laadpaal Plug & Charge"
+        "name": "Plug & Charge"
       },
       "ev_battery_charging": {
-        "name": "Laadpaal batterijladen"
+        "name": "Batterijladen"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "Boiler {serial}"
+    },
+    "charger": {
+      "name": "Laadpaal {serial}"
+    },
+    "charger_unnamed": {
+      "name": "Laadpaal"
     }
   }
 }

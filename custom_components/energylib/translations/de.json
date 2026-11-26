@@ -312,10 +312,10 @@
         "name": "Voraussichtliches Ende der Fernladung/-entladung"
       },
       "ev_charge_power": {
-        "name": "Wallbox-Leistung"
+        "name": "Leistung"
       },
       "ev_charger_status": {
-        "name": "Wallbox-Status",
+        "name": "Status",
         "state": {
           "idle": "Leerlauf",
           "waiting_for_vehicle": "Eingesteckt, wartet auf Fahrzeug",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "Wallbox-Gesamtenergie"
+        "name": "Gesamtenergie"
       },
       "ev_session_energy": {
         "name": "Energie des Ladevorgangs"
@@ -337,22 +337,22 @@
         "name": "Dauer des Ladevorgangs"
       },
       "ev_charger_voltage_a": {
-        "name": "Wallbox-Spannung L1"
+        "name": "Spannung L1"
       },
       "ev_charger_voltage_b": {
-        "name": "Wallbox-Spannung L2"
+        "name": "Spannung L2"
       },
       "ev_charger_voltage_c": {
-        "name": "Wallbox-Spannung L3"
+        "name": "Spannung L3"
       },
       "ev_charger_current_a": {
-        "name": "Wallbox-Strom L1"
+        "name": "Strom L1"
       },
       "ev_charger_current_b": {
-        "name": "Wallbox-Strom L2"
+        "name": "Strom L2"
       },
       "ev_charger_current_c": {
-        "name": "Wallbox-Strom L3"
+        "name": "Strom L3"
       },
       "ev_connector_energy": {
         "name": "Energie Ladeanschluss"
@@ -390,7 +390,7 @@
         "name": "Zähler online"
       },
       "ev_charger_meter_online": {
-        "name": "Wallbox-Zähler online"
+        "name": "Zähler online"
       },
       "plug_on": {
         "name": "Eingeschaltet"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "Wallbox-Lademodus",
+        "name": "Lademodus",
         "state": {
           "eco": "ECO",
           "fast": "Schnell",
@@ -469,10 +469,10 @@
         "name": "Dauer"
       },
       "ev_charge_current": {
-        "name": "Wallbox-Ladestromgrenze"
+        "name": "Ladestromgrenze"
       },
       "ev_grid_max_power": {
-        "name": "Wallbox maximale Netzergänzungsleistung"
+        "name": "Maximale Netzergänzungsleistung"
       },
       "grid_import_limit": {
         "name": "Netzbezugsgrenze"
@@ -498,13 +498,13 @@
         "name": "Wallbox ein/aus"
       },
       "ev_green_priority": {
-        "name": "Wallbox Ökostrom-Vorrang"
+        "name": "Ökostrom-Vorrang"
       },
       "ev_plug_and_charge": {
-        "name": "Wallbox Plug & Charge"
+        "name": "Plug & Charge"
       },
       "ev_battery_charging": {
-        "name": "Wallbox Batterieladung"
+        "name": "Batterieladung"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "Warmwasserbereiter {serial}"
+    },
+    "charger": {
+      "name": "Wallbox {serial}"
+    },
+    "charger_unnamed": {
+      "name": "Wallbox"
     }
   }
 }

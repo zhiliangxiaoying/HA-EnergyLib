@@ -209,22 +209,34 @@ function buildView(hass, device, t, multiple, energyPrefs = null) {
       { icon_tap_action: { action: "toggle", confirmation: { text: t.powerConfirm } }, grid_options: { columns: 12 } }),
       modeCard, ...tileControls(["switch.inverter_power", "select.home_mode"])])
     : tileControls();
-  // EV charger behind the inverter (only when it reports one): its state and power on
-  // the live page, its settings with the controls. Advanced ones appear once enabled.
-  const evCards = titled(heading(t.evCharger, "mdi:ev-station"), [
-    tile(s("ev_charger_status"), "mdi:ev-plug-type2", "green", { grid_options: { columns: 6 } }),
-    tile(s("ev_charge_power"), "mdi:ev-station", "green", { grid_options: { columns: 6 } }),
-  ]);
-  const evControlCards = titled(heading(t.evCharger, "mdi:ev-station"), [
-    ["switch.ev_charger_on", "mdi:ev-station", "green", [{ type: "toggle" }]],
-    ["number.ev_charge_current", "mdi:current-ac", "light-green", [{ type: "numeric-input", style: "slider" }]],
-    ["select.ev_charge_mode", "mdi:car-electric", "indigo", [{ type: "select-options" }]],
-    ["switch.ev_green_priority", "mdi:leaf", "green", [{ type: "toggle" }]],
-    ["switch.ev_plug_and_charge", "mdi:power-plug", "teal", [{ type: "toggle" }]],
-    ["switch.ev_battery_charging", "mdi:home-battery", "cyan", [{ type: "toggle" }]],
-    ["number.ev_grid_max_power", "mdi:transmission-tower-import", "purple", [{ type: "numeric-input", style: "buttons" }]],
-  ].map(([key, icon, color, features]) => tile(ent[key], icon, color,
-    { features, ...(key === "select.ev_charge_mode" ? {} : { grid_options: { columns: 6 } }) })));
+  // EV chargers are their own devices under this one (one for the inverter's charger,
+  // one per charger an EMS manages): state and power on the live page, settings with
+  // the controls. Advanced settings appear once enabled.
+  const chargers = Object.values(hass.devices || {})
+    .filter((d) => d.via_device_id === device.id)
+    .map((d) => ({ ...deviceEntities(hass, d.id), title: d.name_by_user || d.name }))
+    .filter((e) => e["sensor.ev_charger_status"] || e["sensor.ev_charge_power"]);
+  // With more than one charger, each one's tiles sit under its own name.
+  const byCharger = (ev) => (chargers.length > 1 ? [heading(ev.title, "mdi:ev-station", "subtitle")] : []);
+  const evCards = titled(heading(t.evCharger, "mdi:ev-station"), chargers.flatMap((ev) => [
+    ...byCharger(ev),
+    tile(ev["sensor.ev_charger_status"], "mdi:ev-plug-type2", "green", { grid_options: { columns: 6 } }),
+    tile(ev["sensor.ev_charge_power"], "mdi:ev-station", "green", { grid_options: { columns: 6 } }),
+  ]));
+  const evControlCards = titled(heading(t.evCharger, "mdi:ev-station"), chargers.flatMap((ev) => {
+    const tiles = compact([
+      ["switch.ev_charger_on", "mdi:ev-station", "green", [{ type: "toggle" }]],
+      ["number.ev_charge_current", "mdi:current-ac", "light-green", [{ type: "numeric-input", style: "slider" }]],
+      ["select.ev_charge_mode", "mdi:car-electric", "indigo", [{ type: "select-options" }]],
+      ["switch.ev_green_priority", "mdi:leaf", "green", [{ type: "toggle" }]],
+      ["switch.ev_plug_and_charge", "mdi:power-plug", "teal", [{ type: "toggle" }]],
+      ["switch.ev_battery_charging", "mdi:home-battery", "cyan", [{ type: "toggle" }]],
+      ["number.ev_grid_max_power", "mdi:transmission-tower-import", "purple", [{ type: "numeric-input", style: "buttons" }]],
+    ].map(([key, icon, color, features]) => tile(ev[key], icon, color,
+      { features, ...(key === "select.ev_charge_mode" ? {} : { grid_options: { columns: 6 } }) })));
+    // A charger without settings (an EMS's charger is read only) adds nothing here.
+    return tiles.length ? [...byCharger(ev), ...tiles] : [];
+  }));
   const link = (name, icon, path) => ({ name, icon, path });
   // Day / week / month / year history comes only from HA's Energy page (one way,
   // user decision 2026-11-19): when it is set up with this inverter's counters, its

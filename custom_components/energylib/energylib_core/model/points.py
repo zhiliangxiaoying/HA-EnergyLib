@@ -45,6 +45,27 @@ EV_CHARGER_STATES = (
     "other",
 )
 EV_CHARGE_MODES = ("eco", "fast", "smart", "green")
+# Every EV charger point: the entities belong to the charger's own device, under the
+# inverter or EMS it is connected to.
+CHARGER_POINT_KEYS = frozenset(
+    {
+        "ev_charge_power",
+        "ev_charger_status",
+        "ev_charger_energy",
+        "ev_session_energy",
+        "ev_session_duration",
+        "ev_connector_energy",
+        "ev_charger_meter_online",
+        *(f"ev_charger_{kind}_{phase}" for kind in ("voltage", "current") for phase in "abc"),
+        "ev_charger_on",
+        "ev_charge_current",
+        "ev_charge_mode",
+        "ev_green_priority",
+        "ev_plug_and_charge",
+        "ev_battery_charging",
+        "ev_grid_max_power",
+    }
+)
 # Values of DeviceRuntime.schedule_status(): active period type, or why none applies.
 TOU_STATUSES = ("charge", "discharge", "outside_period", "expired", "inactive", "remote")
 
@@ -173,11 +194,6 @@ OPTIONAL = (
             interval=60,
             digits=0,
         ),
-        # The EMS's "connector energy" (ConnectorElectricity): its document does not say
-        # whether it is per session or lifetime, so it is a counter that may reset.
-        Measurement(
-            "ev_connector_energy", "energy", "kWh", False, frozenset({"charger"}), interval=60
-        ),
         Measurement(
             "ev_charger_meter_online",
             "connectivity",
@@ -303,14 +319,23 @@ class AccessoryPoint:
     """A reading of a device an EMS manages (smart plug, water heater)."""
 
     key: str
-    kind: str  # power_state (binary), power, energy, voltage, current, temperature
+    kind: str  # power_state (binary), enum, power, energy, voltage, current, temperature
     unit: str | None = None
     enabled: bool = True
     digits: int | None = None
+    options: tuple[str, ...] = ()
 
 
 # Accessories become their own devices under the EMS, one per serial number.
 ACCESSORY_POINTS = {
+    # An EMS's EV charger: state of its most active connector, both connectors'
+    # power, and its "connector energy" (the document does not say whether it is per
+    # session or lifetime, so a counter that may reset).
+    "charger": (
+        AccessoryPoint("ev_charger_status", "enum", options=EV_CHARGER_STATES),
+        AccessoryPoint("ev_charge_power", "power", "kW", digits=2),
+        AccessoryPoint("ev_connector_energy", "energy", "kWh", False, 2),
+    ),
     "plug": (
         AccessoryPoint("plug_on", "power_state"),
         AccessoryPoint("plug_power", "power", "W", digits=0),

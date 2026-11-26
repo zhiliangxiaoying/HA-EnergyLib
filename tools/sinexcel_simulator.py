@@ -176,6 +176,8 @@ class BenchModel:
         for address in (0x31C2, 0x31C4, 0x31C8):  # min power, fast-charge limit, phase
             self.set_float(address, 0)
         self.set_u32(_sx.CHARGER_TYPE, 1)  # EU single phase 7 kW
+        serial = struct.unpack(">12H", b"ACEV22071234".ljust(24, b"\0"))
+        self.registers.update({_sx.CHARGER_SERIAL[0] + i: w for i, w in enumerate(serial)})
         for key, value in (
             ("ev_charger_on", 1),
             ("ev_charge_current", 16),

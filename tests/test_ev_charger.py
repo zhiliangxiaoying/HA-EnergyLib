@@ -114,6 +114,7 @@ class ChargerReadTests(BenchCase):
         caps = self.runtime.profile.capabilities
         self.assertTrue({"charger", "charger_status", "charger_alarms"} <= caps)
         self.assertNotIn("charger_three_phase", caps)
+        self.assertEqual(self.runtime.profile.charger_serial, "ACEV22071234")  # names the device
         self.assertTrue(EV_READINGS <= self.keys())
         self.assertNotIn("ev_charger_voltage_b", self.keys())  # single-phase charger
 

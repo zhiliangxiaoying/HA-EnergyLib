@@ -312,10 +312,10 @@
         "name": "الانتهاء المتوقع للشحن/التفريغ عن بُعد"
       },
       "ev_charge_power": {
-        "name": "قدرة شاحن المركبة الكهربائية"
+        "name": "القدرة"
       },
       "ev_charger_status": {
-        "name": "حالة شاحن المركبة الكهربائية",
+        "name": "الحالة",
         "state": {
           "idle": "خامل",
           "waiting_for_vehicle": "موصول، بانتظار المركبة",
@@ -328,34 +328,34 @@
         }
       },
       "ev_charger_energy": {
-        "name": "إجمالي طاقة الشاحن"
+        "name": "إجمالي الطاقة"
       },
       "ev_session_energy": {
-        "name": "طاقة جلسة الشحن"
+        "name": "طاقة الجلسة"
       },
       "ev_session_duration": {
-        "name": "مدة جلسة الشحن"
+        "name": "مدة الجلسة"
       },
       "ev_charger_voltage_a": {
-        "name": "جهد L1 للشاحن"
+        "name": "الجهد L1"
       },
       "ev_charger_voltage_b": {
-        "name": "جهد L2 للشاحن"
+        "name": "الجهد L2"
       },
       "ev_charger_voltage_c": {
-        "name": "جهد L3 للشاحن"
+        "name": "الجهد L3"
       },
       "ev_charger_current_a": {
-        "name": "تيار L1 للشاحن"
+        "name": "التيار L1"
       },
       "ev_charger_current_b": {
-        "name": "تيار L2 للشاحن"
+        "name": "التيار L2"
       },
       "ev_charger_current_c": {
-        "name": "تيار L3 للشاحن"
+        "name": "التيار L3"
       },
       "ev_connector_energy": {
-        "name": "طاقة موصل المركبة"
+        "name": "طاقة الموصل"
       },
       "plug_power": {
         "name": "القدرة"
@@ -390,7 +390,7 @@
         "name": "العداد متصل"
       },
       "ev_charger_meter_online": {
-        "name": "عداد الشاحن متصل"
+        "name": "العداد متصل"
       },
       "plug_on": {
         "name": "قيد التشغيل"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "وضع شحن المركبة",
+        "name": "وضع الشحن",
         "state": {
           "eco": "ECO",
           "fast": "سريع",
@@ -469,10 +469,10 @@
         "name": "المدة"
       },
       "ev_charge_current": {
-        "name": "حد تيار شحن المركبة"
+        "name": "حد تيار الشحن"
       },
       "ev_grid_max_power": {
-        "name": "أقصى قدرة دعم من الشبكة للمركبة"
+        "name": "أقصى قدرة دعم من الشبكة"
       },
       "grid_import_limit": {
         "name": "حد الشراء من الشبكة"
@@ -498,13 +498,13 @@
         "name": "تشغيل/إيقاف الشاحن"
       },
       "ev_green_priority": {
-        "name": "أولوية الطاقة الخضراء للشاحن"
+        "name": "أولوية الطاقة الخضراء"
       },
       "ev_plug_and_charge": {
         "name": "وصّل واشحن"
       },
       "ev_battery_charging": {
-        "name": "شحن البطارية في الشاحن"
+        "name": "شحن البطارية"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "سخان مياه {serial}"
+    },
+    "charger": {
+      "name": "شاحن المركبة {serial}"
+    },
+    "charger_unnamed": {
+      "name": "شاحن المركبة"
     }
   }
 }

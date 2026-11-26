@@ -312,10 +312,10 @@
         "name": "ریموٹ چارج/ڈسچارج کے ختم ہونے کا تخمینی وقت"
       },
       "ev_charge_power": {
-        "name": "ای وی چارجر پاور"
+        "name": "پاور"
       },
       "ev_charger_status": {
-        "name": "ای وی چارجر کی حالت",
+        "name": "حالت",
         "state": {
           "idle": "غیر فعال",
           "waiting_for_vehicle": "پلگ لگا ہے، گاڑی کا انتظار",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "ای وی چارجر کی کل توانائی"
+        "name": "کل توانائی"
       },
       "ev_session_energy": {
         "name": "اس چارجنگ کی توانائی"
@@ -337,25 +337,25 @@
         "name": "اس چارجنگ کا دورانیہ"
       },
       "ev_charger_voltage_a": {
-        "name": "ای وی چارجر L1 وولٹیج"
+        "name": "L1 وولٹیج"
       },
       "ev_charger_voltage_b": {
-        "name": "ای وی چارجر L2 وولٹیج"
+        "name": "L2 وولٹیج"
       },
       "ev_charger_voltage_c": {
-        "name": "ای وی چارجر L3 وولٹیج"
+        "name": "L3 وولٹیج"
       },
       "ev_charger_current_a": {
-        "name": "ای وی چارجر L1 کرنٹ"
+        "name": "L1 کرنٹ"
       },
       "ev_charger_current_b": {
-        "name": "ای وی چارجر L2 کرنٹ"
+        "name": "L2 کرنٹ"
       },
       "ev_charger_current_c": {
-        "name": "ای وی چارجر L3 کرنٹ"
+        "name": "L3 کرنٹ"
       },
       "ev_connector_energy": {
-        "name": "ای وی کنیکٹر توانائی"
+        "name": "کنیکٹر توانائی"
       },
       "plug_power": {
         "name": "پاور"
@@ -390,7 +390,7 @@
         "name": "میٹر آن لائن"
       },
       "ev_charger_meter_online": {
-        "name": "ای وی چارجر میٹر آن لائن"
+        "name": "میٹر آن لائن"
       },
       "plug_on": {
         "name": "آن"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "ای وی چارجنگ موڈ",
+        "name": "چارجنگ موڈ",
         "state": {
           "eco": "ECO",
           "fast": "تیز",
@@ -469,10 +469,10 @@
         "name": "دورانیہ"
       },
       "ev_charge_current": {
-        "name": "ای وی چارجنگ کرنٹ کی حد"
+        "name": "چارجنگ کرنٹ کی حد"
       },
       "ev_grid_max_power": {
-        "name": "ای وی کے لیے گرڈ کی زیادہ سے زیادہ اضافی پاور"
+        "name": "گرڈ کی زیادہ سے زیادہ اضافی پاور"
       },
       "grid_import_limit": {
         "name": "گرڈ سے خریداری کی حد"
@@ -495,16 +495,16 @@
         "name": "ریموٹ چارج/ڈسچارج کی اجازت دیں"
       },
       "ev_charger_on": {
-        "name": "ای وی چارجر آن/آف"
+        "name": "چارجر آن/آف"
       },
       "ev_green_priority": {
-        "name": "ای وی چارجر سبز بجلی کو ترجیح"
+        "name": "سبز بجلی کو ترجیح"
       },
       "ev_plug_and_charge": {
-        "name": "پلگ اور چارج (ای وی)"
+        "name": "پلگ اور چارج"
       },
       "ev_battery_charging": {
-        "name": "ای وی چارجر بیٹری چارجنگ"
+        "name": "بیٹری چارجنگ"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "واٹر ہیٹر {serial}"
+    },
+    "charger": {
+      "name": "ای وی چارجر {serial}"
+    },
+    "charger_unnamed": {
+      "name": "ای وی چارجر"
     }
   }
 }

@@ -312,10 +312,10 @@
         "name": "リモート充放電の終了予定時刻"
       },
       "ev_charge_power": {
-        "name": "EV充電器電力"
+        "name": "電力"
       },
       "ev_charger_status": {
-        "name": "EV充電器状態",
+        "name": "状態",
         "state": {
           "idle": "待機",
           "waiting_for_vehicle": "接続済み・車両待ち",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "EV充電器累計電力量"
+        "name": "累計電力量"
       },
       "ev_session_energy": {
         "name": "今回の充電電力量"
@@ -337,25 +337,25 @@
         "name": "今回の充電時間"
       },
       "ev_charger_voltage_a": {
-        "name": "EV充電器 L1 電圧"
+        "name": "L1 電圧"
       },
       "ev_charger_voltage_b": {
-        "name": "EV充電器 L2 電圧"
+        "name": "L2 電圧"
       },
       "ev_charger_voltage_c": {
-        "name": "EV充電器 L3 電圧"
+        "name": "L3 電圧"
       },
       "ev_charger_current_a": {
-        "name": "EV充電器 L1 電流"
+        "name": "L1 電流"
       },
       "ev_charger_current_b": {
-        "name": "EV充電器 L2 電流"
+        "name": "L2 電流"
       },
       "ev_charger_current_c": {
-        "name": "EV充電器 L3 電流"
+        "name": "L3 電流"
       },
       "ev_connector_energy": {
-        "name": "EVコネクター電力量"
+        "name": "コネクター電力量"
       },
       "plug_power": {
         "name": "電力"
@@ -390,7 +390,7 @@
         "name": "メーターオンライン"
       },
       "ev_charger_meter_online": {
-        "name": "EV充電器メーター接続"
+        "name": "メーター接続"
       },
       "plug_on": {
         "name": "電源"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "EV充電モード",
+        "name": "充電モード",
         "state": {
           "eco": "ECO",
           "fast": "急速",
@@ -469,10 +469,10 @@
         "name": "継続時間"
       },
       "ev_charge_current": {
-        "name": "EV充電電流制限"
+        "name": "充電電流制限"
       },
       "ev_grid_max_power": {
-        "name": "EV系統最大補充電力"
+        "name": "系統最大補充電力"
       },
       "grid_import_limit": {
         "name": "系統購入電力上限"
@@ -495,16 +495,16 @@
         "name": "リモート充放電を許可"
       },
       "ev_charger_on": {
-        "name": "EV充電器オン/オフ"
+        "name": "充電器オン/オフ"
       },
       "ev_green_priority": {
-        "name": "EV充電器グリーン電力優先"
+        "name": "グリーン電力優先"
       },
       "ev_plug_and_charge": {
-        "name": "EVプラグ&チャージ"
+        "name": "プラグ&チャージ"
       },
       "ev_battery_charging": {
-        "name": "EV充電器バッテリー充電"
+        "name": "バッテリー充電"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "給湯器 {serial}"
+    },
+    "charger": {
+      "name": "EV充電器 {serial}"
+    },
+    "charger_unnamed": {
+      "name": "EV充電器"
     }
   }
 }

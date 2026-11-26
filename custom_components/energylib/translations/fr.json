@@ -312,10 +312,10 @@
         "name": "Fin estimée de la charge/décharge à distance"
       },
       "ev_charge_power": {
-        "name": "Puissance de la borne VE"
+        "name": "Puissance"
       },
       "ev_charger_status": {
-        "name": "État de la borne VE",
+        "name": "État",
         "state": {
           "idle": "Inactive",
           "waiting_for_vehicle": "Branchée, en attente du véhicule",
@@ -328,34 +328,34 @@
         }
       },
       "ev_charger_energy": {
-        "name": "Énergie totale de la borne VE"
+        "name": "Énergie totale"
       },
       "ev_session_energy": {
-        "name": "Énergie de la session de charge"
+        "name": "Énergie de la session"
       },
       "ev_session_duration": {
-        "name": "Durée de la session de charge"
+        "name": "Durée de la session"
       },
       "ev_charger_voltage_a": {
-        "name": "Tension L1 de la borne VE"
+        "name": "Tension L1"
       },
       "ev_charger_voltage_b": {
-        "name": "Tension L2 de la borne VE"
+        "name": "Tension L2"
       },
       "ev_charger_voltage_c": {
-        "name": "Tension L3 de la borne VE"
+        "name": "Tension L3"
       },
       "ev_charger_current_a": {
-        "name": "Courant L1 de la borne VE"
+        "name": "Courant L1"
       },
       "ev_charger_current_b": {
-        "name": "Courant L2 de la borne VE"
+        "name": "Courant L2"
       },
       "ev_charger_current_c": {
-        "name": "Courant L3 de la borne VE"
+        "name": "Courant L3"
       },
       "ev_connector_energy": {
-        "name": "Énergie du connecteur VE"
+        "name": "Énergie du connecteur"
       },
       "plug_power": {
         "name": "Puissance"
@@ -390,7 +390,7 @@
         "name": "Compteur en ligne"
       },
       "ev_charger_meter_online": {
-        "name": "Compteur de la borne VE en ligne"
+        "name": "Compteur en ligne"
       },
       "plug_on": {
         "name": "Allumé"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "Mode de recharge VE",
+        "name": "Mode de recharge",
         "state": {
           "eco": "ECO",
           "fast": "Rapide",
@@ -469,10 +469,10 @@
         "name": "Durée"
       },
       "ev_charge_current": {
-        "name": "Limite de courant de recharge VE"
+        "name": "Limite de courant de recharge"
       },
       "ev_grid_max_power": {
-        "name": "Puissance réseau d'appoint max. VE"
+        "name": "Puissance réseau d'appoint max."
       },
       "grid_import_limit": {
         "name": "Limite d'achat réseau"
@@ -495,16 +495,16 @@
         "name": "Autoriser la charge/décharge à distance"
       },
       "ev_charger_on": {
-        "name": "Borne VE marche/arrêt"
+        "name": "Borne marche/arrêt"
       },
       "ev_green_priority": {
-        "name": "Priorité énergie verte de la borne VE"
+        "name": "Priorité énergie verte"
       },
       "ev_plug_and_charge": {
-        "name": "Brancher et recharger (VE)"
+        "name": "Brancher et recharger"
       },
       "ev_battery_charging": {
-        "name": "Charge batterie de la borne VE"
+        "name": "Charge batterie"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "Chauffe-eau {serial}"
+    },
+    "charger": {
+      "name": "Borne VE {serial}"
+    },
+    "charger_unnamed": {
+      "name": "Borne VE"
     }
   }
 }

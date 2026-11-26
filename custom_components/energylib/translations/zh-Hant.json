@@ -312,10 +312,10 @@
         "name": "遠端充放電預計結束時間"
       },
       "ev_charge_power": {
-        "name": "充電樁功率"
+        "name": "功率"
       },
       "ev_charger_status": {
-        "name": "充電樁狀態",
+        "name": "狀態",
         "state": {
           "idle": "待機",
           "waiting_for_vehicle": "已插槍，等待車輛",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "充電樁累計電量"
+        "name": "累計電量"
       },
       "ev_session_energy": {
         "name": "本次充電電量"
@@ -337,22 +337,22 @@
         "name": "本次充電時長"
       },
       "ev_charger_voltage_a": {
-        "name": "充電樁 L1 電壓"
+        "name": "L1 電壓"
       },
       "ev_charger_voltage_b": {
-        "name": "充電樁 L2 電壓"
+        "name": "L2 電壓"
       },
       "ev_charger_voltage_c": {
-        "name": "充電樁 L3 電壓"
+        "name": "L3 電壓"
       },
       "ev_charger_current_a": {
-        "name": "充電樁 L1 電流"
+        "name": "L1 電流"
       },
       "ev_charger_current_b": {
-        "name": "充電樁 L2 電流"
+        "name": "L2 電流"
       },
       "ev_charger_current_c": {
-        "name": "充電樁 L3 電流"
+        "name": "L3 電流"
       },
       "ev_connector_energy": {
         "name": "充電槍用電量"
@@ -390,7 +390,7 @@
         "name": "電表在線"
       },
       "ev_charger_meter_online": {
-        "name": "充電樁電表在線"
+        "name": "電表在線"
       },
       "plug_on": {
         "name": "開關狀態"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "充電樁充電模式",
+        "name": "充電模式",
         "state": {
           "eco": "經濟",
           "fast": "快充",
@@ -469,10 +469,10 @@
         "name": "充放電時長"
       },
       "ev_charge_current": {
-        "name": "充電樁電流限制"
+        "name": "充電電流限制"
       },
       "ev_grid_max_power": {
-        "name": "充電樁電網最大補充功率"
+        "name": "電網最大補充功率"
       },
       "grid_import_limit": {
         "name": "購電功率上限"
@@ -495,16 +495,16 @@
         "name": "允許遠端充放電"
       },
       "ev_charger_on": {
-        "name": "充電樁開關"
+        "name": "開關"
       },
       "ev_green_priority": {
-        "name": "充電樁綠電優先"
+        "name": "綠電優先"
       },
       "ev_plug_and_charge": {
-        "name": "充電樁隨插即充"
+        "name": "隨插即充"
       },
       "ev_battery_charging": {
-        "name": "充電樁電池充電啟用"
+        "name": "電池充電啟用"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "熱水器 {serial}"
+    },
+    "charger": {
+      "name": "充電樁 {serial}"
+    },
+    "charger_unnamed": {
+      "name": "充電樁"
     }
   }
 }

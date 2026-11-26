@@ -312,10 +312,10 @@
         "name": "เวลาสิ้นสุดโดยประมาณของการชาร์จ/คายประจุระยะไกล"
       },
       "ev_charge_power": {
-        "name": "กำลังไฟเครื่องชาร์จ EV"
+        "name": "กำลังไฟ"
       },
       "ev_charger_status": {
-        "name": "สถานะเครื่องชาร์จ EV",
+        "name": "สถานะ",
         "state": {
           "idle": "ว่าง",
           "waiting_for_vehicle": "เสียบปลั๊กแล้ว รอรถ",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "พลังงานสะสมเครื่องชาร์จ EV"
+        "name": "พลังงานสะสม"
       },
       "ev_session_energy": {
         "name": "พลังงานการชาร์จครั้งนี้"
@@ -337,25 +337,25 @@
         "name": "ระยะเวลาการชาร์จครั้งนี้"
       },
       "ev_charger_voltage_a": {
-        "name": "แรงดัน L1 เครื่องชาร์จ EV"
+        "name": "แรงดัน L1"
       },
       "ev_charger_voltage_b": {
-        "name": "แรงดัน L2 เครื่องชาร์จ EV"
+        "name": "แรงดัน L2"
       },
       "ev_charger_voltage_c": {
-        "name": "แรงดัน L3 เครื่องชาร์จ EV"
+        "name": "แรงดัน L3"
       },
       "ev_charger_current_a": {
-        "name": "กระแส L1 เครื่องชาร์จ EV"
+        "name": "กระแส L1"
       },
       "ev_charger_current_b": {
-        "name": "กระแส L2 เครื่องชาร์จ EV"
+        "name": "กระแส L2"
       },
       "ev_charger_current_c": {
-        "name": "กระแส L3 เครื่องชาร์จ EV"
+        "name": "กระแส L3"
       },
       "ev_connector_energy": {
-        "name": "พลังงานหัวชาร์จ EV"
+        "name": "พลังงานหัวชาร์จ"
       },
       "plug_power": {
         "name": "กำลังไฟ"
@@ -390,7 +390,7 @@
         "name": "มิเตอร์ออนไลน์"
       },
       "ev_charger_meter_online": {
-        "name": "มิเตอร์เครื่องชาร์จ EV ออนไลน์"
+        "name": "มิเตอร์ออนไลน์"
       },
       "plug_on": {
         "name": "เปิดอยู่"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "โหมดชาร์จ EV",
+        "name": "โหมดชาร์จ",
         "state": {
           "eco": "ECO",
           "fast": "เร็ว",
@@ -469,10 +469,10 @@
         "name": "ระยะเวลา"
       },
       "ev_charge_current": {
-        "name": "ขีดจำกัดกระแสชาร์จ EV"
+        "name": "ขีดจำกัดกระแสชาร์จ"
       },
       "ev_grid_max_power": {
-        "name": "กำลังไฟเสริมจากกริดสูงสุดสำหรับ EV"
+        "name": "กำลังไฟเสริมจากกริดสูงสุด"
       },
       "grid_import_limit": {
         "name": "ขีดจำกัดการซื้อไฟจากกริด"
@@ -495,16 +495,16 @@
         "name": "อนุญาตการชาร์จ/คายประจุระยะไกล"
       },
       "ev_charger_on": {
-        "name": "เปิด/ปิดเครื่องชาร์จ EV"
+        "name": "เปิด/ปิดเครื่องชาร์จ"
       },
       "ev_green_priority": {
-        "name": "ให้ความสำคัญพลังงานสีเขียวของเครื่องชาร์จ EV"
+        "name": "ให้ความสำคัญพลังงานสีเขียว"
       },
       "ev_plug_and_charge": {
-        "name": "เสียบแล้วชาร์จ (EV)"
+        "name": "เสียบแล้วชาร์จ"
       },
       "ev_battery_charging": {
-        "name": "การชาร์จแบตเตอรี่ของเครื่องชาร์จ EV"
+        "name": "การชาร์จแบตเตอรี่"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "เครื่องทำน้ำร้อน {serial}"
+    },
+    "charger": {
+      "name": "เครื่องชาร์จ EV {serial}"
+    },
+    "charger_unnamed": {
+      "name": "เครื่องชาร์จ EV"
     }
   }
 }

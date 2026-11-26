@@ -312,10 +312,10 @@
         "name": "Fine prevista carica/scarica remota"
       },
       "ev_charge_power": {
-        "name": "Potenza wallbox"
+        "name": "Potenza"
       },
       "ev_charger_status": {
-        "name": "Stato wallbox",
+        "name": "Stato",
         "state": {
           "idle": "Inattiva",
           "waiting_for_vehicle": "Collegata, in attesa del veicolo",
@@ -328,34 +328,34 @@
         }
       },
       "ev_charger_energy": {
-        "name": "Energia totale wallbox"
+        "name": "Energia totale"
       },
       "ev_session_energy": {
-        "name": "Energia della sessione di ricarica"
+        "name": "Energia della sessione"
       },
       "ev_session_duration": {
-        "name": "Durata della sessione di ricarica"
+        "name": "Durata della sessione"
       },
       "ev_charger_voltage_a": {
-        "name": "Tensione L1 wallbox"
+        "name": "Tensione L1"
       },
       "ev_charger_voltage_b": {
-        "name": "Tensione L2 wallbox"
+        "name": "Tensione L2"
       },
       "ev_charger_voltage_c": {
-        "name": "Tensione L3 wallbox"
+        "name": "Tensione L3"
       },
       "ev_charger_current_a": {
-        "name": "Corrente L1 wallbox"
+        "name": "Corrente L1"
       },
       "ev_charger_current_b": {
-        "name": "Corrente L2 wallbox"
+        "name": "Corrente L2"
       },
       "ev_charger_current_c": {
-        "name": "Corrente L3 wallbox"
+        "name": "Corrente L3"
       },
       "ev_connector_energy": {
-        "name": "Energia connettore VE"
+        "name": "Energia connettore"
       },
       "plug_power": {
         "name": "Potenza"
@@ -390,7 +390,7 @@
         "name": "Contatore online"
       },
       "ev_charger_meter_online": {
-        "name": "Contatore wallbox online"
+        "name": "Contatore online"
       },
       "plug_on": {
         "name": "Acceso"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "Modalità di ricarica wallbox",
+        "name": "Modalità di ricarica",
         "state": {
           "eco": "ECO",
           "fast": "Veloce",
@@ -469,10 +469,10 @@
         "name": "Durata"
       },
       "ev_charge_current": {
-        "name": "Limite corrente di ricarica wallbox"
+        "name": "Limite corrente di ricarica"
       },
       "ev_grid_max_power": {
-        "name": "Potenza massima integrativa dalla rete wallbox"
+        "name": "Potenza massima integrativa dalla rete"
       },
       "grid_import_limit": {
         "name": "Limite di prelievo dalla rete"
@@ -498,13 +498,13 @@
         "name": "Wallbox acceso/spento"
       },
       "ev_green_priority": {
-        "name": "Priorità energia verde wallbox"
+        "name": "Priorità energia verde"
       },
       "ev_plug_and_charge": {
-        "name": "Collega e ricarica (wallbox)"
+        "name": "Collega e ricarica"
       },
       "ev_battery_charging": {
-        "name": "Ricarica batteria wallbox"
+        "name": "Ricarica batteria"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "Scaldacqua {serial}"
+    },
+    "charger": {
+      "name": "Wallbox {serial}"
+    },
+    "charger_unnamed": {
+      "name": "Wallbox"
     }
   }
 }

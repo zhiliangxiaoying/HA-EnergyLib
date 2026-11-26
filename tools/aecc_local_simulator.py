@@ -127,10 +127,11 @@ def s16(value):
 
 # Writable settings (protocol V2.7.1.1 defaults, plus one charge period 01:00-05:00).
 SETTINGS = {
-    **{0xA028 + i: 0 for i in range(13)},  # 0xA028-0xA034 (read as one block)
+    **{0xA028 + i: 0 for i in range(24)},  # 0xA028-0xA03F (read as one block)
     0xA028: 1,  # load supply priority: line first (default)
     0xA02E: 2,  # charge source: mixed
     0xA034: 0,  # grid feed setting: earlier behaviour, not an EMS mode
+    0xA03F: 0,  # grid power, W (in modes 10-13 the export limit, 0 = no export)
     0xA108: 1000,  # purchase limit, W
     0xA109: 0,  # forced power, W (S16, > 0 discharging)
     0xA10A: 3600,  # forced duration, s
@@ -162,6 +163,7 @@ MODES = {0, 1, 2, 3, 4, 5, 8, 10, 11, 12, 13}  # 0xA034 values of V2.7.1.1
 RANGES = {
     0xA028: (0, 3),
     0xA02E: (0, 3),
+    0xA03F: (0, 15000),
     0xA108: (0, 65535),
     0xA10A: (0, 64800),
     0xA10B: (0, 1),

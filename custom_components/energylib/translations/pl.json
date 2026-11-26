@@ -312,10 +312,10 @@
         "name": "Szacowany czas zakończenia zdalnego ładowania/rozładowania"
       },
       "ev_charge_power": {
-        "name": "Moc ładowarki EV"
+        "name": "Moc"
       },
       "ev_charger_status": {
-        "name": "Stan ładowarki EV",
+        "name": "Stan",
         "state": {
           "idle": "Bezczynna",
           "waiting_for_vehicle": "Podłączona, czeka na pojazd",
@@ -328,34 +328,34 @@
         }
       },
       "ev_charger_energy": {
-        "name": "Całkowita energia ładowarki EV"
+        "name": "Całkowita energia"
       },
       "ev_session_energy": {
-        "name": "Energia sesji ładowania"
+        "name": "Energia sesji"
       },
       "ev_session_duration": {
-        "name": "Czas sesji ładowania"
+        "name": "Czas sesji"
       },
       "ev_charger_voltage_a": {
-        "name": "Napięcie L1 ładowarki EV"
+        "name": "Napięcie L1"
       },
       "ev_charger_voltage_b": {
-        "name": "Napięcie L2 ładowarki EV"
+        "name": "Napięcie L2"
       },
       "ev_charger_voltage_c": {
-        "name": "Napięcie L3 ładowarki EV"
+        "name": "Napięcie L3"
       },
       "ev_charger_current_a": {
-        "name": "Prąd L1 ładowarki EV"
+        "name": "Prąd L1"
       },
       "ev_charger_current_b": {
-        "name": "Prąd L2 ładowarki EV"
+        "name": "Prąd L2"
       },
       "ev_charger_current_c": {
-        "name": "Prąd L3 ładowarki EV"
+        "name": "Prąd L3"
       },
       "ev_connector_energy": {
-        "name": "Energia złącza EV"
+        "name": "Energia złącza"
       },
       "plug_power": {
         "name": "Moc"
@@ -390,7 +390,7 @@
         "name": "Licznik online"
       },
       "ev_charger_meter_online": {
-        "name": "Licznik ładowarki EV online"
+        "name": "Licznik online"
       },
       "plug_on": {
         "name": "Włączone"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "Tryb ładowania EV",
+        "name": "Tryb ładowania",
         "state": {
           "eco": "ECO",
           "fast": "Szybki",
@@ -469,10 +469,10 @@
         "name": "Czas trwania"
       },
       "ev_charge_current": {
-        "name": "Limit prądu ładowania EV"
+        "name": "Limit prądu ładowania"
       },
       "ev_grid_max_power": {
-        "name": "Maks. moc uzupełniająca z sieci dla EV"
+        "name": "Maks. moc uzupełniająca z sieci"
       },
       "grid_import_limit": {
         "name": "Limit poboru z sieci"
@@ -495,16 +495,16 @@
         "name": "Zezwól na zdalne ładowanie/rozładowanie"
       },
       "ev_charger_on": {
-        "name": "Ładowarka EV wł./wył."
+        "name": "Ładowarka wł./wył."
       },
       "ev_green_priority": {
-        "name": "Priorytet zielonej energii ładowarki EV"
+        "name": "Priorytet zielonej energii"
       },
       "ev_plug_and_charge": {
-        "name": "Podłącz i ładuj (EV)"
+        "name": "Podłącz i ładuj"
       },
       "ev_battery_charging": {
-        "name": "Ładowanie baterii ładowarki EV"
+        "name": "Ładowanie baterii"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "Podgrzewacz wody {serial}"
+    },
+    "charger": {
+      "name": "Ładowarka EV {serial}"
+    },
+    "charger_unnamed": {
+      "name": "Ładowarka EV"
     }
   }
 }

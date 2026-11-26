@@ -44,11 +44,14 @@ class EnergyLibAccessorySensor(EnergyLibAccessoryEntity, SensorEntity):
         super().__init__(coordinator, kind, serial, point)
         self._attr_device_class = CLASSES.get(point.kind)
         self._attr_native_unit_of_measurement = point.unit
-        self._attr_state_class = (
-            SensorStateClass.TOTAL_INCREASING
-            if point.kind == "energy"
-            else SensorStateClass.MEASUREMENT
-        )
+        if point.options:
+            self._attr_options = list(point.options)
+        else:
+            self._attr_state_class = (
+                SensorStateClass.TOTAL_INCREASING
+                if point.kind == "energy"
+                else SensorStateClass.MEASUREMENT
+            )
 
     @property
     def suggested_display_precision(self):

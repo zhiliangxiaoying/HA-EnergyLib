@@ -29,6 +29,19 @@ class EnergyLibEntity(CoordinatorEntity):
         language = coordinator.hass.config.language.lower().split("-")[0]
         label = INVERTER_LABELS.get(language, "Inverter")
         self._attr_unique_id = f"{runtime.unique_id}_{key}"
+        from .energylib_core.model.points import CHARGER_POINT_KEYS
+
+        if key in CHARGER_POINT_KEYS:
+            # The inverter's EV charger is its own device under the inverter.
+            serial = getattr(runtime.profile, "charger_serial", None)
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"{runtime.unique_id}_charger")},
+                translation_key="charger" if serial else "charger_unnamed",
+                translation_placeholders={"serial": serial[-4:]} if serial else None,
+                serial_number=serial,
+                via_device=(DOMAIN, runtime.unique_id),
+            )
+            return
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, runtime.unique_id)},
             name=runtime.device_name,

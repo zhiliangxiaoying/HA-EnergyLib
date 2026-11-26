@@ -312,10 +312,10 @@
         "name": "远程充放电预计结束时间"
       },
       "ev_charge_power": {
-        "name": "充电桩功率"
+        "name": "功率"
       },
       "ev_charger_status": {
-        "name": "充电桩状态",
+        "name": "状态",
         "state": {
           "idle": "待机",
           "waiting_for_vehicle": "已插枪，等待车辆",
@@ -328,7 +328,7 @@
         }
       },
       "ev_charger_energy": {
-        "name": "充电桩累计电量"
+        "name": "累计电量"
       },
       "ev_session_energy": {
         "name": "本次充电电量"
@@ -337,22 +337,22 @@
         "name": "本次充电时长"
       },
       "ev_charger_voltage_a": {
-        "name": "充电桩 L1 电压"
+        "name": "L1 电压"
       },
       "ev_charger_voltage_b": {
-        "name": "充电桩 L2 电压"
+        "name": "L2 电压"
       },
       "ev_charger_voltage_c": {
-        "name": "充电桩 L3 电压"
+        "name": "L3 电压"
       },
       "ev_charger_current_a": {
-        "name": "充电桩 L1 电流"
+        "name": "L1 电流"
       },
       "ev_charger_current_b": {
-        "name": "充电桩 L2 电流"
+        "name": "L2 电流"
       },
       "ev_charger_current_c": {
-        "name": "充电桩 L3 电流"
+        "name": "L3 电流"
       },
       "ev_connector_energy": {
         "name": "充电枪用电量"
@@ -390,7 +390,7 @@
         "name": "电表在线"
       },
       "ev_charger_meter_online": {
-        "name": "充电桩电表在线"
+        "name": "电表在线"
       },
       "plug_on": {
         "name": "开关状态"
@@ -431,7 +431,7 @@
         }
       },
       "ev_charge_mode": {
-        "name": "充电桩充电模式",
+        "name": "充电模式",
         "state": {
           "eco": "经济",
           "fast": "快充",
@@ -469,10 +469,10 @@
         "name": "充放电时长"
       },
       "ev_charge_current": {
-        "name": "充电桩电流限制"
+        "name": "充电电流限制"
       },
       "ev_grid_max_power": {
-        "name": "充电桩电网最大补充功率"
+        "name": "电网最大补充功率"
       },
       "grid_import_limit": {
         "name": "购电功率上限"
@@ -495,16 +495,16 @@
         "name": "允许远程充放电"
       },
       "ev_charger_on": {
-        "name": "充电桩开关"
+        "name": "开关"
       },
       "ev_green_priority": {
-        "name": "充电桩绿电优先"
+        "name": "绿电优先"
       },
       "ev_plug_and_charge": {
-        "name": "充电桩即插即充"
+        "name": "即插即充"
       },
       "ev_battery_charging": {
-        "name": "充电桩电池充电使能"
+        "name": "电池充电使能"
       }
     },
     "button": {
@@ -695,6 +695,12 @@
     },
     "heater": {
       "name": "热水器 {serial}"
+    },
+    "charger": {
+      "name": "充电桩 {serial}"
+    },
+    "charger_unnamed": {
+      "name": "充电桩"
     }
   }
 }

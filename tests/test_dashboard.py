@@ -10,6 +10,7 @@ from pathlib import Path
 from energylib_under_test.energylib_core.model.points import (
     BINARY_KINDS,
     BUTTONS,
+    CHARGER_POINT_KEYS,
     CONTROLS,
     DRAFTS,
     MEASUREMENTS,
@@ -41,12 +42,19 @@ def fake_hass(devices, language, controls=True):
             ]
             keys += [("button", key) for key in BUTTONS]
             keys += [("switch", "allow_remote_control")]
+        # The EV charger is its own device under the inverter.
+        charger = f"{device}_charger"
+        registry_devices[charger] = {
+            "id": charger,
+            "name": "EV charger 1234",
+            "via_device_id": device,
+        }
         for domain, key in keys:
             entity_id = f"{domain}.{device}_renamed_{key}"
             entities[entity_id] = {
                 "entity_id": entity_id,
                 "platform": "energylib",
-                "device_id": device,
+                "device_id": charger if key in CHARGER_POINT_KEYS else device,
                 "translation_key": key,
                 "name": key,
             }
@@ -64,6 +72,26 @@ def with_accessory():
         "translation_key": "plug_power",
         "name": "Power",
     }
+    return hass
+
+
+def two_chargers():
+    """An EMS with two read-only chargers (no settings) under it."""
+    hass = fake_hass(["dev1"], "en", controls=False)
+    hass["devices"]["dev1_charger"]["name"] = "EV charger C594"
+    hass["devices"]["dev1_charger2"] = {
+        "id": "dev1_charger2",
+        "name": "EV charger 0002",
+        "via_device_id": "dev1",
+    }
+    for key in ("ev_charger_status", "ev_charge_power"):
+        hass["entities"][f"sensor.second_{key}"] = {
+            "entity_id": f"sensor.second_{key}",
+            "platform": "energylib",
+            "device_id": "dev1_charger2",
+            "translation_key": key,
+            "name": None,
+        }
     return hass
 
 
@@ -154,6 +182,7 @@ class StrategyOutputTests(unittest.TestCase):
             {"name": "empty", "flow": False, "hass": fake_hass([], "en")},
             {"name": "two", "flow": True, "hass": fake_hass(["dev1", "dev2"], "en")},
             {"name": "accessory", "flow": True, "hass": with_accessory()},
+            {"name": "two_chargers", "flow": True, "hass": two_chargers()},
         ]
         remote_only = fake_hass(["dev1"], "en")
         legacy_keys = {c.key for c in CONTROLS} | {"home_mode"}
@@ -442,6 +471,13 @@ class StrategyOutputTests(unittest.TestCase):
         self.assertEqual([v["path"] for v in views], ["dev1", "dev2"])
         for view in views:
             self.assertTrue(all(f".{view['path']}_" in r for r in referenced(view)))
+
+    def test_each_charger_under_its_own_name(self):
+        page = self.out["two_chargers"]
+        self.assertIn("sensor.second_ev_charge_power", referenced(page))
+        names = text(page)
+        self.assertIn("EV charger C594", names)
+        self.assertIn("EV charger 0002", names)
 
     def test_devices_under_an_ems_get_no_page(self):
         views = self.out["accessory"]["views"]

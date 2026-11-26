@@ -25,7 +25,14 @@ import math
 import struct
 from datetime import date, datetime, timezone
 
-from ..legacy import DeviceIdentity, EnergyLibDevice, decode_float, decode_u32
+from ..legacy import (
+    DeviceIdentity,
+    EnergyLibDevice,
+    UnsupportedDevice,
+    decode_float,
+    decode_serial,
+    decode_u32,
+)
 from ..model.points import CONTROLS, RUNNING_STATES, RegisterMapping
 from ..model.tou import OUTSIDE_MODES, WEEKDAYS, TouLimits, TouSchedule, minute
 from ..planner import ReadBlock, plan_reads
@@ -78,6 +85,7 @@ BATTERY_2_ADDRESSES = {
 # apply to type 3 only. Multi-bit FC02 fields are read LSB first, like 0x1001.
 CHARGER_ENABLE, CHARGER_TYPE, CHARGER_THREE_PHASE_TYPE = 0x31BE, 0x398A, 3
 CHARGER_POWER = 0x400C  # W
+CHARGER_SERIAL = (0x3900, 12)  # ASCII, 24 bytes: names the charger's device
 CHARGER_ALARM_BITS = (0x2000, 0x12)  # FC02 0x2000-0x2011: 8 protections, 8 reserved, 2 warnings
 CHARGER_STATUS = (0x2030, 12)  # FC02 0x2030-0x203B: plug state (3 bits) ... charging
 CHARGER_METER_ONLINE = 0x203A
@@ -242,6 +250,7 @@ class SinexcelProfile:
         self._flow_block_enabled = True
         self.control_addresses = dict(CONTROL_ADDRESSES)
         self.charger_controls = {}  # Offered EV charger settings: key -> (address, encoding).
+        self.charger_serial = None
         # The device's own watchdog settings, kept from the first remote start until
         # the session is left (a renewal must not record our own 60 s / escape 1).
         self._saved_watchdog = None
@@ -491,12 +500,19 @@ class SinexcelProfile:
                     raise
                 return None
 
+        self.charger_serial = None
         enable = await answers(client.read_holding_registers, CHARGER_ENABLE, 2)
         if enable is None or decode_float(enable, kind="capability") != 1:
             return
         if await answers(client.read_holding_registers, CHARGER_POWER, 2) is None:
             return
         self.capabilities.add("charger")
+        words = await answers(client.read_holding_registers, *CHARGER_SERIAL)
+        if words is not None:
+            try:
+                self.charger_serial = decode_serial(words)
+            except UnsupportedDevice:
+                pass  # no usable serial: the device is just named "EV charger"
         kind = await answers(client.read_holding_registers, CHARGER_TYPE, 2)
         if kind is not None and decode_u32(kind) == CHARGER_THREE_PHASE_TYPE:
             self.capabilities.add("charger_three_phase")
